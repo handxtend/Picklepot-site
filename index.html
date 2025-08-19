@@ -338,25 +338,27 @@
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
   <!-- Firebase config -->
-  <script>
-    const firebaseConfig = window.firebaseConfig || {
-      apiKey: "AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
-      authDomain: "pickle-pot.firebaseapp.com",
-      projectId: "pickle-pot",
-      storageBucket: "pickle-pot.appspot.com",
-      messagingSenderId: "508555645160",
-      appId: "1:508555645160:web:82e09803feb83d5150395d"
-    };
-    try {
-      firebase.initializeApp(firebaseConfig);
-      firebase.auth().signInAnonymously().catch(console.error);
-      const missing = !firebaseConfig.apiKey || !firebaseConfig.projectId;
-      if (missing) document.getElementById('configWarning').style.display = '';
-    } catch (e) {
-      document.getElementById('configWarning').style.display = '';
-      console.error("Firebase init error:", e);
-    }
-  </script>
+<script>
+  const firebaseConfig = window.firebaseConfig || {
+    apiKey: "AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
+    authDomain: "pickle-pot.firebaseapp.com",
+    projectId: "pickle-pot",
+    storageBucket: "pickle-pot.appspot.com",
+    messagingSenderId: "508555645160",
+    appId: "1:508555645160:web:82e09803feb83d5150395d"
+  };
+  try {
+    firebase.initializeApp(firebaseConfig);
+    // NOTE: we no longer call signInAnonymously() here.
+    // Anonymous users would make the UI show "(signed in)" in Incognito.
+    const missing = !firebaseConfig.apiKey || !firebaseConfig.projectId;
+    if (missing) document.getElementById('configWarning').style.display = '';
+  } catch (e) {
+    document.getElementById('configWarning').style.display = '';
+    console.error("Firebase init error:", e);
+  }
+</script>
+
 
   <!-- App (unchanged working logic) -->
   <script src="app.js"></script>
