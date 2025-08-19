@@ -11,30 +11,35 @@ const dollars = n => '$' + Number(n||0).toFixed(2);
 // === Stripe backend base (Render Flask app) ===
 const API_BASE = "https://picklepot-stripe.onrender.com";
 
-/* ---------- Admin UI ---------- */
+/* ---------- Admin UI (wire to your actual buttons) ---------- */
 function refreshAdminUI(){
-  const on = isSiteAdmin();
-  const wrap = $('#admin-controls');
-  if (!wrap) return;
-  wrap.style.display = on ? '' : 'none';
-  $('#admin-pass-row')?.style.setProperty('display', on ? 'none' : '');
-  $('#admin-on')?.addEventListener('click', ()=>{
-    const pass = prompt('Admin Password:');
-    if(pass===SITE_ADMIN_PASS){
-      setSiteAdmin(true);
-      refreshAdminUI();
-      refreshCreateVisibility?.();
-    }else{
-      alert('Incorrect admin password.');
-    }
+  const on     = isSiteAdmin();
+  const toggle = document.getElementById('site-admin-toggle');
+  const logout = document.getElementById('site-admin-logout');
+  const status = document.getElementById('site-admin-status');
+
+  if (toggle) toggle.style.display = on ? 'none' : '';
+  if (logout) logout.style.display = on ? '' : 'none';
+  if (status) status.textContent   = on ? 'Admin mode ON' : '';
+
+  // Show/hide any elements marked admin-only
+  document.querySelectorAll('.admin-only').forEach(el=>{
+    el.style.display = on ? '' : 'none';
   });
-  $('#admin-off')?.addEventListener('click', ()=>{
-    setSiteAdmin(false);
-    refreshAdminUI();
-    refreshCreateVisibility?.();
-  });
+
+  // Wire once
+  if (!refreshAdminUI._wired){
+    toggle?.addEventListener('click', ()=>{
+      const pass = prompt('Admin Password:');
+      if (pass === SITE_ADMIN_PASS){ setSiteAdmin(true);  refreshAdminUI(); }
+      else { alert('Incorrect admin password.'); }
+    });
+    logout?.addEventListener('click', ()=>{ setSiteAdmin(false); refreshAdminUI(); });
+    refreshAdminUI._wired = true;
+  }
 }
 document.addEventListener('DOMContentLoaded', refreshAdminUI);
+
 
 /* ---------- Options ---------- */
 const NAME_OPTIONS = [
@@ -111,10 +116,22 @@ function renderPot(pot){
   $('#v-price').textContent = dollars(pot.price||0);
   $('#v-pot').value = pot.id || '';
 
-  // Ads & logo are static paths; they must exist in /ads
-  const topAd = $('#ad-top');     if (topAd)  topAd.src  = '/ads/top_728x90_1.png';
-  const botAd = $('#ad-bottom');  if (botAd)  botAd.src  = '/ads/bottom_300x250_2.png';
-  const logo  = $('#site-logo');  if (logo)   logo.src   = '/Picklepot-logo.png';
+ // Ads & logo (inject <img> into the <div> slots)
+const topAd = document.getElementById('ad-top');
+if (topAd){
+  topAd.style.display = '';
+  topAd.innerHTML = '<a href="#"><img src="/ads/top_728x90_1.png" alt="Sponsored"></a>';
+  document.getElementById('ad-top-meta')?.style.setProperty('display','');
+}
+const botAd = document.getElementById('ad-bottom');
+if (botAd){
+  botAd.style.display = '';
+  botAd.innerHTML = '<a href="#"><img src="/ads/bottom_300x250_2.png" alt="Sponsored"></a>';
+  document.getElementById('ad-bottom-meta')?.style.setProperty('display','');
+}
+// Logo (your HTML uses class="logo", not id="site-logo")
+document.querySelector('.logo')?.setAttribute('src','Picklepot-logo.png');
+
 }
 
 /* ---------- Create / Join ---------- */
