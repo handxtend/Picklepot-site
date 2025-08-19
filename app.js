@@ -1208,3 +1208,76 @@ function checkStripeReturn(){
   });
 })();
 /* ======== end Organizer Subscription & Auth additions ======== */
+
+/** ----------------------------
+ * Organizer subscription glue
+ * Safe to append at end of app.js
+ * ---------------------------- */
+
+// 1) Define constants only if they don't already exist
+if (typeof window.API_BASE === "undefined") {
+  window.API_BASE = "https://picklepot-stripe.onrender.com";
+}
+if (typeof window.RETURN_URL === "undefined") {
+  window.RETURN_URL = `${location.origin}?sub=success`;
+}
+
+// 2) Start Stripe Checkout for organizer subscription
+async function startOrganizerSubscription() {
+  try {
+    const r = await fetch(`${window.API_BASE}/create-organizer-subscription`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ returnUrl: window.RETURN_URL })
+    });
+    const data = await r.json();
+    if (!r.ok || !data?.url) throw new Error(data?.error || "Could not start subscription");
+    location.assign(data.url);
+  } catch (err) {
+    alert(err.message || "Network error starting subscription.");
+  }
+}
+
+// OPTIONAL: If your "Organizer Subscription" button has an id, wire it up here.
+// Replace the id if yours differs (examples: organizerSubscribeBtn, btn-organizer-subscribe)
+document.getElementById("organizerSubscribeBtn")
+  ?.addEventListener("click", startOrganizerSubscription);
+
+// 3) After Stripe redirect, open Sign In automatically
+function _openSignIn() {
+  // You said your Sign In has id="btn-signin"
+  const btn = document.getElementById("btn-signin");
+  if (btn) { btn.focus(); btn.click(); return true; }
+  return false;
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const url = new URL(location.href);
+  if (url.searchParams.get("sub") === "success") {
+    // Clean URL (optional)
+    url.searchParams.delete("sub");
+    history.replaceState({}, "", url);
+
+    // Notify user (swap for your toast if you have one)
+    try { window.showToast?.("Subscription confirmed. Please sign in to manage your pots."); }
+    catch { alert("Subscription confirmed. Please sign in to manage your pots."); }
+
+    // If you have a custom function that opens sign-in UI, call it here instead:
+    if (typeof window.openSignIn === "function") {
+      window.openSignIn();
+      return;
+    }
+
+    // Otherwise click the button (handles your existing click handler)
+    if (!_openSignIn()) {
+      // Button rendered later? Watch the DOM briefly.
+      const obs = new MutationObserver(() => {
+        if (_openSignIn()) obs.disconnect();
+      });
+      obs.observe(document.body, { childList: true, subtree: true });
+      // Stop watching after 5s just in case
+      setTimeout(() => obs.disconnect(), 5000);
+    }
+  }
+});
+
