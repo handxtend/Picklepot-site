@@ -1280,4 +1280,79 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   }
 });
+/**
+ * Harden auth UI: default to signed-out on load and only show "signed in"
+ * if we can prove a valid session/token. Uses your existing ids:
+ *   #btn-signin, #btn-signout, #auth-user
+ */
+
+(function hardenAuthUI() {
+  const $ = (sel) => document.getElementById(sel);
+
+  function setAuthUI(signedIn, label) {
+    const btnIn  = $('btn-signin');
+    const btnOut = $('btn-signout');
+    const who    = $('auth-user');
+
+    if (!btnIn || !btnOut || !who) return;
+
+    btnIn.style.display  = signedIn ? 'none' : '';
+    btnOut.style.display = signedIn ? '' : 'none';
+
+    if (signedIn) {
+      who.style.display = 'inline';
+      who.textContent   = label ? `(signed in: ${label})` : '(signed in)';
+    } else {
+      who.style.display = 'none';
+      who.textContent   = '';
+    }
+  }
+
+  // Replace this with your real check. This sample expects a JSON blob
+  // in localStorage named "pp_auth" with { token, exp, email }.
+  function isAuthenticated() {
+    const raw = localStorage.getItem('pp_auth');
+    if (!raw) return false;
+    try {
+      const s = JSON.parse(raw);
+      if (!s?.token || !s?.exp) return false;
+      if (Date.now() > s.exp) { localStorage.removeItem('pp_auth'); return false; }
+      return s; // return whole object so we can show email/name
+    } catch {
+      localStorage.removeItem('pp_auth');
+      return false;
+    }
+  }
+
+  // If you have a backend session cookie and a /me endpoint, prefer this:
+  async function fetchMe() {
+    try {
+      const r = await fetch('/me', { credentials: 'include', cache: 'no-store' });
+      if (!r.ok) return null;
+      return await r.json(); // { email, name, ... }
+    } catch { return null; }
+  }
+
+  window.addEventListener('DOMContentLoaded', async () => {
+    // Always start signed-out
+    setAuthUI(false);
+
+    // EITHER: trust a local token (if that’s how you store auth)
+    const local = isAuthenticated();
+    if (local) { setAuthUI(true, local.email || ''); return; }
+
+    // OR: verify with your server (comment this block out if not used)
+    const me = await fetchMe();
+    if (me?.email) { setAuthUI(true, me.email); return; }
+
+    // stay signed-out
+  });
+
+  // Ensure Sign Out really clears everything
+  $('btn-signout')?.addEventListener('click', () => {
+    localStorage.removeItem('pp_auth');
+    sessionStorage.clear();
+    setAuthUI(false);
+  });
+})();
 
