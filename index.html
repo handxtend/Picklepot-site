@@ -1,5 +1,7 @@
-﻿<!DOCTYPE html>
-
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  
 <html lang="en">
 <head>
   <meta charset="utf-8"/>
@@ -50,7 +52,7 @@
     .btn.danger{background:#fff0f0;border-color:#ef4444;color:#b91c1c}
     table{width:100%;border-collapse:separate;border-spacing:0 8px}
     th{font-weight:600;color:var(--ink);text-align:left}
-    td{background:#fff;border:1px solid var(--border);padding:8px;border-radius:8px;color:#var(--text)}
+    td{background:#fff;border:1px solid var(--border);padding:8px;border-radius:8px;color:var(--text)}
     .pill{background:#fff;border:1px solid var(--border);padding:6px 10px;border-radius:999px;color:#000}
     .muted{color:var(--muted)}
     .foot{padding:28px 0;text-align:center;color:var(--muted)}
@@ -91,6 +93,12 @@
 #btn-create.btn, #btn-load.btn{padding:16px 26px;font-weight:800;font-size:18px;border-radius:14px}
     .tips-bar{background:#000;color:#fff;border:1px solid #222;padding:8px 12px;border-radius:8px;margin:10px 0 8px;font-size:14px; text-align:center; }
   </style>
+
+<style>
+/* Footer readability on dark/light bg */
+.foot, .foot a { color: #bdbdbd; }
+.foot a:hover { text-decoration: underline; }
+</style>
 </head>
 <body>
   <div class="wrap">
@@ -326,6 +334,8 @@
     <!-- BOTTOM SPONSOR BANNER -->
     <div id="ad-bottom" class="ad-slot" aria-label="Sponsored" style="display:none"></div>
     <div id="ad-bottom-meta" class="sponsored-tag" style="display:none">Sponsored</div>
+</div>
+
     <div class="foot">© <span id="year"></span> PiCo · <a href="Picklepot_PrivacyPolicy_Comprehensive.pdf" target="_blank" rel="noopener">Privacy Policy</a> · <a href="Picklepot_TermsOfUse_Comprehensive.pdf" target="_blank" rel="noopener">Terms of Use</a> · <a href="PicklePot_Guide.pdf" target="_blank" rel="noopener">PicklePot Guide</a></div>
   </div>
 
@@ -336,25 +346,24 @@
 
   <!-- Firebase config -->
   <script>
-  const firebaseConfig = window.firebaseConfig || {
-    apiKey: "AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
-    authDomain: "pickle-pot.firebaseapp.com",
-    projectId: "pickle-pot",
-    storageBucket: "pickle-pot.appspot.com",
-    messagingSenderId: "508555645160",
-    appId: "1:508555645160:web:82e09803feb83d5150395d"
-  };
-  try {
-    firebase.initializeApp(firebaseConfig);
-    // NOTE: we no longer call signInAnonymously() here.
-    // Anonymous users would make the UI show "(signed in)" in Incognito.
-    const missing = !firebaseConfig.apiKey || !firebaseConfig.projectId;
-    if (missing) document.getElementById('configWarning').style.display = '';
-  } catch (e) {
-    document.getElementById('configWarning').style.display = '';
-    console.error("Firebase init error:", e);
-  }
-</script>
+    const firebaseConfig = window.firebaseConfig || {
+      apiKey: "AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
+      authDomain: "pickle-pot.firebaseapp.com",
+      projectId: "pickle-pot",
+      storageBucket: "pickle-pot.appspot.com",
+      messagingSenderId: "508555645160",
+      appId: "1:508555645160:web:82e09803feb83d5150395d"
+    };
+    try {
+      firebase.initializeApp(firebaseConfig);
+      firebase.auth().signInAnonymously().catch(console.error);
+      const missing = !firebaseConfig.apiKey || !firebaseConfig.projectId;
+      if (missing) document.getElementById('configWarning').style.display = '';
+    } catch (e) {
+      document.getElementById('configWarning').style.display = '';
+      console.error("Firebase init error:", e);
+    }
+  </script>
 
   <!-- App (unchanged working logic) -->
   <script src="app.js"></script>
