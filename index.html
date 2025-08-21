@@ -112,7 +112,26 @@
       <div>
         <h1>PiCo Pickle Pot</h1>
         <small class="muted">Win or Lose...Learn.</small>
-      </div>
+      
+<div id="email-auth" style="margin-top:8px; background:#f8f9fa; border:1px solid #e3e6ea; border-radius:10px; padding:10px;">
+  <div style="font-weight:700; margin-bottom:6px;">Email / Password</div>
+  <form id="email-auth-form">
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <input id="emailLogin" type="email" placeholder="you@example.com" required
+             style="flex:1; min-width:200px; padding:8px; border-radius:8px; border:1px solid #cfd4da;">
+      <input id="passwordLogin" type="password" placeholder="Password" required
+             style="flex:1; min-width:160px; padding:8px; border-radius:8px; border:1px solid #cfd4da;">
+    </div>
+    <div style="display:flex; gap:8px; margin-top:8px; flex-wrap:wrap;">
+      <button id="btnEmailSignIn" type="submit" style="padding:8px 12px; border-radius:8px; background:#0d6efd; color:#fff; border:none; font-weight:700;">Sign In with Email</button>
+      <button id="btnEmailSignUp" type="button" style="padding:8px 12px; border-radius:8px; background:#20c997; color:#0b0c10; border:none; font-weight:700;">Create Account</button>
+      <button id="btnEmailReset" type="button" style="padding:8px 12px; border-radius:8px; background:#ffc107; color:#0b0c10; border:none; font-weight:700;">Reset Password</button>
+    </div>
+  </form>
+  <div id="email-auth-msg" style="margin-top:6px; font-size:13px; opacity:.85;"></div>
+</div>
+
+</div>
       <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
         <button class="btn" id="site-admin-toggle">Admin Login</button>
         <button class="btn" id="site-admin-logout" style="display:none">Logout</button>
@@ -143,7 +162,7 @@
       <!-- single button (keep this id so app.js keeps working) -->
       <button id="btn-subscribe-organizer"
               class="btn primary"
-              title="Subscribe as an Organizer">
+              title="Subscribe as an Organizer" id="btnOrganizerSubscribe" title="Sign in to subscribe">
         Organizer Subscription
       </button>
     </div>
@@ -203,7 +222,7 @@
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <h2 class="section-header" style="margin-bottom:0">Join a Pot</h2>
         <div class="inline" id="auth-controls" style="margin-left:8px">
-          <button class="btn" id="btn-signin">Sign In</button>
+          <div id="signin-area"><button class="btn" id="btn-signin">Sign In</button></div>
           <button class="btn" id="btn-signout" style="display:none">Sign Out</button>
           <small class="muted" id="auth-user" style="display:none"></small>
         </div>
