@@ -1,13 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  
-<html lang="en">
-<head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>PiCo Pickle Pot</title>
-  <link rel="icon" href="favicon.ico"/>
 
   <!-- Banner CSS -->
   <style>
@@ -31,15 +27,14 @@
     /* Inner container keeps original look */
     .wrap{max-width:960px;margin:20px auto;padding:16px;background:var(--bg);border-radius:10px}
 
-    .topbar{/* tagline bump */
-
+    .topbar{
       display:flex;flex-direction:column;align-items:center;justify-content:center;
       gap:10px;border-bottom:1px solid var(--border);padding:16px 0;margin-bottom:12px;text-align:center;
     }
     .topbar .logo{display:block;height:clamp(120px,20vw,220px);width:auto;object-fit:contain;background:transparent}
     h1,h2{margin:.2em 0;color:var(--ink)} h1{font-size:28px} small{color:var(--muted)}
     small.muted{font-size:1.1rem;font-weight:700;}
-.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
     label{font-size:14px;display:block;margin:8px 0 4px;color:var(--ink);font-weight:700}
     input,select{width:100%;padding:10px;border:1px solid #000;border-radius:10px;background:#fff;color:var(--text)}
     input::placeholder{color:#9ca3af}
@@ -90,22 +85,30 @@
     #btn-join.btn:hover{filter:brightness(.97)}
 
     /* Tips bar: black background, white text */
-#btn-create.btn, #btn-load.btn{padding:16px 26px;font-weight:800;font-size:18px;border-radius:14px}
-    .tips-bar{background:#000;color:#fff;border:1px solid #222;padding:8px 12px;border-radius:8px;margin:10px 0 8px;font-size:14px; text-align:center; }
+    #btn-create.btn, #btn-load.btn{padding:16px 26px;font-weight:800;font-size:18px;border-radius:14px}
+    .tips-bar{background:#000;color:#fff;border:1px solid #222;padding:8px 12px;border-radius:8px;margin:10px 0 8px;font-size:14px; text-align:center;}
   </style>
 
-<style>
-/* Footer readability on dark/light bg */
-.foot, .foot a { color: #bdbdbd; }
-.foot a:hover { text-decoration: underline; }
-</style>
+  <style>
+    /* Footer readability on dark/light bg */
+    .foot, .foot a { color: #bdbdbd; }
+    .foot a:hover { text-decoration: underline; }
+  </style>
+
+  <!-- Favicons / PWA -->
+  <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="favicon-16.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+  <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
+  <link rel="manifest" href="site.webmanifest">
+  <meta name="theme-color" content="#0ea5b7">
 </head>
 <body>
   <div class="wrap">
 
     <!-- Header -->
     <div class="topbar">
-      <img class="logo" src="/logo.png" alt="Pickle Pot Logo">
+      <img class="logo" src="./logo.png" alt="Pickle Pot Logo">
       <div>
         <h1>PiCo Pickle Pot</h1>
         <small class="muted">Win or Lose...Learn.</small>
@@ -117,24 +120,36 @@
       </div>
     </div>
 
-    <!-- Tips (black with white text) -->
-    
-
     <!-- Payment success banner (hidden by default) -->
     <div id="pay-banner" class="alert success" style="display:none"></div>
 
     <!-- TOP SPONSOR BANNER -->
     <div id="ad-top" class="ad-slot" aria-label="Sponsored" style="display:none"></div>
     <div id="ad-top-meta" class="sponsored-tag" style="display:none">Sponsored</div>
-<div class="tips-bar" id="tipsBar" role="status" aria-live="polite">
+
+    <!-- Tips (black with white text) -->
+    <div class="tips-bar" id="tipsBar" role="status" aria-live="polite">
       <strong>Tip:</strong> <span id="tipText">Use the Active Tournaments list to pick your event.</span>
     </div>
-<!-- Organizer subscription button (placed under Tips bar) -->
-    <div style="display:flex;justify-content:center;margin:8px 0 12px">
-      <button class="btn primary" id="btn-subscribe-organizer" title="Subscribe as an Organizer">Organizer Subscription</button>
-    </div>
-    <div class="sponsored-tag" style="margin-top:-6px;text-align:center">Subscribe to create & manage your own Pots</div>
 
+    <!-- Organizer Subscription (single block under Tips bar) -->
+    <div class="org-subscribe"
+         style="display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin:8px 0 12px;">
+      <label for="org-plan" class="muted" style="font-size:.9rem;">Plan:</label>
+      <select id="org-plan" class="input" style="padding:6px 10px; border-radius:8px;">
+        <option value="monthly">Monthly — $5/mo</option>
+        <option value="yearly">Yearly — $50/yr</option>
+      </select>
+      <!-- single button (keep this id so app.js keeps working) -->
+      <button id="btn-subscribe-organizer"
+              class="btn primary"
+              title="Subscribe as an Organizer">
+        Organizer Subscription
+      </button>
+    </div>
+    <div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
+      Subscribe to create &amp; manage your own Pots
+    </div>
 
     <div class="alert" id="configWarning" style="display:none">
       Firebase isn’t configured yet. Paste your Firebase config below, then reload.
@@ -334,9 +349,13 @@
     <!-- BOTTOM SPONSOR BANNER -->
     <div id="ad-bottom" class="ad-slot" aria-label="Sponsored" style="display:none"></div>
     <div id="ad-bottom-meta" class="sponsored-tag" style="display:none">Sponsored</div>
-</div>
 
-    <div class="foot">© <span id="year"></span> PiCo · <a href="Picklepot_PrivacyPolicy_Comprehensive.pdf" target="_blank" rel="noopener">Privacy Policy</a> · <a href="Picklepot_TermsOfUse_Comprehensive.pdf" target="_blank" rel="noopener">Terms of Use</a> · <a href="PicklePot_Guide.pdf" target="_blank" rel="noopener">PicklePot Guide</a></div>
+  </div> <!-- /.wrap -->
+
+  <div class="foot">© <span id="year"></span> PiCo ·
+    <a href="Picklepot_PrivacyPolicy_Comprehensive.pdf" target="_blank" rel="noopener">Privacy Policy</a> ·
+    <a href="Picklepot_TermsOfUse_Comprehensive.pdf" target="_blank" rel="noopener">Terms of Use</a> ·
+    <a href="PicklePot_Guide.pdf" target="_blank" rel="noopener">PicklePot Guide</a>
   </div>
 
   <!-- Firebase (compat) -->
@@ -365,10 +384,10 @@
     }
   </script>
 
-  <!-- App (unchanged working logic) -->
+  <!-- App -->
   <script src="app.js"></script>
 
-  <!-- Tips rotator (simple, does not touch app.js) -->
+  <!-- Tips rotator -->
   <script>
     (function(){
       var tips = [
@@ -376,7 +395,6 @@
         "Members vs Guests have different buy-ins. Verify your selection before joining Pot.",
         "Choose a payment type. If Stripe is enabled, you’ll be taken to a secure checkout.",
         "Lower skill can play up; higher skill cannot play down."
-       
       ];
       var el = document.getElementById('tipText'); var i = 0;
       setInterval(function(){ i=(i+1)%tips.length; el.textContent = tips[i]; }, 7000);
@@ -384,7 +402,7 @@
     })();
   </script>
 
-  <!-- Status skinning helper (kept) -->
+  <!-- Status skinning helper -->
   <script>
     (function(){
       function applyStatusStyles(){
