@@ -5,8 +5,8 @@ window.API_BASE = window.API_BASE || 'https://picklepot-stripe.onrender.com';
 
 /* ==== Organizer plan prices (safe to expose) ==== */
 const PRICE_MAP = {
-  monthly: 'price_1Rx2QAFFPAbZxH9HuxdlfEjx',
-  yearly:  'price_1Rx2R4FFPAbZxH9HzFTPaFb0'
+  monthly: 'price_live_MONTHLY_REPLACE_ME', // TODO: replace with your LIVE Monthly price_id
+  yearly:  'price_live_YEARLY_REPLACE_ME'   // TODO: replace with your LIVE Yearly price_id
 };
 
 const SITE_ADMIN_PASS = 'Jesus7';
@@ -717,8 +717,8 @@ function subscribeDetailEntries(potId){
 function renderRegistrations(entries){
   const tbody = document.querySelector('#adminTable tbody');
   if(!tbody) return;
-  const showEmail = isSiteAdmin();
-  const canAdmin  = isSiteAdmin();
+  const showEmail = isSiteAdmin() || isOrganizerOwnerWithSub();
+  const canAdmin  = isSiteAdmin() || isOrganizerOwnerWithSub();
 
   if(!entries || !entries.length){
     tbody.innerHTML = `<tr><td colspan="7" class="muted">No registrations yet.</td></tr>`;
@@ -1191,10 +1191,13 @@ async function onOrganizerSubscribe(){
       return;
     }
 
+    const selectedPlan = (document.getElementById('org-plan')?.value || 'monthly');
+    const price_id = PRICE_MAP[selectedPlan] || PRICE_MAP.monthly;
     const payload = {
       uid: user.uid,
-      success_url: originForReturn() + '/?sub=success',
-      cancel_url:  originForReturn() + '/?sub=cancel'
+      price_id,
+      success_url: originForReturn() + '/success.html',
+      cancel_url: originForReturn() + '/cancel.html'
     };
 
     let res, data;
@@ -1251,3 +1254,95 @@ async function handleSubscriptionReturn(){
     }catch(_){}
   }catch(e){ console.warn('[Sub] handleSubscriptionReturn error', e); }
 }
+
+
+function showEmailAuthMsg(text, kind='info'){
+  try{
+    const el = document.getElementById('email-auth-msg');
+    if(!el) return;
+    el.textContent = text || '';
+    el.style.color = (kind==='error') ? '#842029' : (kind==='success' ? '#0f5132' : '#084298');
+  }catch(e){ console.warn('showEmailAuthMsg:', text); }
+}
+
+
+// Email/Password auth UI logic
+function handleEmailAuthInit(){
+  const frm = document.getElementById('email-auth-form');
+  const btnUp = document.getElementById('btnEmailSignUp');
+  const btnRs = document.getElementById('btnEmailReset');
+  if(!frm || !btnUp || !btnRs) return;
+
+  frm.addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const email = document.getElementById('emailLogin')?.value?.trim();
+    const pass  = document.getElementById('passwordLogin')?.value || '';
+    if(!email || !pass){ showEmailAuthMsg('Please enter email and password.', 'error'); return; }
+    try{ await setPersistence(auth, browserLocalPersistence); }catch(_){}
+    try{
+      await signInWithEmailAndPassword(auth, email, pass);
+      showEmailAuthMsg('Signed in successfully.', 'success');
+    }catch(err){
+      console.warn('email sign-in error', err);
+      let msg = 'Sign-in failed.';
+      if(err?.code === 'auth/user-not-found') msg = 'No account found. Click Create Account.';
+      if(err?.code === 'auth/wrong-password') msg = 'Wrong password. Try again or click Reset Password.';
+      if(err?.code === 'auth/too-many-requests') msg = 'Too many attempts. Try again later.';
+      showEmailAuthMsg(msg, 'error');
+    }
+  });
+
+  btnUp.addEventListener('click', async ()=>{
+    const email = document.getElementById('emailLogin')?.value?.trim();
+    const pass  = document.getElementById('passwordLogin')?.value || '';
+    if(!email || !pass){ showEmailAuthMsg('Please enter email and password.', 'error'); return; }
+    try{
+      await createUserWithEmailAndPassword(auth, email, pass);
+      showEmailAuthMsg('Account created. You are now signed in.', 'success');
+    }catch(err){
+      console.warn('email sign-up error', err);
+      let msg = 'Could not create account.';
+      if(err?.code === 'auth/email-already-in-use') msg = 'Email already in use. Try Sign In or Reset Password.';
+      if(err?.code === 'auth/weak-password') msg = 'Password too weak. Use at least 6 characters.';
+      showEmailAuthMsg(msg, 'error');
+    }
+  });
+
+  btnRs.addEventListener('click', async ()=>{
+    const email = document.getElementById('emailLogin')?.value?.trim();
+    if(!email){ showEmailAuthMsg('Enter your email, then click Reset Password.', 'error'); return; }
+    try{
+      await sendPasswordResetEmail(auth, email);
+      showEmailAuthMsg('Password reset email sent if the account exists.', 'success');
+    }catch(err){
+      console.warn('reset error', err);
+      showEmailAuthMsg('Could not send reset email.', 'error');
+    }
+  });
+}
+
+document.addEventListener('DOMContentLoaded', handleEmailAuthInit);
+
+
+function updateSubscribeButton(){
+  try{
+    const btn = document.getElementById('btnOrganizerSubscribe');
+    if(!btn) return;
+    const signedIn = !!(auth && auth.currentUser);
+    btn.disabled = !signedIn;
+    btn.setAttribute('aria-disabled', (!signedIn).toString());
+    if(!signedIn){
+      btn.style.opacity = '0.6';
+      btn.style.cursor = 'not-allowed';
+      if(!btn.title) btn.title = 'Sign in to subscribe';
+    } else {
+      btn.style.opacity = '';
+      btn.style.cursor = '';
+      btn.removeAttribute('title');
+    }
+  }catch(e){}
+}
+
+try{ onAuthStateChanged(auth, () => updateSubscribeButton()); }catch(_){ /* late init */ }
+
+document.addEventListener('DOMContentLoaded', updateSubscribeButton);
