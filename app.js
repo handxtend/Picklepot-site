@@ -1,14 +1,13 @@
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
-// ==== Organizer plan prices (safe to expose) ====
+/* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
+window.API_BASE = window.API_BASE || 'https://picklepot-stripe.onrender.com';
+
+/* ==== Organizer plan prices (safe to expose) ==== */
 const PRICE_MAP = {
   monthly: 'price_1Rx2QAFFPAbZxH9HuxdlfEjx',
   yearly:  'price_1Rx2R4FFPAbZxH9HzFTPaFb0'
 };
-
-// Your Render backend (override with window.API_BASE if you already define it)
-const API_BASE = window.API_BASE || 'https://picklepot-stripe.onrender.com';
-
 
 const SITE_ADMIN_PASS = 'Jesus7';
 function isSiteAdmin(){ return localStorage.getItem('site_admin') === '1'; }
@@ -18,60 +17,42 @@ const $  = (s,el=document)=>el.querySelector(s);
 const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
 const dollars = n => '$' + Number(n||0).toFixed(2);
 
-
-// --- session helpers ---
+/* --- session helpers --- */
 function clearClientSession() {
   ['pp_uid','pp_profile','pp_admin','pp_token','pp_signed_in'].forEach(k => localStorage.removeItem(k));
   sessionStorage.clear();
 }
 
 (function forceLogoutViaURL(){
-  // Visiting ?logout=1 clears any stale session
   if (new URLSearchParams(location.search).has('logout')) {
     clearClientSession();
-    // optional: strip the query so refreshes don't keep logging out
     history.replaceState({}, '', location.pathname);
   }
 })();
 
-
-// Run after the DOM is ready so we can find and update the "Signed In" label
+/* Update “Signed In/Out” label and buttons */
 document.addEventListener('DOMContentLoaded', initAuthGate);
-
 function initAuthGate() {
-  // Decide if we really have a signed-in user
   const uid = localStorage.getItem('pp_uid');
   const signed = !!uid;
 
-  // 1) Update the Signed In / Signed Out label
-  // If you added an id/data-attr to the label, this will pick it up first:
   let statusEl = document.querySelector('#signedStatus, .signed-status, [data-signed-status]');
-  // Fallback: find the element that currently shows the text
   if (!statusEl) {
     statusEl = Array.from(document.querySelectorAll('span,div,b,strong,em'))
       .find(el => el.textContent.trim() === 'Signed In' || el.textContent.trim() === 'Signed Out');
   }
   if (statusEl) statusEl.textContent = signed ? 'Signed In' : 'Signed Out';
 
-  // 2) Disable the Sign Out button if not signed
   const signOutBtn = document.querySelector('[data-action="signout"], #btnSignOut');
   if (signOutBtn) signOutBtn.disabled = !signed;
 
-  // 3) Make sure admin flag isn’t left on by accident
   if (!signed) localStorage.removeItem('pp_admin');
 }
 
-
-
 /* ---------- Organizer Subscription (front-end) ---------- */
 let ORG_SUB = { active:false, until:null };
-
-/** Returns true if the current user has an active organizer subscription (in-memory flag). */
 function hasOrganizerSub(){ return !!ORG_SUB.active; }
 
-/** Load subscription status for current user from Firestore (document: organizer_subs/{uid}).
- *  Expected fields: status ('active'|'canceled'|...), current_period_end (Timestamp or millis).
- */
 async function loadOrganizerSubStatus(){
   try{
     const uid = firebase.auth().currentUser?.uid;
@@ -92,28 +73,24 @@ async function loadOrganizerSubStatus(){
   }
 }
 
-/** Show Create Pot card to subscribers (without enabling other admin-only sections). */
 function refreshOrganizerUI(){
   try{
     const createCard = document.getElementById('create-card');
     if (createCard){
       if (hasOrganizerSub()){
-        createCard.style.display = '';  // reveal "Create a Pot"
+        createCard.style.display = '';
       } else if (!isSiteAdmin()){
-        // hide only if not site admin; admins still see it via refreshAdminUI()
         createCard.style.display = 'none';
       }
     }
   }catch(e){ console.warn('[Sub] refreshOrganizerUI error', e); }
 }
 
-/** Permit editing controls for pot OWNER with an active subscription (in addition to site admin). */
 function isOrganizerOwnerWithSub(){
   const uid = firebase.auth().currentUser?.uid;
   const isOwner = !!(uid && CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.ownerUid === uid);
   return isOwner && hasOrganizerSub();
 }
-
 
 /* ---------- Admin UI ---------- */
 function refreshAdminUI(){
@@ -150,7 +127,7 @@ function setSelectOrOther(selectEl, wrap, input, val, list){
 }
 function escapeHtml(s){
   return String(s||'').replace(/[&<>"'`=\/]/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#47;','`':'&#96;','=':'&#61;'
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;','/':'&#47;','`':'&#96;','=':'&#61;'
   }[c]));
 }
 
@@ -159,19 +136,15 @@ const db = firebase.firestore();
 
 /* ---------- UI bootstrap ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  
-  // Wire organizer subscription button
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
-  // Check return from Stripe for subscription
   handleSubscriptionReturn();
-  
+
   fillSelect('c-name-select', NAME_OPTIONS);
   fillSelect('c-event', EVENTS);
   fillSelect('c-skill', SKILLS);
   fillSelect('c-location-select', LOCATIONS);
   fillSelect('j-skill', SKILLS);
 
-  // Other toggles (create)
   toggleOther($('#c-name-select'), $('#c-name-other-wrap'));
   $('#c-name-select').addEventListener('change', ()=>toggleOther($('#c-name-select'), $('#c-name-other-wrap')));
   toggleOther($('#c-organizer'), $('#c-org-other-wrap'));
@@ -189,7 +162,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#j-pot-select').addEventListener('change', onJoinPotChange);
   $('#j-skill').addEventListener('change', evaluateJoinEligibility);
   $('#j-mtype').addEventListener('change', ()=>{ updateJoinCost(); evaluateJoinEligibility(); });
-
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
   $('#btn-create').addEventListener('click', createPot);
@@ -208,7 +180,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if(sel && potIdInput){ potIdInput.value = sel; }
   });
 
-  // Admin header buttons
   $('#site-admin-toggle').addEventListener('click', ()=>{
     const v = prompt('Admin password?');
     if(v===SITE_ADMIN_PASS){ setSiteAdmin(true); refreshAdminUI(); alert('Admin mode enabled.'); }
@@ -218,7 +189,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setSiteAdmin(false); refreshAdminUI(); alert('Admin mode disabled.');
   });
 
-  // Admin buttons in Pot Detail
   $('#btn-admin-login')?.addEventListener('click', ()=>{
     const v = prompt('Admin password?');
     if(v===SITE_ADMIN_PASS){ setSiteAdmin(true); refreshAdminUI(); alert('Admin mode enabled.'); }
@@ -233,7 +203,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-admin-grant')?.addEventListener('click', grantThisDeviceAdmin);
   $('#btn-admin-revoke')?.addEventListener('click', revokeThisDeviceAdmin);
 
-  // Per-entry actions delegated
   const tbody = document.querySelector('#adminTable tbody');
   if (tbody){
     tbody.addEventListener('change', async (e)=>{
@@ -277,7 +246,6 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   refreshAdminUI();
-  // NEW: show success banner if returning from Stripe
   checkStripeReturn();
 });
 
@@ -634,7 +602,6 @@ async function joinPot(){
         return fail('Stripe requires a fee of at least $0.50.');
       }
 
-      // Use HTTPS origin if page was opened as file://
       const origin =
         window.location.protocol === 'file:'
           ? 'https://pickleballcompete.com'
@@ -655,7 +622,7 @@ async function joinPot(){
 
       let res, data;
       try{
-        res = await fetch(`${API_BASE}/create-checkout-session`, {
+        res = await fetch(`${window.API_BASE}/create-checkout-session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -672,20 +639,23 @@ async function joinPot(){
         return fail(errMsg);
       }
 
-      // Keep IDs for success page UX
+      // Save IDs for success page UX and redirect
       sessionStorage.setItem('potId', p.id);
       sessionStorage.setItem('entryId', entryId);
 
-      try { window.location.href = data.url; }
-      catch { window.open(data.url, '_blank', 'noopener'); }
-      return;
+      try {
+        window.location.href = data.url;
+      } catch (err) {
+        window.open(data.url, '_blank', 'noopener');
+      }
+      return; // stop here on Stripe path
+    } else {
+      // Non-Stripe path
+      setBusy(false);
+      msg.textContent='Joined! Complete payment using the selected method.';
+      updatePaymentNotes();
+      try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
     }
-
-    // Non-Stripe:
-    setBusy(false);
-    msg.textContent='Joined! Complete payment using the selected method.';
-    updatePaymentNotes();
-    try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
   }catch(e){
     console.error('[JOIN] Unexpected failure:', e);
     fail('Join failed (check Firebase rules and your network).');
@@ -1132,29 +1102,25 @@ PiCo Pickle Pot`;
 /* ---------- NEW: Stripe return success banner ---------- */
 function checkStripeReturn(){
   const params = new URLSearchParams(location.search);
-  const sessionId = params.get('session_id'); // present after successful Checkout
+  const sessionId = params.get('session_id');
   const banner = $('#pay-banner');
   if (!banner) return;
 
   if (sessionId){
-    // Show a friendly banner immediately
     banner.style.display = '';
     banner.textContent = 'Payment successful! Finalizing your registration… ✅';
 
-    // Try to confirm against Firestore using saved IDs
     const potId = sessionStorage.getItem('potId');
     const entryId = sessionStorage.getItem('entryId');
 
     if (potId && entryId){
-      // Live-listen for paid:true flip (webhook)
       db.collection('pots').doc(potId).collection('entries').doc(entryId)
         .onSnapshot(doc=>{
           const d = doc.data() || {};
           if (d.paid){
             const amt = (typeof d.paid_amount === 'number') ? (d.paid_amount/100) : (d.applied_buyin||0);
             banner.textContent = `Payment successful: ${dollars(amt)} received. Enjoy the event! 🎉`;
-            // Auto-hide after a bit
-            setTimeout(()=>{ try{ banner.style.display='none'; }catch{} }, 8000);
+            setTimeout(() => { try { banner.style.display = 'none'; } catch (err) {} }, 8000);
           } else {
             banner.textContent = 'Payment completed. Waiting for confirmation…';
           }
@@ -1163,14 +1129,12 @@ function checkStripeReturn(){
         });
     }
 
-    // Clean the session_id from the URL for a nicer look
     if (history.replaceState){
       const cleanUrl = location.pathname + location.hash;
       history.replaceState(null, '', cleanUrl);
     }
   }
 }
-
 
 /* ---------- Auth (Sign In/Out) + subscription watcher ---------- */
 try{
@@ -1191,7 +1155,7 @@ try{
 firebase.auth().onAuthStateChanged(async (user)=>{
   try{
     const isReal = !!(user && !user.isAnonymous);
-        const name = isReal ? (user && (user.displayName || "Signed In")) : "";
+    const name = isReal ? (user && (user.displayName || "Signed In")) : "";
     const authUser = document.getElementById('auth-user');
     const btnIn = document.getElementById('btn-signin');
     const btnOut = document.getElementById('btn-signout');
@@ -1208,9 +1172,8 @@ firebase.auth().onAuthStateChanged(async (user)=>{
 
   await loadOrganizerSubStatus();
   refreshOrganizerUI();
-  refreshAdminUI(); // keep existing behavior for site-admin; organizer UI will override create-card visibility
+  refreshAdminUI();
 });
-
 
 /* ---------- Organizer Subscription flow ---------- */
 function originForReturn(){
@@ -1236,7 +1199,7 @@ async function onOrganizerSubscribe(){
 
     let res, data;
     try{
-      res = await fetch(`${API_BASE}/create-organizer-subscription`, {
+      res = await fetch(`${window.API_BASE}/create-organizer-subscription`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1257,14 +1220,12 @@ async function onOrganizerSubscribe(){
   }
 }
 
-/** After returning from Stripe, show success banner and refresh sub status */
 async function handleSubscriptionReturn(){
   try{
     const params = new URLSearchParams(window.location.search);
     const sub = params.get('sub');
     if(!sub) return;
     if(sub === 'success'){
-      // Reload status; backend webhook should have created/updated organizer_subs/{uid}
       await loadOrganizerSubStatus();
       const banner = document.getElementById('pay-banner');
       if (banner){
@@ -1283,7 +1244,6 @@ async function handleSubscriptionReturn(){
         setTimeout(()=>{ banner.style.display='none'; }, 4000);
       }
     }
-    // Clean URL
     try{
       const url = new URL(window.location.href);
       url.searchParams.delete('sub');
