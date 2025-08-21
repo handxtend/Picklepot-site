@@ -1278,9 +1278,9 @@ function handleEmailAuthInit(){
     const email = document.getElementById('emailLogin')?.value?.trim();
     const pass  = document.getElementById('passwordLogin')?.value || '';
     if(!email || !pass){ showEmailAuthMsg('Please enter email and password.', 'error'); return; }
-    try{ await setPersistence(auth, browserLocalPersistence); }catch(_){}
+    try{ await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(_){}
     try{
-      await signInWithEmailAndPassword(auth, email, pass);
+      await firebase.auth().signInWithEmailAndPassword(email, pass);
       showEmailAuthMsg('Signed in successfully.', 'success');
     }catch(err){
       console.warn('email sign-in error', err);
@@ -1297,7 +1297,7 @@ function handleEmailAuthInit(){
     const pass  = document.getElementById('passwordLogin')?.value || '';
     if(!email || !pass){ showEmailAuthMsg('Please enter email and password.', 'error'); return; }
     try{
-      await createUserWithEmailAndPassword(auth, email, pass);
+      await firebase.auth().createUserWithEmailAndPassword(email, pass);
       showEmailAuthMsg('Account created. You are now signed in.', 'success');
     }catch(err){
       console.warn('email sign-up error', err);
@@ -1312,7 +1312,7 @@ function handleEmailAuthInit(){
     const email = document.getElementById('emailLogin')?.value?.trim();
     if(!email){ showEmailAuthMsg('Enter your email, then click Reset Password.', 'error'); return; }
     try{
-      await sendPasswordResetEmail(auth, email);
+      await firebase.auth().sendPasswordResetEmail(email);
       showEmailAuthMsg('Password reset email sent if the account exists.', 'success');
     }catch(err){
       console.warn('reset error', err);
@@ -1322,27 +1322,3 @@ function handleEmailAuthInit(){
 }
 
 document.addEventListener('DOMContentLoaded', handleEmailAuthInit);
-
-
-function updateSubscribeButton(){
-  try{
-    const btn = document.getElementById('btnOrganizerSubscribe');
-    if(!btn) return;
-    const signedIn = !!(auth && auth.currentUser);
-    btn.disabled = !signedIn;
-    btn.setAttribute('aria-disabled', (!signedIn).toString());
-    if(!signedIn){
-      btn.style.opacity = '0.6';
-      btn.style.cursor = 'not-allowed';
-      if(!btn.title) btn.title = 'Sign in to subscribe';
-    } else {
-      btn.style.opacity = '';
-      btn.style.cursor = '';
-      btn.removeAttribute('title');
-    }
-  }catch(e){}
-}
-
-try{ onAuthStateChanged(auth, () => updateSubscribeButton()); }catch(_){ /* late init */ }
-
-document.addEventListener('DOMContentLoaded', updateSubscribeButton);
