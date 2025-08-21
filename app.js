@@ -1,5 +1,15 @@
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
+// ==== Organizer plan prices (safe to expose) ====
+const PRICE_MAP = {
+  monthly: 'price_1Rx2QAFFPAbZxH9HuxdlfEjx',
+  yearly:  'price_1Rx2R4FFPAbZxH9HzFTPaFb0'
+};
+
+// Your Render backend (override with window.API_BASE if you already define it)
+const API_BASE = window.API_BASE || 'https://picklepot-stripe.onrender.com';
+
+
 const SITE_ADMIN_PASS = 'Jesus7';
 function isSiteAdmin(){ return localStorage.getItem('site_admin') === '1'; }
 function setSiteAdmin(on){ on?localStorage.setItem('site_admin','1'):localStorage.removeItem('site_admin'); }
@@ -8,8 +18,50 @@ const $  = (s,el=document)=>el.querySelector(s);
 const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
 const dollars = n => '$' + Number(n||0).toFixed(2);
 
-// === Stripe backend base (Render Flask app) ===
-const API_BASE = "https://picklepot-stripe.onrender.com";
+
+// --- session helpers ---
+function clearClientSession() {
+  ['pp_uid','pp_profile','pp_admin','pp_token','pp_signed_in'].forEach(k => localStorage.removeItem(k));
+  sessionStorage.clear();
+}
+
+(function forceLogoutViaURL(){
+  // Visiting ?logout=1 clears any stale session
+  if (new URLSearchParams(location.search).has('logout')) {
+    clearClientSession();
+    // optional: strip the query so refreshes don't keep logging out
+    history.replaceState({}, '', location.pathname);
+  }
+})();
+
+
+// Run after the DOM is ready so we can find and update the "Signed In" label
+document.addEventListener('DOMContentLoaded', initAuthGate);
+
+function initAuthGate() {
+  // Decide if we really have a signed-in user
+  const uid = localStorage.getItem('pp_uid');
+  const signed = !!uid;
+
+  // 1) Update the Signed In / Signed Out label
+  // If you added an id/data-attr to the label, this will pick it up first:
+  let statusEl = document.querySelector('#signedStatus, .signed-status, [data-signed-status]');
+  // Fallback: find the element that currently shows the text
+  if (!statusEl) {
+    statusEl = Array.from(document.querySelectorAll('span,div,b,strong,em'))
+      .find(el => el.textContent.trim() === 'Signed In' || el.textContent.trim() === 'Signed Out');
+  }
+  if (statusEl) statusEl.textContent = signed ? 'Signed In' : 'Signed Out';
+
+  // 2) Disable the Sign Out button if not signed
+  const signOutBtn = document.querySelector('[data-action="signout"], #btnSignOut');
+  if (signOutBtn) signOutBtn.disabled = !signed;
+
+  // 3) Make sure admin flag isn’t left on by accident
+  if (!signed) localStorage.removeItem('pp_admin');
+}
+
+
 
 /* ---------- Organizer Subscription (front-end) ---------- */
 let ORG_SUB = { active:false, until:null };
@@ -1138,11 +1190,12 @@ try{
 
 firebase.auth().onAuthStateChanged(async (user)=>{
   try{
-    const name = user?.displayName || (user ? 'Signed In' : '');
+    const isReal = !!(user && !user.isAnonymous);
+        const name = isReal ? (user && (user.displayName || "Signed In")) : "";
     const authUser = document.getElementById('auth-user');
     const btnIn = document.getElementById('btn-signin');
     const btnOut = document.getElementById('btn-signout');
-    if (user){
+    if (isReal){
       if (authUser){ authUser.textContent = name; authUser.style.display = ''; }
       if (btnIn) btnIn.style.display = 'none';
       if (btnOut) btnOut.style.display = '';
