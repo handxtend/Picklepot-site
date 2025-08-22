@@ -1922,3 +1922,43 @@ async function startCreatePotCheckout(){
     fail('Failed to start checkout.');
   }
 }
+
+
+/* === Ensure How To Use + Show Pot Details wiring (idempotent) === */
+(function ensureUXButtons(){
+  function wireHowTo(){
+    var btn = document.getElementById('btn-howto');
+    var panel = document.getElementById('howto-panel');
+    if (!btn || !panel) return;
+    if (btn.dataset._howto_wired === '1') return;
+    btn.dataset._howto_wired = '1';
+    btn.addEventListener('click', function(){
+      var open = panel.style.display !== 'none';
+      panel.style.display = open ? 'none' : '';
+      btn.setAttribute('aria-expanded', String(!open));
+    });
+  }
+  function wireShowDetail(){
+    var btn = document.getElementById('btn-show-detail');
+    var target = document.getElementById('pot-detail-section') || document.getElementById('pot-info');
+    if (!btn || !target) return;
+    if (btn.dataset._showdetail_wired === '1') return;
+    btn.dataset._showdetail_wired = '1';
+    btn.addEventListener('click', function(){
+      try{
+        var sel = document.getElementById('j-pot-select');
+        var vpot = document.getElementById('v-pot');
+        if (sel && vpot && sel.value) vpot.value = sel.value;
+        if (typeof onLoadPotClicked === 'function') onLoadPotClicked();
+      }catch(_){}
+      try{ target.scrollIntoView({behavior:'smooth', block:'start'}); }
+      catch(_){ location.hash = '#pot-detail-section'; }
+    });
+  }
+  document.addEventListener('DOMContentLoaded', function(){
+    try{ wireHowTo(); wireShowDetail(); }catch(_){}
+  });
+  // Also attempt late-binding in case DOM is injected later
+  var _uxObs = new MutationObserver(function(){ try{ wireHowTo(); wireShowDetail(); }catch(_){}});
+  _uxObs.observe(document.documentElement || document.body, {childList:true, subtree:true});
+})();
