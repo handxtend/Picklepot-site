@@ -41,14 +41,11 @@ function initAuthGate() {
   let statusEl = document.querySelector('#signedStatus, .signed-status, [data-signed-status]');
   if (!statusEl) {
     statusEl = Array.from(document.querySelectorAll('span,div,b,strong,em'))
-      .find(el => el.textContent.trim() === 'Signed In' || el.textContent.trim() === 'Signed Out');
+      .find(el => el.textContent.trim() === '' || el.textContent.trim() === '');
   }
-  if (statusEl) statusEl.textContent = signed ? 'Signed In' : 'Signed Out';
-
-  const signOutBtn = document.querySelector('[data-action="signout"], #btnSignOut');
-  if (signOutBtn) signOutBtn.disabled = !signed;
-
-  if (!signed) localStorage.removeItem('pp_admin');
+  if (statusEl){ try{ statusEl.textContent=''; statusEl.style.display='none'; }catch(_){}}const signOutBtn = document.querySelector('[data-action=\"signout\"], #btnSignOut');
+if (signOutBtn){ try{ signOutBtn.style.display='none'; }catch(_){} }
+if (!signed) localStorage.removeItem('pp_admin');
 }
 
 /* ---------- Organizer Subscription (front-end) ---------- */
@@ -140,6 +137,15 @@ const db = firebase.firestore();
 
 /* ---------- UI bootstrap ---------- */
 document.addEventListener('DOMContentLoaded', () => {
+  // Force Create button to use Stripe Checkout
+  try{
+    const _btn = document.getElementById('btn-create');
+    if (_btn){
+      const _clone = _btn.cloneNode(true);
+      _btn.parentNode.replaceChild(_clone, _btn);
+      _clone.addEventListener('click', startCreatePotCheckout);
+    }
+  }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
   handleSubscriptionReturn();
 
@@ -1024,7 +1030,7 @@ PiCo Pickle Pot`;
 
   const TOP_BANNERS = [
     { src: 'ads/top_728x90_1.png', url: 'https://pickleballcompete.com' },
-    { src: 'ads/top_728x90_2.png', url: 'https://pickleballcompete.com' },
+    { src: 'ads/top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
     { src: 'ads/sponsor_728x90.png', url: 'https://pickleballcompete.com' }
   ];
   const BOTTOM_BANNERS = [
@@ -1683,74 +1689,236 @@ async function handleSubscriptionReturn(){
 })();
 
 
-// === CTA: show Create form
+/* ===== scrub any "(signed in)" badges from UI (near Join a Pot etc.) ===== */
+function scrubSignedInBadges(){
+  try{
+    const exact = Array.from(document.querySelectorAll('small,span,em,i,strong,b,div'));
+    for (const el of exact){
+      const t = (el.textContent||'').trim();
+      if (/^\(?\s*signed\s*in\s*\)?$/i.test(t)) { el.remove(); }
+    }
+    const leafs = Array.from(document.querySelectorAll('*')).filter(n=>!n.children || n.children.length===0);
+    for (const el of leafs){
+      if (/\(signed\s*in\)/i.test(el.textContent||'')){
+        el.textContent = (el.textContent||'').replace(/\s*\(signed\s*in\)\s*/ig, ' ').replace(/\s{2,}/g,' ').trim();
+      }
+    }
+  }catch(_){}
+}
+document.addEventListener('DOMContentLoaded', scrubSignedInBadges);
+// Also run after any auth state change or gating updates if those hooks exist
+try{
+  const _origGate = gateUI;
+  if (typeof gateUI === 'function'){
+    window.gateUI = async function(){ try{ await _origGate(); }catch(_){ } try{ scrubSignedInBadges(); }catch(_){ } }
+  }
+}catch(_){}
+
+
+
+/* ===== TEMP: Disable Organizer Subscription button ===== */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const btn = document.getElementById('btn-subscribe-organizer');
+  if (!btn) return;
+  // disable visually and functionally
+  try{
+    btn.disabled = true;
+    btn.setAttribute('aria-disabled','true');
+    btn.style.pointerEvents = 'none';   // prevents clicks
+    btn.style.opacity = '0.6';
+    btn.title = 'Organizer Subscription is temporarily disabled';
+  }catch(_){}
+
+  // Hard block: if any code re-enables it, keep it disabled
+  const observer = new MutationObserver(()=>{
+    try{
+      if (!btn.disabled) btn.disabled = true;
+      if (btn.style.pointerEvents !== 'none') btn.style.pointerEvents = 'none';
+    }catch(_){}
+  });
+  try{ observer.observe(btn, { attributes: true, attributeFilter: ['disabled','style','class'] }); }catch(_){}
+});
+
+
+
+/* ===== Create A Pot CTA: open form for all users (keep editing admin-only) ===== */
+function _showCreatePotForm(){
+  const section = document.getElementById('create-card');
+  if (!section) return;
+  try{ section.classList.remove('admin-only'); }catch(_){}
+  try{ section.style.display = ''; }catch(_){}
+  try{ section.scrollIntoView({ behavior: 'smooth', block: 'start' }); }catch(_){}
+}
 document.addEventListener('DOMContentLoaded', () => {
-  const startBtn = document.getElementById('btn-start-create');
-  const formSection = document.getElementById('create-card');
-  if (startBtn && formSection && !startBtn.dataset._wired){
-    startBtn.dataset._wired = '1';
-    startBtn.addEventListener('click', ()=>{
-      try{ formSection.classList.remove('admin-only'); }catch(_){}
-      formSection.style.display = '';
-      try{ formSection.scrollIntoView({ behavior:'smooth', block:'start' }); }catch(_){}
+  // Work with either an explicit id or the visible button text
+  const explicit = document.getElementById('btn-start-create');
+  if (explicit && !explicit.dataset._wired){
+    explicit.dataset._wired = '1';
+    explicit.addEventListener('click', _showCreatePotForm);
+  }
+  // Fallback: delegate on any button whose text is "Create A Pot"
+  document.body.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const label = (btn.textContent || '').trim();
+    if (/^create\s+a\s+pot$/i.test(label)){
+      e.preventDefault();
+      _showCreatePotForm();
+    }
+  }, { capture: true });
+});
+
+/* === Admin-only Stripe visibility (kept) === */
+function _isAdmin(){
+  try { return typeof isSiteAdmin === 'function' && isSiteAdmin(); } catch(_) { return false; }
+}
+function hideStripeForNonAdmin(){
+  const admin = _isAdmin();
+  const pm = document.getElementById('j-paytype');
+  if (pm){
+    const opts = Array.from(pm.options || []);
+    opts.forEach(opt => {
+      const isStripe = /stripe/i.test(opt.textContent || '') || /stripe/i.test(opt.value || '');
+      if (isStripe){
+        opt.hidden = !admin;
+        if (!admin && pm.value === opt.value) { pm.selectedIndex = 0; }
+      }
+    });
+    const joinSection = pm.closest('.card') || document;
+    Array.from(joinSection.querySelectorAll('div,span,small,li')).forEach(el => {
+      if (/(^|\s)stripe(\s|$)/i.test((el.textContent||''))){
+        if (!admin) el.style.display = 'none';
+      }
     });
   }
-});
-
-// === Bind Create button
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('btn-create');
-  if (!btn || btn.dataset._wiredCreate) return;
-  btn.dataset._wiredCreate = '1';
-  let handler = null;
-  if (typeof startCreatePotCheckout === 'function' && window.API_BASE){
-    handler = startCreatePotCheckout;
-  } else if (typeof createPot === 'function') {
-    handler = createPot;
-  }
-  if (handler){
-    // ensure old listeners don't compete: replace node
-    const clone = btn.cloneNode(true);
-    btn.parentNode.replaceChild(clone, btn);
-    clone.addEventListener('click', handler);
-  }
-});
-
-// === Minimal startCreatePotCheckout if missing (posts to API then redirects to Stripe)
-if (typeof startCreatePotCheckout !== 'function'){
-  async function startCreatePotCheckout(){
-    const $ = (id)=>document.getElementById(id);
-    const btn = $('btn-create');
-    const status = $('create-result');
-    const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; btn.textContent=on?(t||'Working…'):'Create Pot'; } };
-    const fail=(m)=>{ if(status) status.textContent=m||'Failed'; setBusy(false); };
-    if (!window.API_BASE){ return fail('Server not configured.'); }
-    try{
-      setBusy(true,'Redirecting…');
-      const getSel=(sel,other)=>{ const v=(sel?.value||''); if(/^other$/i.test(v)&&other) return (other.value||'').trim(); return v; };
-      const draft = {
-        name: getSel($('c-name-select'), $('c-name-other')) || 'Tournament',
-        organizer: ($('c-organizer')?.value==='Other') ? (($('c-org-other')?.value||'').trim()||'Other') : ($('c-organizer')?.value || 'Pickleball Compete'),
-        event: getSel($('c-event'), $('c-event-other')),
-        skill: getSel($('c-skill'), $('c-skill-other')),
-        location: getSel($('c-location-select'), $('c-location-other')),
-        buyin_member: Number($('c-buyin-m')?.value||0),
-        buyin_guest:  Number($('c-buyin-g')?.value||0),
-        pot_share_pct: Math.max(0, Math.min(100, Number($('c-pot-pct')?.value||100))),
-        date: $('c-date')?.value||'',
-        time: $('c-time')?.value||'',
-        end_time: $('c-end-time')?.value||'',
-        pay_zelle: $('c-pay-zelle')?.value||'',
-        pay_cashapp: $('c-pay-cashapp')?.value||'',
-        pay_onsite: ($('c-pay-onsite')?.value||'yes')==='yes',
-        allow_stripe: false
-      };
-      const payload = { draft, success_url: (location.origin + '/success.html'), cancel_url: (location.origin + '/cancel.html') };
-      const res = await fetch((window.API_BASE||'') + '/create-pot-session', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      const data = await res.json().catch(()=>null);
-      if (!res.ok || !data || !data.url){ return fail((data&&data.error)||'Payment server error.'); }
-      location.href = data.url;
-    }catch(e){ console.error(e); fail('Could not start checkout.'); }
+  const allowStripe = document.getElementById('c-allow-stripe');
+  if (allowStripe){
+    if (!admin){
+      try { allowStripe.value = 'no'; } catch(_){}
+      try { const wrap = allowStripe.closest('div'); if (wrap) wrap.style.display = 'none'; } catch(_){}
+    }else{
+      try { const wrap = allowStripe.closest('div'); if (wrap) wrap.style.display = ''; } catch(_){}
+    }
   }
 }
+document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
+try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
+try{ const _oldGate = gateUI; window.gateUI = async function(){ try{ await _oldGate(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
 
+// If create flow exists, force allowed_stripe false for non-admins before posting
+(function(){
+  try{
+    const orig = window.startCreatePotCheckout;
+    if (typeof orig === 'function'){
+      window.startCreatePotCheckout = async function(){
+        try{
+          if (!_isAdmin()){
+            const sel = document.getElementById('c-allow-stripe');
+            if (sel){ try{ sel.value = 'no'; }catch(_){ } }
+          }
+        }catch(_){}
+        return orig.apply(this, arguments);
+      }
+    }
+  }catch(_){}
+})();
+
+
+/* === Admin-only Stripe visibility === */
+function _isAdmin(){ try { return typeof isSiteAdmin === 'function' && isSiteAdmin(); } catch(_) { return false; } }
+function hideStripeForNonAdmin(){
+  const admin = _isAdmin();
+  // Hide "Stripe" in Join payment select for non-admins
+  const pmSel = document.getElementById('j-paytype');
+  if (pmSel){
+    const opts = Array.from(pmSel.options || []);
+    opts.forEach(opt => {
+      const isStripe = /(^|\b)stripe(\b|$)/i.test((opt.value||'')) || /stripe/i.test(opt.textContent||'');
+      if (isStripe){
+        opt.hidden = !admin;
+        if (!admin && pmSel.value === opt.value) { pmSel.selectedIndex = 0; }
+      }
+    });
+  }
+  // Hide "Allow Stripe" on Create form for non-admins; force 'no'
+  const allowSel = document.getElementById('c-allow-stripe');
+  if (allowSel){
+    if (!admin){
+      try { allowSel.value = 'no'; }catch(_){}
+      try { const wrap = allowSel.closest('div'); if (wrap) wrap.style.display = 'none'; } catch(_){}
+    }else{
+      try { const wrap = allowSel.closest('div'); if (wrap) wrap.style.display = ''; } catch(_){}
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
+try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
+
+
+/* === Create Pot -> Stripe Checkout === */
+async function startCreatePotCheckout(){
+  const $ = (s)=>document.querySelector(s);
+  const btn = $('#btn-create');
+  const status = $('#create-result');
+  const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; btn.textContent = on ? (t||'Working…') : 'Create Pot'; } };
+  const fail=(m)=>{ if(status) status.textContent=m||'Failed.'; setBusy(false); };
+
+  try{
+    setBusy(true, 'Redirecting to checkout…');
+    if (status) status.textContent = '';
+
+    const getSel=(sel,other)=>{ if(!sel) return ''; const v=sel.value||''; if(/^other$/i.test(v) && other) return (other.value||'').trim(); return v; };
+
+    const draft = {
+      name: getSel(document.getElementById('c-name-select'), document.getElementById('c-name-other')) || 'Sunday Round Robin',
+      organizer: (document.getElementById('c-organizer')?.value==='Other')
+                  ? (document.getElementById('c-org-other')?.value.trim()||'Other')
+                  : (document.getElementById('c-organizer')?.value || 'Pickleball Compete'),
+      event: getSel(document.getElementById('c-event'), document.getElementById('c-event-other')),
+      skill: getSel(document.getElementById('c-skill'), document.getElementById('c-skill-other')),
+      location: getSel(document.getElementById('c-location-select'), document.getElementById('c-location-other')),
+      buyin_member: Number(document.getElementById('c-buyin-m')?.value || 0),
+      buyin_guest:  Number(document.getElementById('c-buyin-g')?.value || 0),
+      pot_share_pct: Math.max(0, Math.min(100, Number(document.getElementById('c-pot-pct')?.value || 100))),
+      date: document.getElementById('c-date')?.value || '',
+      time: document.getElementById('c-time')?.value || '',
+      end_time: document.getElementById('c-end-time')?.value || '',
+      pay_zelle: document.getElementById('c-pay-zelle')?.value || '',
+      pay_cashapp: document.getElementById('c-pay-cashapp')?.value || '',
+      pay_onsite: (document.getElementById('c-pay-onsite')?.value||'yes') === 'yes',
+      // Admin-only: only admins can enable Stripe on the pot
+      allow_stripe: (typeof isSiteAdmin==='function' && isSiteAdmin())
+                      ? ((document.getElementById('c-allow-stripe')?.value||'no')==='yes')
+                      : false
+    };
+
+    const origin = (window.location.protocol === 'file:' ? 'https://pickleballcompete.com' : window.location.origin);
+    const payload = {
+      draft,
+      success_url: origin + '/success.html',
+      cancel_url: origin + '/cancel.html'
+    };
+
+    if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
+
+    const res = await fetch(`${window.API_BASE}/create-pot-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    let data = null;
+    try{ data = await res.json(); }catch(_){}
+
+    if (!res.ok || !data || !data.url){
+      return fail((data && data.error) ? data.error : 'Payment server error.');
+    }
+
+    if (data.draft_id) sessionStorage.setItem('potDraftId', data.draft_id);
+    try { window.location.href = data.url; }
+    catch { window.open(data.url, '_blank', 'noopener'); }
+  }catch(err){
+    console.error('[CREATE-POT]', err);
+    fail('Failed to start checkout.');
+  }
+}
