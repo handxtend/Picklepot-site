@@ -41,11 +41,14 @@ function initAuthGate() {
   let statusEl = document.querySelector('#signedStatus, .signed-status, [data-signed-status]');
   if (!statusEl) {
     statusEl = Array.from(document.querySelectorAll('span,div,b,strong,em'))
-      .find(el => el.textContent.trim() === '' || el.textContent.trim() === '');
+      .find(el => el.textContent.trim() === 'Signed In' || el.textContent.trim() === 'Signed Out');
   }
-  if (statusEl){ try{ statusEl.textContent=''; statusEl.style.display='none'; }catch(_){}}const signOutBtn = document.querySelector('[data-action=\"signout\"], #btnSignOut');
-if (signOutBtn){ try{ signOutBtn.style.display='none'; }catch(_){} }
-if (!signed) localStorage.removeItem('pp_admin');
+  if (statusEl) statusEl.textContent = signed ? 'Signed In' : 'Signed Out';
+
+  const signOutBtn = document.querySelector('[data-action="signout"], #btnSignOut');
+  if (signOutBtn) signOutBtn.disabled = !signed;
+
+  if (!signed) localStorage.removeItem('pp_admin');
 }
 
 /* ---------- Organizer Subscription (front-end) ---------- */
@@ -1680,53 +1683,60 @@ async function handleSubscriptionReturn(){
 })();
 
 
-/* ===== scrub any "(signed in)" badges from UI (near Join a Pot etc.) ===== */
-function scrubSignedInBadges(){
-  try{
-    const exact = Array.from(document.querySelectorAll('small,span,em,i,strong,b,div'));
-    for (const el of exact){
-      const t = (el.textContent||'').trim();
-      if (/^\(?\s*signed\s*in\s*\)?$/i.test(t)) { el.remove(); }
-    }
-    const leafs = Array.from(document.querySelectorAll('*')).filter(n=>!n.children || n.children.length===0);
-    for (const el of leafs){
-      if (/\(signed\s*in\)/i.test(el.textContent||'')){
-        el.textContent = (el.textContent||'').replace(/\s*\(signed\s*in\)\s*/ig, ' ').replace(/\s{2,}/g,' ').trim();
-      }
-    }
-  }catch(_){}
-}
-document.addEventListener('DOMContentLoaded', scrubSignedInBadges);
-// Also run after any auth state change or gating updates if those hooks exist
-try{
-  const _origGate = gateUI;
-  if (typeof gateUI === 'function'){
-    window.gateUI = async function(){ try{ await _origGate(); }catch(_){ } try{ scrubSignedInBadges(); }catch(_){ } }
-  }
-}catch(_){}
-
-
-
-/* ===== TEMP: Disable Organizer Subscription button ===== */
+// How To Use toggle (idempotent)
 document.addEventListener('DOMContentLoaded', ()=>{
-  const btn = document.getElementById('btn-subscribe-organizer');
-  if (!btn) return;
-  // disable visually and functionally
-  try{
-    btn.disabled = true;
-    btn.setAttribute('aria-disabled','true');
-    btn.style.pointerEvents = 'none';   // prevents clicks
-    btn.style.opacity = '0.6';
-    btn.title = 'Organizer Subscription is temporarily disabled';
-  }catch(_){}
+  const howBtn = document.getElementById('btn-howto');
+  const howPanel = document.getElementById('howto-panel');
+  if (howBtn && howPanel && !howBtn.dataset._wired){
+    howBtn.dataset._wired = '1';
+    howBtn.addEventListener('click', ()=>{
+      const open = howPanel.style.display !== 'none';
+      howPanel.style.display = open ? 'none' : '';
+      howBtn.setAttribute('aria-expanded', String(!open));
+    });
+  }
+});
 
-  // Hard block: if any code re-enables it, keep it disabled
-  const observer = new MutationObserver(()=>{
-    try{
-      if (!btn.disabled) btn.disabled = true;
-      if (btn.style.pointerEvents !== 'none') btn.style.pointerEvents = 'none';
-    }catch(_){}
-  });
-  try{ observer.observe(btn, { attributes: true, attributeFilter: ['disabled','style','class'] }); }catch(_){}
+
+
+// Hide 'Sign In' / 'Signed In' text under organizer subscription strip only
+document.addEventListener('DOMContentLoaded', ()=>{
+  const container = document.getElementById('org-subscribe-strip') || document.querySelector('.org-subscribe');
+  if (!container) return;
+  try{
+    const nodes = container.querySelectorAll('*');
+    nodes.forEach(el => {
+      const t = (el.textContent||'').trim();
+      if (/^\(?\s*signed\s*in\s*\)?$/i.test(t) || /^sign\s*in$/i.test(t)){
+        // remove labels like "(signed in)" or "Sign In"
+        el.remove();
+        return;
+      }
+      // hide any buttons that are for signing in within this container
+      if (el.id === 'btn-signin' || (el.tagName === 'BUTTON' && /sign\s*in/i.test(t))) {
+        el.style.display = 'none';
+      }
+    });
+  }catch(_){}
+});
+
+
+
+// Show Pot Details: load current selection then scroll to details
+document.addEventListener('DOMContentLoaded', ()=>{
+  const btn = document.getElementById('btn-show-detail');
+  const detail = document.getElementById('pot-detail-section') || document.getElementById('pot-info');
+  if (btn && detail){
+    btn.addEventListener('click', ()=>{
+      try{
+        const sel = document.getElementById('j-pot-select');
+        const vpot = document.getElementById('v-pot');
+        if (sel && vpot && sel.value){ vpot.value = sel.value; }
+        if (typeof onLoadPotClicked === 'function') onLoadPotClicked();
+      }catch(_){}
+      try{ detail.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      catch(_){ location.hash = '#pot-detail-section'; }
+    });
+  }
 });
 
