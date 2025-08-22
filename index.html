@@ -152,30 +152,14 @@
     </div>
 
     <!-- Organizer Subscription (single block under Tips bar) -->
-    <div class="org-subscribe"
-         style="display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin:8px 0 12px;">
-      <label for="org-plan" class="muted" style="font-size:.9rem;">Plan:</label>
-      <select id="org-plan" class="input" style="padding:6px 10px; border-radius:8px;">
-  <option value="individual_monthly">Individual • Monthly</option>
-  <option value="individual_yearly">Individual • Yearly</option>
-  <option value="club_monthly">Club • Monthly</option>
-  <option value="club_yearly">Club • Yearly</option>
-</select>
-      <!-- single button (keep this id so app.js keeps working) -->
-     <button id="btn-subscribe-organizer"
-        class="btn primary"
-        disabled
-        aria-disabled="true"
-        title="Organizer Subscription is temporarily disabled">
-  Organizer Subscription
-
-</button>
-    </div>
-    <div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
-      Subscribe to create &amp; manage your own Pots - COMING SOON!
-    </div>
-
-    <div class="alert" id="configWarning" style="display:none">
+<!-- Create CTA replaces Organizer Subscription -->
+<div class="create-cta" style="display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin:8px 0 12px;">
+  <button id="btn-start-create" class="btn primary xl" type="button">Create A Pot</button>
+</div>
+<div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
+  Note: if you want to edit your Pot, contact <a href="mailto:admin@pickleballcompete.com">admin@pickleballcompete.com</a>.
+</div>
+<div class="alert" id="configWarning" style="display:none">
       Firebase isn’t configured yet. Paste your Firebase config below, then reload.
     </div>
 
