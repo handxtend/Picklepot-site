@@ -1,6 +1,12 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+
+  <style>
+  /* Hide the “Signed in as …” text always */
+  #auth-user { display: none !important; }
+</style>
+
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>PiCo Pickle Pot</title>
@@ -156,8 +162,8 @@
         Organizer Subscription
       </button>
     </div>
-    <div id="org-subscribe-hint" class="sponsored-tag" style="text-align:center; margin-top:-6px;">
-      Subscribe to create &amp; manage your own Pots
+    <div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
+      Subscribe to create &amp; manage your own Pots - COMING SOON!
     </div>
 
     <div class="alert" id="configWarning" style="display:none">
@@ -211,9 +217,7 @@
     <section class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <h2 class="section-header" style="margin-bottom:0">Join a Pot</h2>
-        <div class="inline" id="auth-controls" style="margin-left:8px">
-          <button class="btn" id="btn-signout" style="display:none">Sign Out</button>
-          <small class="muted" id="auth-user" style="display:none"></small>
+        <div class="inline" id="auth-controls" style="margin-left:8px"><small class="muted" id="auth-user" style="display:none"></small>
         </div>
         <div id="j-header-right" style="text-align:right">
           <div class="big-totals" id="j-pot-totals-big" style="font-size:28px;line-height:1.2">
