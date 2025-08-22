@@ -41,14 +41,11 @@ function initAuthGate() {
   let statusEl = document.querySelector('#signedStatus, .signed-status, [data-signed-status]');
   if (!statusEl) {
     statusEl = Array.from(document.querySelectorAll('span,div,b,strong,em'))
-      .find(el => el.textContent.trim() === 'Signed In' || el.textContent.trim() === 'Signed Out');
+      .find(el => el.textContent.trim() === '' || el.textContent.trim() === '');
   }
-  if (statusEl) statusEl.textContent = signed ? 'Signed In' : 'Signed Out';
-
-  const signOutBtn = document.querySelector('[data-action="signout"], #btnSignOut');
-  if (signOutBtn) signOutBtn.disabled = !signed;
-
-  if (!signed) localStorage.removeItem('pp_admin');
+  if (statusEl){ try{ statusEl.textContent=''; statusEl.style.display='none'; }catch(_){}}const signOutBtn = document.querySelector('[data-action=\"signout\"], #btnSignOut');
+if (signOutBtn){ try{ signOutBtn.style.display='none'; }catch(_){} }
+if (!signed) localStorage.removeItem('pp_admin');
 }
 
 /* ---------- Organizer Subscription (front-end) ---------- */
@@ -1683,60 +1680,137 @@ async function handleSubscriptionReturn(){
 })();
 
 
-// How To Use toggle (idempotent)
-document.addEventListener('DOMContentLoaded', ()=>{
-  const howBtn = document.getElementById('btn-howto');
-  const howPanel = document.getElementById('howto-panel');
-  if (howBtn && howPanel && !howBtn.dataset._wired){
-    howBtn.dataset._wired = '1';
-    howBtn.addEventListener('click', ()=>{
-      const open = howPanel.style.display !== 'none';
-      howPanel.style.display = open ? 'none' : '';
-      howBtn.setAttribute('aria-expanded', String(!open));
-    });
-  }
-});
-
-
-
-// Hide 'Sign In' / 'Signed In' text under organizer subscription strip only
-document.addEventListener('DOMContentLoaded', ()=>{
-  const container = document.getElementById('org-subscribe-strip') || document.querySelector('.org-subscribe');
-  if (!container) return;
+/* ===== scrub any "(signed in)" badges from UI (near Join a Pot etc.) ===== */
+function scrubSignedInBadges(){
   try{
-    const nodes = container.querySelectorAll('*');
-    nodes.forEach(el => {
+    const exact = Array.from(document.querySelectorAll('small,span,em,i,strong,b,div'));
+    for (const el of exact){
       const t = (el.textContent||'').trim();
-      if (/^\(?\s*signed\s*in\s*\)?$/i.test(t) || /^sign\s*in$/i.test(t)){
-        // remove labels like "(signed in)" or "Sign In"
-        el.remove();
-        return;
+      if (/^\(?\s*signed\s*in\s*\)?$/i.test(t)) { el.remove(); }
+    }
+    const leafs = Array.from(document.querySelectorAll('*')).filter(n=>!n.children || n.children.length===0);
+    for (const el of leafs){
+      if (/\(signed\s*in\)/i.test(el.textContent||'')){
+        el.textContent = (el.textContent||'').replace(/\s*\(signed\s*in\)\s*/ig, ' ').replace(/\s{2,}/g,' ').trim();
       }
-      // hide any buttons that are for signing in within this container
-      if (el.id === 'btn-signin' || (el.tagName === 'BUTTON' && /sign\s*in/i.test(t))) {
-        el.style.display = 'none';
-      }
-    });
+    }
   }catch(_){}
+}
+document.addEventListener('DOMContentLoaded', scrubSignedInBadges);
+// Also run after any auth state change or gating updates if those hooks exist
+try{
+  const _origGate = gateUI;
+  if (typeof gateUI === 'function'){
+    window.gateUI = async function(){ try{ await _origGate(); }catch(_){ } try{ scrubSignedInBadges(); }catch(_){ } }
+  }
+}catch(_){}
+
+
+
+/* ===== TEMP: Disable Organizer Subscription button ===== */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const btn = document.getElementById('btn-subscribe-organizer');
+  if (!btn) return;
+  // disable visually and functionally
+  try{
+    btn.disabled = true;
+    btn.setAttribute('aria-disabled','true');
+    btn.style.pointerEvents = 'none';   // prevents clicks
+    btn.style.opacity = '0.6';
+    btn.title = 'Organizer Subscription is temporarily disabled';
+  }catch(_){}
+
+  // Hard block: if any code re-enables it, keep it disabled
+  const observer = new MutationObserver(()=>{
+    try{
+      if (!btn.disabled) btn.disabled = true;
+      if (btn.style.pointerEvents !== 'none') btn.style.pointerEvents = 'none';
+    }catch(_){}
+  });
+  try{ observer.observe(btn, { attributes: true, attributeFilter: ['disabled','style','class'] }); }catch(_){}
 });
 
 
 
-// Show Pot Details: load current selection then scroll to details
-document.addEventListener('DOMContentLoaded', ()=>{
-  const btn = document.getElementById('btn-show-detail');
-  const detail = document.getElementById('pot-detail-section') || document.getElementById('pot-info');
-  if (btn && detail){
-    btn.addEventListener('click', ()=>{
-      try{
-        const sel = document.getElementById('j-pot-select');
-        const vpot = document.getElementById('v-pot');
-        if (sel && vpot && sel.value){ vpot.value = sel.value; }
-        if (typeof onLoadPotClicked === 'function') onLoadPotClicked();
-      }catch(_){}
-      try{ detail.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-      catch(_){ location.hash = '#pot-detail-section'; }
+/* ===== Create A Pot CTA: open form for all users (keep editing admin-only) ===== */
+function _showCreatePotForm(){
+  const section = document.getElementById('create-card');
+  if (!section) return;
+  try{ section.classList.remove('admin-only'); }catch(_){}
+  try{ section.style.display = ''; }catch(_){}
+  try{ section.scrollIntoView({ behavior: 'smooth', block: 'start' }); }catch(_){}
+}
+document.addEventListener('DOMContentLoaded', () => {
+  // Work with either an explicit id or the visible button text
+  const explicit = document.getElementById('btn-start-create');
+  if (explicit && !explicit.dataset._wired){
+    explicit.dataset._wired = '1';
+    explicit.addEventListener('click', _showCreatePotForm);
+  }
+  // Fallback: delegate on any button whose text is "Create A Pot"
+  document.body.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const label = (btn.textContent || '').trim();
+    if (/^create\s+a\s+pot$/i.test(label)){
+      e.preventDefault();
+      _showCreatePotForm();
+    }
+  }, { capture: true });
+});
+
+/* === Admin-only Stripe visibility (kept) === */
+function _isAdmin(){
+  try { return typeof isSiteAdmin === 'function' && isSiteAdmin(); } catch(_) { return false; }
+}
+function hideStripeForNonAdmin(){
+  const admin = _isAdmin();
+  const pm = document.getElementById('j-paytype');
+  if (pm){
+    const opts = Array.from(pm.options || []);
+    opts.forEach(opt => {
+      const isStripe = /stripe/i.test(opt.textContent || '') || /stripe/i.test(opt.value || '');
+      if (isStripe){
+        opt.hidden = !admin;
+        if (!admin && pm.value === opt.value) { pm.selectedIndex = 0; }
+      }
+    });
+    const joinSection = pm.closest('.card') || document;
+    Array.from(joinSection.querySelectorAll('div,span,small,li')).forEach(el => {
+      if (/(^|\s)stripe(\s|$)/i.test((el.textContent||''))){
+        if (!admin) el.style.display = 'none';
+      }
     });
   }
-});
+  const allowStripe = document.getElementById('c-allow-stripe');
+  if (allowStripe){
+    if (!admin){
+      try { allowStripe.value = 'no'; } catch(_){}
+      try { const wrap = allowStripe.closest('div'); if (wrap) wrap.style.display = 'none'; } catch(_){}
+    }else{
+      try { const wrap = allowStripe.closest('div'); if (wrap) wrap.style.display = ''; } catch(_){}
+    }
+  }
+}
+document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
+try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
+try{ const _oldGate = gateUI; window.gateUI = async function(){ try{ await _oldGate(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
+
+// If create flow exists, force allowed_stripe false for non-admins before posting
+(function(){
+  try{
+    const orig = window.startCreatePotCheckout;
+    if (typeof orig === 'function'){
+      window.startCreatePotCheckout = async function(){
+        try{
+          if (!_isAdmin()){
+            const sel = document.getElementById('c-allow-stripe');
+            if (sel){ try{ sel.value = 'no'; }catch(_){ } }
+          }
+        }catch(_){}
+        return orig.apply(this, arguments);
+      }
+    }
+  }catch(_){}
+})();
 
