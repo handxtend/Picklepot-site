@@ -1321,3 +1321,128 @@ async function handleSubscriptionReturn(){
   });
 })();
 
+\
+// ===== Organizer UI Fix (drop-in addon; safe to append at end of app.js) =====
+(function(){
+  const ACTIVE = ['active','trialing','past_due'];
+
+  // If API_BASE isn't defined in the page, set it here (adjust if yours differs)
+  if (typeof API_BASE === 'undefined') {
+    window.API_BASE = 'https://picklepot-stripe.onrender.com';
+  }
+
+  function $(s, el=document){ return el.querySelector(s); }
+
+  function show(el, on){ if(el){ el.style.display = on ? '' : 'none'; } }
+  function setText(el, txt){ if(el){ el.textContent = txt; el.style.display = ''; } }
+
+  // Ensure Firebase auth persists across reloads
+  try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(_){}
+
+  async function getEmailActive(email){
+    if (!email || !window.db) return false;
+    try{
+      const snap = await db.collection('organizer_subs_emails').doc(email.toLowerCase()).get();
+      if (!snap.exists) return false;
+      const s = (snap.data()||{}).status;
+      return ACTIVE.includes(s);
+    }catch(_){ return false; }
+  }
+
+  async function getUidActive(uid){
+    if (!uid || !window.db) return false;
+    try{
+      const snap = await db.collection('organizer_subs').doc(uid).get();
+      if (!snap.exists) return false;
+      const s = (snap.data()||{}).status;
+      return ACTIVE.includes(s);
+    }catch(_){ return false; }
+  }
+
+  async function claim(uid, email){
+    try{
+      const res = await fetch(`${API_BASE}/activate-subscription-for-uid`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ uid, email })
+      });
+      return res.ok;
+    }catch(_){ return false; }
+  }
+
+  async function refreshOrganizerUI(){
+    const user = (firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
+    const email = user?.email || '';
+    const uid   = user?.uid   || '';
+
+    const createCard = document.getElementById('create-card');
+    const subscribeBtn = document.getElementById('btn-subscribe-organizer') || document.getElementById('organizer-subscribe') || document.querySelector('[data-role="subscribe-organizer"]');
+    const banner = document.getElementById('pay-banner');
+
+    // Signed out: hide create, show subscribe
+    if (!user){
+      show(createCard, false);
+      if (subscribeBtn) subscribeBtn.style.display='';
+      return;
+    }
+
+    // Check active via uid
+    const activeUid = await getUidActive(uid);
+
+    if (activeUid){
+      show(createCard, true);
+      if (subscribeBtn) subscribeBtn.style.display='none';
+      if (banner) banner.style.display='none';
+      return;
+    }
+
+    // Not active yet — see if email has paid (pre-claim state)
+    const emailActive = await getEmailActive(email);
+
+    if (emailActive){
+      // Try to claim automatically
+      setText(banner, 'Finishing your subscription… one moment.');
+      const ok = await claim(uid, email);
+      if (ok){
+        setText(banner, 'Subscription linked — you can create Pots now!');
+      }else{
+        setText(banner, 'Subscription found for this email. Click to claim.');
+        // Add a quick claim button
+        let btn = document.getElementById('btn-claim-sub');
+        if (!btn){
+          btn = document.createElement('button');
+          btn.id = 'btn-claim-sub';
+          btn.className = 'btn';
+          btn.textContent = 'Claim subscription';
+          banner?.insertAdjacentElement('afterend', btn);
+          btn.addEventListener('click', async ()=>{
+            btn.disabled = true; btn.textContent = 'Claiming…';
+            const ok2 = await claim(uid, email);
+            btn.disabled = false; btn.textContent = ok2 ? 'Claimed!' : 'Try again';
+            await refreshOrganizerUI();
+          });
+        }
+      }
+      // After claim attempt, re-check uid status and update UI
+      const nowActive = await getUidActive(uid);
+      show(createCard, !!nowActive);
+      if (subscribeBtn) subscribeBtn.style.display = nowActive ? 'none' : 'none'; // keep hidden if email paid
+      return;
+    }
+
+    // No subscription yet
+    show(createCard, false);
+    if (subscribeBtn) subscribeBtn.style.display='';
+  }
+
+  // Run on load and on auth changes
+  document.addEventListener('DOMContentLoaded', refreshOrganizerUI);
+  try {
+    firebase.auth().onAuthStateChanged(refreshOrganizerUI);
+  } catch(_){}
+
+  // Expose for manual retry / debugging
+  window.__refreshOrganizerUI = refreshOrganizerUI;
+})();
+
+
