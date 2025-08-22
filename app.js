@@ -117,7 +117,10 @@ const SKILL_ORDER={ "Any":0, "2.5 - 3.0":1, "3.25+":2 };
 const skillRank = s => SKILL_ORDER[s] ?? 0;
 
 /* ---------- Helpers ---------- */
-function fillSelect(id, items){ const el = typeof id==='string'?document.getElementById(id):id; if(!el) return; el.innerHTML = items.map(v=>`<option>${v}</option>`).join(''); }</option>`).join('');
+function fillSelect(id, items){
+  const el = (typeof id==='string') ? document.getElementById(id) : id;
+  if (!el) return;
+  el.innerHTML = items.map(v => `<option>${v}</option>`).join('');
 }
 function toggleOther(selectEl, wrapEl){ if(!selectEl||!wrapEl) return; wrapEl.style.display = (selectEl.value==='Other')?'':'none'; }
 function getSelectValue(selectEl, otherInputEl){ return selectEl.value==='Other'?(otherInputEl?.value||'').trim():selectEl.value; }
@@ -126,9 +129,10 @@ function setSelectOrOther(selectEl, wrap, input, val, list){
   else { selectEl.value='Other'; wrap.style.display=''; input.value=val||''; }
 }
 function escapeHtml(s){
-  return String(s||'').replace(/[&<>"'`=\/]/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;','/':'&#47;','`':'&#96;','=':'&#61;'
-  }[c]));
+  const map = {
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#47;','`':'&#96;','=':'&#61;'
+  };
+  return String(s||'').replace(/[&<>"'`=\/]/g, c => map[c]);
 }
 
 /* ---------- FIREBASE ---------- */
@@ -145,6 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
   fillSelect('c-location-select', LOCATIONS);
   fillSelect('j-skill', SKILLS);
 
+  // Other toggles (create)
   toggleOther($('#c-name-select'), $('#c-name-other-wrap'));
   $('#c-name-select').addEventListener('change', ()=>toggleOther($('#c-name-select'), $('#c-name-other-wrap')));
   toggleOther($('#c-organizer'), $('#c-org-other-wrap'));
@@ -162,6 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#j-pot-select').addEventListener('change', onJoinPotChange);
   $('#j-skill').addEventListener('change', evaluateJoinEligibility);
   $('#j-mtype').addEventListener('change', ()=>{ updateJoinCost(); evaluateJoinEligibility(); });
+
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
   $('#btn-create').addEventListener('click', createPot);
@@ -180,6 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(sel && potIdInput){ potIdInput.value = sel; }
   });
 
+  // Admin header buttons
   $('#site-admin-toggle').addEventListener('click', ()=>{
     const v = prompt('Admin password?');
     if(v===SITE_ADMIN_PASS){ setSiteAdmin(true); refreshAdminUI(); alert('Admin mode enabled.'); }
@@ -189,6 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setSiteAdmin(false); refreshAdminUI(); alert('Admin mode disabled.');
   });
 
+  // Admin buttons in Pot Detail
   $('#btn-admin-login')?.addEventListener('click', ()=>{
     const v = prompt('Admin password?');
     if(v===SITE_ADMIN_PASS){ setSiteAdmin(true); refreshAdminUI(); alert('Admin mode enabled.'); }
@@ -203,6 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-admin-grant')?.addEventListener('click', grantThisDeviceAdmin);
   $('#btn-admin-revoke')?.addEventListener('click', revokeThisDeviceAdmin);
 
+  // Per-entry actions delegated
   const tbody = document.querySelector('#adminTable tbody');
   if (tbody){
     tbody.addEventListener('change', async (e)=>{
@@ -246,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   refreshAdminUI();
+  // NEW: show success banner if returning from Stripe
   checkStripeReturn();
 });
 
@@ -602,6 +612,7 @@ async function joinPot(){
         return fail('Stripe requires a fee of at least $0.50.');
       }
 
+      // Use HTTPS origin if page was opened as file://
       const origin =
         window.location.protocol === 'file:'
           ? 'https://pickleballcompete.com'
@@ -639,23 +650,20 @@ async function joinPot(){
         return fail(errMsg);
       }
 
-      // Save IDs for success page UX and redirect
+      // Keep IDs for success page UX
       sessionStorage.setItem('potId', p.id);
       sessionStorage.setItem('entryId', entryId);
 
-      try {
-        window.location.href = data.url;
-      } catch (err) {
-        window.open(data.url, '_blank', 'noopener');
-      }
-      return; // stop here on Stripe path
-    } else {
-      // Non-Stripe path
-      setBusy(false);
-      msg.textContent='Joined! Complete payment using the selected method.';
-      updatePaymentNotes();
-      try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
+      try { window.location.href = data.url; }
+      catch { window.open(data.url, '_blank', 'noopener'); }
+      return;
     }
+
+    // Non-Stripe:
+    setBusy(false);
+    msg.textContent='Joined! Complete payment using the selected method.';
+    updatePaymentNotes();
+    try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
   }catch(e){
     console.error('[JOIN] Unexpected failure:', e);
     fail('Join failed (check Firebase rules and your network).');
@@ -1102,25 +1110,29 @@ PiCo Pickle Pot`;
 /* ---------- NEW: Stripe return success banner ---------- */
 function checkStripeReturn(){
   const params = new URLSearchParams(location.search);
-  const sessionId = params.get('session_id');
+  const sessionId = params.get('session_id'); // present after successful Checkout
   const banner = $('#pay-banner');
   if (!banner) return;
 
   if (sessionId){
+    // Show a friendly banner immediately
     banner.style.display = '';
     banner.textContent = 'Payment successful! Finalizing your registration… ✅';
 
+    // Try to confirm against Firestore using saved IDs
     const potId = sessionStorage.getItem('potId');
     const entryId = sessionStorage.getItem('entryId');
 
     if (potId && entryId){
+      // Live-listen for paid:true flip (webhook)
       db.collection('pots').doc(potId).collection('entries').doc(entryId)
         .onSnapshot(doc=>{
           const d = doc.data() || {};
           if (d.paid){
             const amt = (typeof d.paid_amount === 'number') ? (d.paid_amount/100) : (d.applied_buyin||0);
             banner.textContent = `Payment successful: ${dollars(amt)} received. Enjoy the event! 🎉`;
-            setTimeout(() => { try { banner.style.display = 'none'; } catch (err) {} }, 8000);
+            // Auto-hide after a bit
+            setTimeout(()=>{ try{ banner.style.display='none'; }catch{} }, 8000);
           } else {
             banner.textContent = 'Payment completed. Waiting for confirmation…';
           }
@@ -1129,6 +1141,7 @@ function checkStripeReturn(){
         });
     }
 
+    // Clean the session_id from the URL for a nicer look
     if (history.replaceState){
       const cleanUrl = location.pathname + location.hash;
       history.replaceState(null, '', cleanUrl);
@@ -1207,7 +1220,7 @@ async function onOrganizerSubscribe(){
     // If you already have an active sub, short-circuit
     if (typeof hasOrganizerSub === 'function' && hasOrganizerSub()){
       const until = ORG_SUB?.until ? new Date(ORG_SUB.until).toLocaleDateString() : 'current period';
-      alert('Your organizer subscription is already active.\\nExpires: ' + until);
+      alert('Your organizer subscription is already active.\nExpires: ' + until);
       return;
     }
 
@@ -1344,7 +1357,7 @@ async function handleSubscriptionReturn(){
   window.__debugCheckOrganizer = ensureOrganizerFlag;
 })();
 
-\
+
 // ===== Organizer UI Fix (drop-in addon; safe to append at end of app.js) =====
 (function(){
   const ACTIVE = ['active','trialing','past_due'];
@@ -1571,7 +1584,7 @@ async function handleSubscriptionReturn(){
   }
 
   // 6) Start subscription (reads plan + PRICE_MAP)
-  async function onOrganizerSubscribe(){
+  async function onOrganizerSubscribe2(){ // avoid name clash with earlier function
     const btn = document.getElementById('btn-subscribe-organizer');
     if (!btn) return;
     const planSel = document.getElementById('org-plan');
@@ -1618,16 +1631,17 @@ async function handleSubscriptionReturn(){
   // 8) Bind once DOM is ready
   document.addEventListener('DOMContentLoaded', () => {
     // Add PRICE_MAP if missing
-    if (!window.PRICE_MAP) { try{ // === Stripe price map (LIVE) ===
-window.PRICE_MAP = {
-  individual_monthly: 'price_1Rwq6nFFPAbZxH9HkmDxBJ73',
-  individual_yearly:  'price_1RwptxFFPAbZxH9HdPLdYIZR',
-  club_monthly:       'price_1Rwq1JFFPAbZxH9HmpYCSJYv',
-  club_yearly:        'price_1RwpyUFFPAbZxH9H2N1Ykd4U'
-}; }catch(_){ } }
+    if (!window.PRICE_MAP) {
+      window.PRICE_MAP = {
+        individual_monthly: 'price_1Rwq6nFFPAbZxH9HkmDxBJ73',
+        individual_yearly:  'price_1RwptxFFPAbZxH9HdPLdYIZR',
+        club_monthly:       'price_1Rwq1JFFPAbZxH9HmpYCSJYv',
+        club_yearly:        'price_1RwpyUFFPAbZxH9H2N1Ykd4U'
+      };
+    }
     // Hook buttons if present
     const subBtn = document.getElementById('btn-subscribe-organizer');
-    if (subBtn && !subBtn._bound){ subBtn.addEventListener('click', onOrganizerSubscribe); subBtn._bound = true; }
+    if (subBtn && !subBtn._bound){ subBtn.addEventListener('click', onOrganizerSubscribe2); subBtn._bound = true; }
     const claimBtn = document.getElementById('btn-claim');
     if (claimBtn && !claimBtn._bound){ claimBtn.addEventListener('click', claimNow); claimBtn._bound = true; }
 
