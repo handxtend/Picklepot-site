@@ -5,8 +5,10 @@ window.API_BASE = window.API_BASE || 'https://picklepot-stripe.onrender.com';
 
 /* ==== Organizer plan prices (safe to expose) ==== */
 const PRICE_MAP = {
-  monthly: 'price_1Rx2QAFFPAbZxH9HuxdlfEjx',
-  yearly:  'price_1Rx2R4FFPAbZxH9HzFTPaFb0'
+  individual_monthly: 'price_1Rwq6nFFPAbZxH9HkmDxBJ73',
+  individual_yearly:  'price_1RwptxFFPAbZxH9HdPLdYIZR',
+  club_monthly:       'price_1Rwq1JFFPAbZxH9HmpYCSJYv',
+  club_yearly:        'price_1RwpyUFFPAbZxH9H2N1Ykd4U'
 };
 
 const SITE_ADMIN_PASS = 'Jesus7';
@@ -115,9 +117,7 @@ const SKILL_ORDER={ "Any":0, "2.5 - 3.0":1, "3.25+":2 };
 const skillRank = s => SKILL_ORDER[s] ?? 0;
 
 /* ---------- Helpers ---------- */
-function fillSelect(id, items){
-  const el = typeof id==='string'?document.getElementById(id):id;
-  el.innerHTML = items.map(v=>`<option>${v}</option>`).join('');
+function fillSelect(id, items){ const el = typeof id==='string'?document.getElementById(id):id; if(!el) return; el.innerHTML = items.map(v=>`<option>${v}</option>`).join(''); }</option>`).join('');
 }
 function toggleOther(selectEl, wrapEl){ if(!selectEl||!wrapEl) return; wrapEl.style.display = (selectEl.value==='Other')?'':'none'; }
 function getSelectValue(selectEl, otherInputEl){ return selectEl.value==='Other'?(otherInputEl?.value||'').trim():selectEl.value; }
@@ -1182,17 +1182,39 @@ function originForReturn(){
 
 async function onOrganizerSubscribe(){
   try{
-    const user = firebase.auth().currentUser;
-    if(!user){ alert('Please sign in first (top-right).'); return; }
-
-    if(hasOrganizerSub()){
-      const until = ORG_SUB.until ? new Date(ORG_SUB.until).toLocaleDateString() : 'current period';
-      alert('Your organizer subscription is already active.\nExpires: ' + until);
+    // Read selected plan -> explicit Stripe price_id
+    const planSel = document.getElementById('org-plan');
+    const plan = planSel ? planSel.value : 'individual_monthly';
+    const price_id = (PRICE_MAP || {})[plan];
+    if (!price_id){
+      alert('Please choose a valid plan.'); 
       return;
     }
 
+    // Optional: prefill email (work even when not signed-in)
+    const user = (firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
+    let email = user?.email || '';
+    if (!email){
+      // Ask for an email so Stripe can send the receipt and we can later claim the sub
+      email = prompt('Enter your email for the subscription (you can sign up with this email after payment):', '') || '';
+      email = email.trim();
+      if (!email){
+        alert('Email is required to start a subscription.');
+        return;
+      }
+    }
+
+    // If you already have an active sub, short-circuit
+    if (typeof hasOrganizerSub === 'function' && hasOrganizerSub()){
+      const until = ORG_SUB?.until ? new Date(ORG_SUB.until).toLocaleDateString() : 'current period';
+      alert('Your organizer subscription is already active.\\nExpires: ' + until);
+      return;
+    }
+
+    // Build payload for the backend
     const payload = {
-      uid: user.uid,
+      price_id,
+      email,
       success_url: originForReturn() + '/?sub=success',
       cancel_url:  originForReturn() + '/?sub=cancel'
     };
@@ -1205,12 +1227,13 @@ async function onOrganizerSubscribe(){
         body: JSON.stringify(payload)
       });
     }catch(netErr){
-      alert('Network error starting subscription. Please check your internet.');
+      alert('Network error starting subscription. Please check your internet or backend.');
       return;
     }
     try{ data = await res.json(); }catch(_){ data = null; }
     if (!res.ok || !data?.url){
-      alert(data?.error || 'Subscription server error.'); return;
+      alert(data?.error || 'Subscription server error.'); 
+      return;
     }
     try{ window.location.href = data.url; }
     catch{ window.open(data.url, '_blank', 'noopener'); }
@@ -1253,72 +1276,72 @@ async function handleSubscriptionReturn(){
 }
 
 
-/* ====== SAFE ADD-ONS (non-breaking) ====== */
+/* ====== ORGANIZER VISIBILITY FIX (non-breaking) ====== */
 (function(){
-  // 1) Persist auth across refresh
-  try {
-    if (firebase && firebase.auth && firebase.auth()) {
-      firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(()=>{});
-    }
-  } catch (_){}
+  const ACTIVE_STATUSES = ['active','trialing','past_due'];
 
-  // 2) Claim subscription after sign-in (email-keyed -> uid)
-  async function claimSubscriptionIfNeeded(){
+  async function readOrganizerActive(uid, email){
     try{
-      const u = firebase.auth().currentUser;
-      if(!u || !u.email) return;
-      await fetch(`${typeof API_BASE!=='undefined'?API_BASE:''}/activate-subscription-for-uid`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ uid: u.uid, email: u.email })
-      });
-    }catch(_){}
-  }
-
-  // 3) Hide "Organizer Subscription" button when organizer is active
-  async function updateOrganizerSubscribeVisibility(){
-    try{
-      const btn = document.getElementById('btn-subscribe-organizer') || document.getElementById('organizer-subscribe') || document.querySelector('[data-role="subscribe-organizer"]');
-      if (!btn) return;
-      let hide = false;
-      try { if (typeof isSiteAdmin==='function' && isSiteAdmin()) hide = true; } catch(_){}
-      try { if (typeof organizerActive!=='undefined' && organizerActive) hide = true; } catch(_){}
-
-      const u = (firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
-      if (u && u.email && typeof db!=='undefined' && db){
+      const emailLc = (email||'').toLowerCase();
+      // 1) Preferred: organizer_subs/{uid}
+      if (uid && typeof db!=='undefined'){
         try{
-          const snap = await db.collection('organizer_subs_emails').doc(u.email.toLowerCase()).get();
-          if (snap.exists){
-            const s = (snap.data()||{}).status;
-            if (['active','trialing','past_due'].includes(s)) hide = true;
+          const doc = await db.collection('organizer_subs').doc(uid).get();
+          if (doc.exists) {
+            const s = (doc.data()||{}).status;
+            if (ACTIVE_STATUSES.includes(s)) return true;
           }
         }catch(_){}
       }
-      btn.style.display = hide ? 'none' : '';
+      // 2) Email-keyed (pre-claim): organizer_subs_emails/{email}
+      if (emailLc && typeof db!=='undefined'){
+        try{
+          const doc = await db.collection('organizer_subs_emails').doc(emailLc).get();
+          if (doc.exists) {
+            const s = (doc.data()||{}).status;
+            if (ACTIVE_STATUSES.includes(s)) return true;
+          }
+        }catch(_){}
+      }
+      // 3) Legacy collection: organizers/{uid}.active === true
+      if (uid && typeof db!=='undefined'){
+        try{
+          const doc = await db.collection('organizers').doc(uid).get();
+          if (doc.exists && (doc.data()||{}).active === true) return true;
+        }catch(_){}
+      }
+    }catch(_){}
+    return false;
+  }
+
+  async function ensureOrganizerFlag(){
+    try{
+      const u = (firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
+      const ok = u ? await readOrganizerActive(u.uid, u.email) : false;
+      try{ window.organizerActive = !!ok; }catch(_){}
+      // If your code has refreshCreateVisibility(), let it decide UI
+      try{ if (typeof refreshCreateVisibility==='function') refreshCreateVisibility(); }catch(_){}
+      // Hide subscribe button when active
+      try{ if (typeof updateOrganizerSubscribeVisibility==='function') await updateOrganizerSubscribeVisibility(); }catch(_){}
     }catch(_){}
   }
 
-  // Extra listeners (do NOT modify existing ones)
-  if (firebase && firebase.auth) {
-    try {
+  // Hook into auth state
+  try{
+    if (firebase && firebase.auth){
       firebase.auth().onAuthStateChanged(async () => {
-        try { await claimSubscriptionIfNeeded(); } catch(_){}
-        try { await updateOrganizerSubscribeVisibility(); } catch(_){}
+        await ensureOrganizerFlag();
       });
-    } catch(_){}
-  }
+    }
+  }catch(_){}
 
+  // Also run on DOM ready (covers reload after return)
   document.addEventListener('DOMContentLoaded', () => {
-    try { updateOrganizerSubscribeVisibility(); } catch(_){}
-    // Route to sign-in after subscription, but don't touch existing logic
-    try {
-      const url = new URL(window.location.href);
-      const subSuccess = url.searchParams.get('sub') === 'success' || /[#&]sub=success/.test(location.hash);
-      if (subSuccess && !/#signin/.test(location.hash)) {
-        location.hash = '#signin';
-      }
-    } catch(_){}
+    ensureOrganizerFlag();
   });
+
+  // Expose for debugging
+  window.__debugCheckOrganizer = ensureOrganizerFlag;
 })();
 
 \
@@ -1446,3 +1469,201 @@ async function handleSubscriptionReturn(){
 })();
 
 
+
+
+/* ======================= Organizer & Auth Addon (non-breaking) =======================
+   - Persists Firebase auth (LOCAL)
+   - Subscription start with selected plan (PRICE_MAP)
+   - Detects active sub via organizer_subs/{uid} or organizer_subs_emails/{email}
+   - Claim button to attach email-keyed sub to uid
+   - Shows Create-a-Pot when active; hides Subscribe strip
+   This block APPENDS behavior; it does NOT modify existing code.
+======================================================================================= */
+(function(){
+  const ACTIVE = ['active','trialing','past_due'];
+  const API_BASE = (typeof window.API_BASE !== 'undefined' && window.API_BASE) ? window.API_BASE : 'https://picklepot-stripe.onrender.com';
+  const $  = (s,el=document)=>el.querySelector(s);
+
+  // 1) Ensure auth persistence
+  try{ firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(_){}
+
+  // 2) Helpers
+  function show(el, on){ if(el){ el.style.display = on ? '' : 'none'; } }
+  function setText(el, t){ if(el){ el.textContent = t; el.style.display=''; } }
+
+  // 3) Detect subscription state
+  async function hasActiveUid(uid){
+    try{
+      const snap = await firebase.firestore().collection('organizer_subs').doc(uid).get();
+      if (!snap.exists) return false;
+      const s = (snap.data()||{}).status||'';
+      return ACTIVE.includes(String(s));
+    }catch(_){ return false; }
+  }
+  async function hasActiveEmail(email){
+    if (!email) return false;
+    try{
+      const snap = await firebase.firestore().collection('organizer_subs_emails').doc(email.toLowerCase()).get();
+      if (!snap.exists) return false;
+      const s = (snap.data()||{}).status||'';
+      return ACTIVE.includes(String(s));
+    }catch(_){ return false; }
+  }
+
+  // 4) Gate Create card & Subscribe strip
+  async function gateUI(){
+    const user = firebase.auth().currentUser;
+    const createCard = document.getElementById('create-card');
+    const subStrip   = document.getElementById('org-subscribe-strip');
+    const subHint    = document.getElementById('org-subscribe-hint');
+
+    if (!user){
+      show(createCard, false);
+      show(subStrip, true); show(subHint, true);
+      return;
+    }
+
+    const byUid = await hasActiveUid(user.uid);
+    if (byUid){
+      show(createCard, true);
+      show(subStrip, false); show(subHint, false);
+      return;
+    }
+
+    const byEmail = await hasActiveEmail(user.email||'');
+    if (byEmail){
+      // Try auto-claim if we just returned from Stripe
+      show(document.getElementById('claim-banner'), true);
+      const claimEmailEl = document.getElementById('claim-email');
+      if (claimEmailEl) claimEmailEl.textContent = user.email || '';
+      return;
+    }
+
+    // No sub found
+    show(createCard, false);
+    show(subStrip, true); show(subHint, true);
+  }
+
+  // 5) Claim handler
+  async function claimNow(){
+    const user = firebase.auth().currentUser;
+    if (!user || !user.email) return;
+    const btn = document.getElementById('btn-claim');
+    if (btn){ btn.disabled = true; btn.textContent = 'Claiming…'; }
+    try{
+      const res = await fetch(`${API_BASE}/activate-subscription-for-uid`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ uid: user.uid, email: user.email })
+      });
+      const data = await res.json().catch(()=>null);
+      if (!res.ok) throw new Error((data&&data.error)||'Claim failed');
+
+      // Success → hide claim, show create, hide subscribe
+      const banner = document.getElementById('claim-banner');
+      if (banner) banner.style.display = 'none';
+      await gateUI();
+      alert('Subscription linked. You can now create Pots.');
+    }catch(e){
+      alert(e.message||'Could not claim subscription.');
+    }finally{
+      if (btn){ btn.disabled = false; btn.textContent = 'Claim subscription'; }
+    }
+  }
+
+  // 6) Start subscription (reads plan + PRICE_MAP)
+  async function onOrganizerSubscribe(){
+    const btn = document.getElementById('btn-subscribe-organizer');
+    if (!btn) return;
+    const planSel = document.getElementById('org-plan');
+    const planKey = planSel ? planSel.value : 'individual_monthly';
+    const price_id = (window.PRICE_MAP||{})[planKey];
+    if (!price_id){ alert('Pick a plan.'); return; }
+
+    const user = firebase.auth().currentUser;
+    const origin = window.location.origin;
+    const payload = {
+      price_id,
+      success_url: origin + '/?sub=success',
+      cancel_url:  origin + '/?sub=cancel',
+      email: user?.email || null
+    };
+    btn.disabled = true; btn.textContent = 'Redirecting…';
+    try{
+      const res = await fetch(`${API_BASE}/create-organizer-subscription`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json().catch(()=>null);
+      if (!res.ok || !data?.url) throw new Error((data&&data.error)||'Service error');
+      window.location.href = data.url;
+    }catch(e){
+      alert(e.message||'Could not start subscription.');
+      btn.disabled = false; btn.textContent = 'Organizer Subscription';
+    }
+  }
+
+  // 7) Stripe return banner
+  function handleStripeReturn(){
+    try{
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('sub') === 'success'){
+        const b = document.getElementById('pay-banner');
+        if (b){ b.textContent = 'Payment received. Sign in (or create an account) to finish setup.'; b.style.display=''; }
+        url.searchParams.delete('sub');
+        history.replaceState({}, '', url.toString());
+      }
+    }catch(_){}
+  }
+
+  // 8) Bind once DOM is ready
+  document.addEventListener('DOMContentLoaded', () => {
+    // Add PRICE_MAP if missing
+    if (!window.PRICE_MAP) { try{ // === Stripe price map (LIVE) ===
+window.PRICE_MAP = {
+  individual_monthly: 'price_1Rwq6nFFPAbZxH9HkmDxBJ73',
+  individual_yearly:  'price_1RwptxFFPAbZxH9HdPLdYIZR',
+  club_monthly:       'price_1Rwq1JFFPAbZxH9HmpYCSJYv',
+  club_yearly:        'price_1RwpyUFFPAbZxH9H2N1Ykd4U'
+}; }catch(_){ } }
+    // Hook buttons if present
+    const subBtn = document.getElementById('btn-subscribe-organizer');
+    if (subBtn && !subBtn._bound){ subBtn.addEventListener('click', onOrganizerSubscribe); subBtn._bound = true; }
+    const claimBtn = document.getElementById('btn-claim');
+    if (claimBtn && !claimBtn._bound){ claimBtn.addEventListener('click', claimNow); claimBtn._bound = true; }
+
+    // Auth UI
+    const inBtn = document.getElementById('btn-signin');
+    if (inBtn && !inBtn._bound){
+      inBtn.addEventListener('click', async ()=>{
+        try{ await firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()); }
+        catch(_){}
+      });
+      inBtn._bound = true;
+    }
+    const outBtn = document.getElementById('btn-signout');
+    if (outBtn && !outBtn._bound){
+      outBtn.addEventListener('click', async ()=>{ try{ await firebase.auth().signOut(); }catch(_){} });
+      outBtn._bound = true;
+    }
+
+    handleStripeReturn();
+    gateUI();
+  });
+
+  // Update gate on auth state
+  try{
+    firebase.auth().onAuthStateChanged(()=>{
+      // reflect label
+      const user = firebase.auth().currentUser;
+      const label = document.getElementById('auth-user');
+      if (label){
+        if (user){ label.style.display=''; label.textContent = user.displayName || user.email || '(signed in)'; }
+        else { label.style.display='none'; label.textContent=''; }
+      }
+      gateUI();
+    });
+  }catch(_){}
+
+  // Expose for debugging
+  window.__gateUI = gateUI;
+})();
