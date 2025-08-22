@@ -1,12 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-
-  <style>
-  /* Hide the “Signed in as …” text always */
-  #auth-user { display: none !important; }
-</style>
-
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>PiCo Pickle Pot</title>
@@ -17,6 +11,18 @@
     .ad-slot a{display:inline-block;line-height:0}
     .ad-slot img{max-width:100%;height:auto;border-radius:8px;border:1px solid var(--border);background:#fff}
     .sponsored-tag{font-size:12px;color:var(--muted);text-align:center;margin-top:4px}
+
+    /* Hide Sign In / Signed In everywhere */
+#btn-signin,
+#btnSignOut,
+[data-action="signout"],
+#auth-user,
+[signed-status],
+.signed-status,
+#signedStatus {
+  display: none !important;
+}
+
   </style>
 
   <!-- Base styles -->
@@ -163,7 +169,7 @@
       </button>
     </div>
     <div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
-      Subscribe to create &amp; manage your own Pots - COMING SOON!
+      Subscribe to create &amp; manage your own Pots
     </div>
 
     <div class="alert" id="configWarning" style="display:none">
@@ -217,7 +223,10 @@
     <section class="card">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
         <h2 class="section-header" style="margin-bottom:0">Join a Pot</h2>
-        <div class="inline" id="auth-controls" style="margin-left:8px"><small class="muted" id="auth-user" style="display:none"></small>
+        <div class="inline" id="auth-controls" style="margin-left:8px">
+          <button class="btn" id="btn-signin">Sign In</button>
+          <button class="btn" id="btn-signout" style="display:none">Sign Out</button>
+          <small class="muted" id="auth-user" style="display:none"></small>
         </div>
         <div id="j-header-right" style="text-align:right">
           <div class="big-totals" id="j-pot-totals-big" style="font-size:28px;line-height:1.2">
@@ -227,7 +236,7 @@
         </div>
       </div>
 
-      <h3 style="margin:14px 0 6px">Active Tournaments</h3>
+      <div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px"><h3 style="margin:0">Active Tournaments</h3><button class="btn" id="btn-howto" type="button" aria-expanded="false" aria-controls="howto-panel">How To Use</button></div><div id="howto-panel" class="alert" style="display:none"><ol style="margin:0 0 8px 18px"><li><b>Join a Pot is free to use.</b></li><li>Use <b>Active Tournaments</b> to find an event you’re interested in — the selected Pot's details appear at the bottom.</li><li>Fill out your info and choose a <b>payment option</b>.</li><li>Once payment is made, you'll be marked as <b>PAID</b> in the Pot Detail section and registered.</li><li>Be at the venue on the day/time of the event about <b>30 minutes earlier</b> to verify your registration.</li></ol><div class="muted"><b>Note:</b> For <b>Doubles</b>, make sure your partner is also registered here.</div></div>
 
       <div class="row">
         <div style="flex:1">
@@ -236,7 +245,7 @@
           <div class="muted" style="margin-top:6px">Summary: <span id="j-pot-summary-brief" class="soft-blue-box">—</span></div>
           <div id="j-started-badge" class="badge warn" style="display:none;margin-top:6px">Tournament Started</div>
         </div>
-        <div><label>&nbsp;</label><button class="btn" id="j-refresh">Refresh</button></div>
+        <div><label>&nbsp;</label><button class="btn" id="j-refresh">Refresh</button> <button class="btn" id="btn-show-detail" type="button">Show Pot Details</button></div>
       </div>
 
       <div id="j-pot-total" class="pot-highlight" style="margin-top:6px;display:none">Total Pot: $0</div>
@@ -262,7 +271,7 @@
     </section>
 
     <!-- ======= POT DETAIL ======= -->
-    <section class="card">
+    <section class="card" id="pot-detail-section">
       <h2 class="section-header">Pot Details</h2>
       <div class="grid2">
         <input id="v-pot" placeholder="Pot ID to load"/>
