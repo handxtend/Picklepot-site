@@ -5,10 +5,8 @@ window.API_BASE = window.API_BASE || 'https://picklepot-stripe.onrender.com';
 
 /* ==== Organizer plan prices (safe to expose) ==== */
 const PRICE_MAP = {
-  individual_monthly: 'price_1Rwq6nFFPAbZxH9HkmDxBJ73',
-  individual_yearly:  'price_1RwptxFFPAbZxH9HdPLdYIZR',
-  club_monthly:       'price_1Rwq1JFFPAbZxH9HmpYCSJYv',
-  club_yearly:        'price_1RwpyUFFPAbZxH9H2N1Ykd4U'
+  monthly: 'price_live_MONTHLY_REPLACE_ME', // TODO: replace with your LIVE Monthly price_id
+  yearly:  'price_live_YEARLY_REPLACE_ME'   // TODO: replace with your LIVE Yearly price_id
 };
 
 const SITE_ADMIN_PASS = 'Jesus7';
@@ -135,9 +133,16 @@ function escapeHtml(s){
 
 /* ---------- FIREBASE ---------- */
 const db = firebase.firestore();
+// Ensure auth persists across refresh
+try {
+  firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+} catch (e) { console.warn('auth persistence', e); }
+
 
 /* ---------- UI bootstrap ---------- */
 document.addEventListener('DOMContentLoaded', () => {
+    try{ updateOrganizerSubscribeVisibility(); }catch(_){ }
+
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
   handleSubscriptionReturn();
 
@@ -1103,22 +1108,26 @@ PiCo Pickle Pot`;
 
 /* ---------- NEW: Stripe return success banner ---------- */
 function checkStripeReturn(){
-  const params = new URLSearchParams(location.search);
-  const sessionId = params.get('session_id');
-  const banner = $('#pay-banner');
-  if (!banner) return;
-
-  if (sessionId){
-    banner.style.display = '';
-    banner.textContent = 'Payment successful! Finalizing your registration… ✅';
-
-    const potId = sessionStorage.getItem('potId');
-    const entryId = sessionStorage.getItem('entryId');
-
-    if (potId && entryId){
-      db.collection('pots').doc(potId).collection('entries').doc(entryId)
-        .onSnapshot(doc=>{
-          const d = doc.data() || {};
+  try{
+    const url = new URL(window.location.href);
+    const banner = document.getElementById('pay-banner');
+    const subSuccess = url.searchParams.get('sub') === 'success' || /[#&]sub=success/.test(window.location.hash);
+    if (subSuccess) {
+      if (banner){ banner.textContent = 'Subscription successful! Create your account (or sign in) to start creating Pots.'; banner.style.display=''; }
+      try { sessionStorage.setItem('afterSub', '1'); } catch(_){ }
+      // Push user to sign-in view if your app uses #signin
+      if (!/#signin/.test(location.hash)) {
+        location.hash = '#signin';
+      }
+      // Clean query param for prettier URL
+      if (history.replaceState){
+        const clean = location.pathname + '#signin';
+        history.replaceState(null, '', clean);
+      }
+    }
+  }catch(e){ /* noop */ }
+}
+;
           if (d.paid){
             const amt = (typeof d.paid_amount === 'number') ? (d.paid_amount/100) : (d.applied_buyin||0);
             banner.textContent = `Payment successful: ${dollars(amt)} received. Enjoy the event! 🎉`;
@@ -1155,6 +1164,8 @@ try{
 }catch(e){ console.warn('Auth button init error', e); }
 
 firebase.auth().onAuthStateChanged(async (user)=>{
+      try{ await updateOrganizerSubscribeVisibility(); }catch(_){ }
+
   try{
     const isReal = !!(user && !user.isAnonymous);
     const name = isReal ? (user && (user.displayName || "Signed In")) : "";
@@ -1258,24 +1269,30 @@ async function handleSubscriptionReturn(){
 }
 
 
-// --- Post-payment subscription claim ---
-async function claimSubscriptionIfNeeded(){
+// Hide/Show organizer subscription button based on subscription status
+async function updateOrganizerSubscribeVisibility(){
   try{
+    const btn = document.getElementById('btn-subscribe-organizer') || document.getElementById('organizer-subscribe') || document.querySelector('[data-role="subscribe-organizer"]');
+    if(!btn) return;
+    let hide = false;
+
+    // Site admin or already flagged
+    if (typeof isSiteAdmin === 'function' && isSiteAdmin()) hide = true;
+    if (typeof organizerActive !== 'undefined' && organizerActive) hide = true;
+
     const u = firebase.auth().currentUser;
-    if(!u || !u.email) return;
-    await fetch(`${API_BASE}/activate-subscription-for-uid`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ uid: u.uid, email: u.email })
-    });
-    // Refresh organizer flag/UI if functions exist
-    try {
-      if (typeof readOrganizerFlag === 'function') {
-        const active = await readOrganizerFlag(u.uid);
-        if (typeof organizerActive !== 'undefined') { organizerActive = !!active; }
-      }
-    } catch(_) {}
-    if (typeof refreshCreateVisibility === 'function') refreshCreateVisibility();
-  }catch(e){ console.warn('claimSubscriptionIfNeeded failed', e); }
+    if (u && u.email){
+      const emailLc = u.email.toLowerCase();
+      try{
+        const snap = await db.collection('organizer_subs_emails').doc(emailLc).get();
+        if (snap.exists){
+          const s = (snap.data() || {}).status;
+          if (['active','trialing','past_due'].includes(s)) hide = true;
+        }
+      }catch(_){};
+    }
+
+    btn.style.display = hide ? 'none' : '';
+  }catch(e){ console.warn('updateOrganizerSubscribeVisibility', e); }
 }
 
