@@ -162,14 +162,17 @@
   <option value="club_yearly">Club • Yearly</option>
 </select>
       <!-- single button (keep this id so app.js keeps working) -->
-      <button id="btn-subscribe-organizer"
-              class="btn primary"
-              title="Subscribe as an Organizer">
-        Organizer Subscription
-      </button>
+     <button id="btn-subscribe-organizer"
+        class="btn primary"
+        disabled
+        aria-disabled="true"
+        title="Organizer Subscription is temporarily disabled">
+  Organizer Subscription
+
+</button>
     </div>
     <div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
-      Subscribe to create &amp; manage your own Pots
+      Subscribe to create &amp; manage your own Pots - COMING SOON!
     </div>
 
     <div class="alert" id="configWarning" style="display:none">
