@@ -5,8 +5,10 @@ window.API_BASE = window.API_BASE || 'https://picklepot-stripe.onrender.com';
 
 /* ==== Organizer plan prices (safe to expose) ==== */
 const PRICE_MAP = {
-  monthly: 'price_live_MONTHLY_REPLACE_ME', // TODO: replace with your LIVE Monthly price_id
-  yearly:  'price_live_YEARLY_REPLACE_ME'   // TODO: replace with your LIVE Yearly price_id
+  individual_monthly: 'price_1Rwq6nFFPAbZxH9HkmDxBJ73',
+  individual_yearly:  'price_1RwptxFFPAbZxH9HdPLdYIZR',
+  club_monthly:       'price_1Rwq1JFFPAbZxH9HmpYCSJYv',
+  club_yearly:        'price_1RwpyUFFPAbZxH9H2N1Ykd4U'
 };
 
 const SITE_ADMIN_PASS = 'Jesus7';
@@ -1256,69 +1258,24 @@ async function handleSubscriptionReturn(){
 }
 
 
-function showEmailAuthMsg(text, kind='info'){
+// --- Post-payment subscription claim ---
+async function claimSubscriptionIfNeeded(){
   try{
-    const el = document.getElementById('email-auth-msg');
-    if(!el) return;
-    el.textContent = text || '';
-    el.style.color = (kind==='error') ? '#842029' : (kind==='success' ? '#0f5132' : '#084298');
-  }catch(e){ console.warn('showEmailAuthMsg:', text); }
+    const u = firebase.auth().currentUser;
+    if(!u || !u.email) return;
+    await fetch(`${API_BASE}/activate-subscription-for-uid`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uid: u.uid, email: u.email })
+    });
+    // Refresh organizer flag/UI if functions exist
+    try {
+      if (typeof readOrganizerFlag === 'function') {
+        const active = await readOrganizerFlag(u.uid);
+        if (typeof organizerActive !== 'undefined') { organizerActive = !!active; }
+      }
+    } catch(_) {}
+    if (typeof refreshCreateVisibility === 'function') refreshCreateVisibility();
+  }catch(e){ console.warn('claimSubscriptionIfNeeded failed', e); }
 }
 
-
-// Email/Password auth UI logic
-function handleEmailAuthInit(){
-  const frm = document.getElementById('email-auth-form');
-  const btnUp = document.getElementById('btnEmailSignUp');
-  const btnRs = document.getElementById('btnEmailReset');
-  if(!frm || !btnUp || !btnRs) return;
-
-  frm.addEventListener('submit', async (e)=>{
-    e.preventDefault();
-    const email = document.getElementById('emailLogin')?.value?.trim();
-    const pass  = document.getElementById('passwordLogin')?.value || '';
-    if(!email || !pass){ showEmailAuthMsg('Please enter email and password.', 'error'); return; }
-    try{ await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(_){}
-    try{
-      await firebase.auth().signInWithEmailAndPassword(email, pass);
-      showEmailAuthMsg('Signed in successfully.', 'success');
-    }catch(err){
-      console.warn('email sign-in error', err);
-      let msg = 'Sign-in failed.';
-      if(err?.code === 'auth/user-not-found') msg = 'No account found. Click Create Account.';
-      if(err?.code === 'auth/wrong-password') msg = 'Wrong password. Try again or click Reset Password.';
-      if(err?.code === 'auth/too-many-requests') msg = 'Too many attempts. Try again later.';
-      showEmailAuthMsg(msg, 'error');
-    }
-  });
-
-  btnUp.addEventListener('click', async ()=>{
-    const email = document.getElementById('emailLogin')?.value?.trim();
-    const pass  = document.getElementById('passwordLogin')?.value || '';
-    if(!email || !pass){ showEmailAuthMsg('Please enter email and password.', 'error'); return; }
-    try{
-      await firebase.auth().createUserWithEmailAndPassword(email, pass);
-      showEmailAuthMsg('Account created. You are now signed in.', 'success');
-    }catch(err){
-      console.warn('email sign-up error', err);
-      let msg = 'Could not create account.';
-      if(err?.code === 'auth/email-already-in-use') msg = 'Email already in use. Try Sign In or Reset Password.';
-      if(err?.code === 'auth/weak-password') msg = 'Password too weak. Use at least 6 characters.';
-      showEmailAuthMsg(msg, 'error');
-    }
-  });
-
-  btnRs.addEventListener('click', async ()=>{
-    const email = document.getElementById('emailLogin')?.value?.trim();
-    if(!email){ showEmailAuthMsg('Enter your email, then click Reset Password.', 'error'); return; }
-    try{
-      await firebase.auth().sendPasswordResetEmail(email);
-      showEmailAuthMsg('Password reset email sent if the account exists.', 'success');
-    }catch(err){
-      console.warn('reset error', err);
-      showEmailAuthMsg('Could not send reset email.', 'error');
-    }
-  });
-}
-
-document.addEventListener('DOMContentLoaded', handleEmailAuthInit);
