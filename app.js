@@ -1546,7 +1546,11 @@ async function handleSubscriptionReturn(){
 
     const byEmail = await hasActiveEmail(user.email||'');
     if (byEmail){
-      // Try auto-claim if we just returned from Stripe
+      // Show create immediately for email-based active sub
+      show(createCard, true);
+      show(subStrip, false); show(subHint, false);
+      try{ const b=document.getElementById('claim-banner'); if(b) b.style.display=''; }catch(_){}
+// Try auto-claim if we just returned from Stripe
       show(document.getElementById('claim-banner'), true);
       const claimEmailEl = document.getElementById('claim-email');
       if (claimEmailEl) claimEmailEl.textContent = user.email || '';
