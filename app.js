@@ -1024,7 +1024,7 @@ PiCo Pickle Pot`;
 
   const TOP_BANNERS = [
     { src: 'ads/top_728x90_1.png', url: 'https://pickleballcompete.com' },
-    { src: 'ads/top_728x90_2.png', url: 'https://pickleballcompete.com' },
+    { src: 'ads/top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
     { src: 'ads/sponsor_728x90.png', url: 'https://pickleballcompete.com' }
   ];
   const BOTTOM_BANNERS = [
