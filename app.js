@@ -81,6 +81,7 @@ function refreshOrganizerUI(){
     if (createCard){
       if (hasOrganizerSub()){
         createCard.style.display = '';
+        try{ const s=document.getElementById('org-subscribe-strip'); if(s) s.style.display='none'; const h=document.getElementById('org-subscribe-hint'); if(h) h.style.display='none'; }catch(_){ }
       } else if (!isSiteAdmin()){
         createCard.style.display = 'none';
       }
