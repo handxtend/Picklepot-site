@@ -41,14 +41,11 @@ function initAuthGate() {
   let statusEl = document.querySelector('#signedStatus, .signed-status, [data-signed-status]');
   if (!statusEl) {
     statusEl = Array.from(document.querySelectorAll('span,div,b,strong,em'))
-      .find(el => el.textContent.trim() === 'Signed In' || el.textContent.trim() === 'Signed Out');
+      .find(el => el.textContent.trim() === '' || el.textContent.trim() === '');
   }
-  if (statusEl) statusEl.textContent = signed ? 'Signed In' : 'Signed Out';
-
-  const signOutBtn = document.querySelector('[data-action="signout"], #btnSignOut');
-  if (signOutBtn) signOutBtn.disabled = !signed;
-
-  if (!signed) localStorage.removeItem('pp_admin');
+  if (statusEl){ try{ statusEl.textContent=''; statusEl.style.display='none'; }catch(_){}}const signOutBtn = document.querySelector('[data-action=\"signout\"], #btnSignOut');
+if (signOutBtn){ try{ signOutBtn.style.display='none'; }catch(_){} }
+if (!signed) localStorage.removeItem('pp_admin');
 }
 
 /* ---------- Organizer Subscription (front-end) ---------- */
@@ -81,7 +78,6 @@ function refreshOrganizerUI(){
     if (createCard){
       if (hasOrganizerSub()){
         createCard.style.display = '';
-        try{ const s=document.getElementById('org-subscribe-strip'); if(s) s.style.display='none'; const h=document.getElementById('org-subscribe-hint'); if(h) h.style.display='none'; }catch(_){ }
       } else if (!isSiteAdmin()){
         createCard.style.display = 'none';
       }
@@ -1546,11 +1542,7 @@ async function handleSubscriptionReturn(){
 
     const byEmail = await hasActiveEmail(user.email||'');
     if (byEmail){
-      // Show create immediately for email-based active sub
-      show(createCard, true);
-      show(subStrip, false); show(subHint, false);
-      try{ const b=document.getElementById('claim-banner'); if(b) b.style.display=''; }catch(_){}
-// Try auto-claim if we just returned from Stripe
+      // Try auto-claim if we just returned from Stripe
       show(document.getElementById('claim-banner'), true);
       const claimEmailEl = document.getElementById('claim-email');
       if (claimEmailEl) claimEmailEl.textContent = user.email || '';
@@ -1686,3 +1678,55 @@ async function handleSubscriptionReturn(){
   // Expose for debugging
   window.__gateUI = gateUI;
 })();
+
+
+/* ===== scrub any "(signed in)" badges from UI (near Join a Pot etc.) ===== */
+function scrubSignedInBadges(){
+  try{
+    const exact = Array.from(document.querySelectorAll('small,span,em,i,strong,b,div'));
+    for (const el of exact){
+      const t = (el.textContent||'').trim();
+      if (/^\(?\s*signed\s*in\s*\)?$/i.test(t)) { el.remove(); }
+    }
+    const leafs = Array.from(document.querySelectorAll('*')).filter(n=>!n.children || n.children.length===0);
+    for (const el of leafs){
+      if (/\(signed\s*in\)/i.test(el.textContent||'')){
+        el.textContent = (el.textContent||'').replace(/\s*\(signed\s*in\)\s*/ig, ' ').replace(/\s{2,}/g,' ').trim();
+      }
+    }
+  }catch(_){}
+}
+document.addEventListener('DOMContentLoaded', scrubSignedInBadges);
+// Also run after any auth state change or gating updates if those hooks exist
+try{
+  const _origGate = gateUI;
+  if (typeof gateUI === 'function'){
+    window.gateUI = async function(){ try{ await _origGate(); }catch(_){ } try{ scrubSignedInBadges(); }catch(_){ } }
+  }
+}catch(_){}
+
+
+
+/* ===== TEMP: Disable Organizer Subscription button ===== */
+document.addEventListener('DOMContentLoaded', ()=>{
+  const btn = document.getElementById('btn-subscribe-organizer');
+  if (!btn) return;
+  // disable visually and functionally
+  try{
+    btn.disabled = true;
+    btn.setAttribute('aria-disabled','true');
+    btn.style.pointerEvents = 'none';   // prevents clicks
+    btn.style.opacity = '0.6';
+    btn.title = 'Organizer Subscription is temporarily disabled';
+  }catch(_){}
+
+  // Hard block: if any code re-enables it, keep it disabled
+  const observer = new MutationObserver(()=>{
+    try{
+      if (!btn.disabled) btn.disabled = true;
+      if (btn.style.pointerEvents !== 'none') btn.style.pointerEvents = 'none';
+    }catch(_){}
+  });
+  try{ observer.observe(btn, { attributes: true, attributeFilter: ['disabled','style','class'] }); }catch(_){}
+});
+
