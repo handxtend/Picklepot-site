@@ -107,6 +107,35 @@ function refreshAdminUI(){
 }
 
 /* ---------- SELECT OPTIONS ---------- */
+
+/* ---------- ADDRESS OPTIONS (lightweight) ---------- */
+const US_STATES = [
+  {code:'AL',name:'Alabama'},{code:'AZ',name:'Arizona'},{code:'CA',name:'California'},{code:'CO',name:'Colorado'},
+  {code:'FL',name:'Florida'},{code:'GA',name:'Georgia'},{code:'IL',name:'Illinois'},{code:'MA',name:'Massachusetts'},
+  {code:'MI',name:'Michigan'},{code:'NC',name:'North Carolina'},{code:'NJ',name:'New Jersey'},{code:'NY',name:'New York'},
+  {code:'OH',name:'Ohio'},{code:'PA',name:'Pennsylvania'},{code:'SC',name:'South Carolina'},{code:'TN',name:'Tennessee'},
+  {code:'TX',name:'Texas'},{code:'VA',name:'Virginia'},{code:'WA',name:'Washington'},{code:'WI',name:'Wisconsin'}
+];
+const STATE_CITIES = {
+  "CA": ["Los Angeles","San Diego","San Jose","San Francisco","Sacramento","Other"],
+  "FL": ["Miami","Orlando","Tampa","Jacksonville","Tallahassee","Other"],
+  "GA": ["Atlanta","Savannah","Augusta","Columbus","Athens","Other"],
+  "IL": ["Chicago","Aurora","Naperville","Joliet","Springfield","Other"],
+  "MA": ["Boston","Worcester","Springfield","Cambridge","Lowell","Other"],
+  "MI": ["Detroit","Grand Rapids","Ann Arbor","Warren","Flint","Other"],
+  "NC": ["Charlotte","Raleigh","Greensboro","Durham","Winston-Salem","Other"],
+  "NJ": ["Newark","Jersey City","Paterson","Elizabeth","Edison","Other"],
+  "NY": ["New York","Buffalo","Rochester","Yonkers","Syracuse","Other"],
+  "OH": ["Columbus","Cleveland","Cincinnati","Toledo","Akron","Other"],
+  "PA": ["Philadelphia","Pittsburgh","Allentown","Erie","Reading","Other"],
+  "SC": ["Charleston","Columbia","North Charleston","Mount Pleasant","Rock Hill","Other"],
+  "TN": ["Nashville","Memphis","Knoxville","Chattanooga","Clarksville","Other"],
+  "TX": ["Houston","San Antonio","Dallas","Austin","Fort Worth","Other"],
+  "VA": ["Virginia Beach","Norfolk","Chesapeake","Richmond","Newport News","Other"],
+  "WA": ["Seattle","Spokane","Tacoma","Vancouver","Bellevue","Other"],
+  "WI": ["Milwaukee","Madison","Green Bay","Kenosha","Racine","Other"]
+};
+
 const NAME_OPTIONS = ["GPC April (AL)","GPC September League (SL)","PiCoSO (55+)","BOTP","Other"];
 const EVENTS = ["Mixed Doubles","Coed Doubles","Men's Doubles","Women's Doubles","Full Singles (Men)","Full Singles (Women)","Skinny Singles (Coed)","Other"];
 const SKILLS = ["Any","2.5 - 3.0","3.25+","Other"];
@@ -159,6 +188,8 @@ document.addEventListener('DOMContentLoaded', () => {
   fillSelect('c-event', EVENTS);
   fillSelect('c-skill', SKILLS);
   fillSelect('c-location-select', LOCATIONS);
+  try{ fillStateAndCity(); }catch(_){}
+  try{ toggleAddressForLocation(); $('#c-location-select').addEventListener('change', ()=>toggleAddressForLocation()); }catch(_){}
   fillSelect('j-skill', SKILLS);
 
   // Other toggles (create)
@@ -2097,3 +2128,39 @@ document.addEventListener('DOMContentLoaded', function(){
     btn.__stripeBound = true;
   }
 });
+
+function fillStateAndCity(){
+  const stSel = document.getElementById('c-addr-state');
+  if (stSel && stSel.options.length === 0){
+    stSel.innerHTML = ['<option value="">-- Select State --</option>']
+      .concat(US_STATES.map(s => `<option value="${s.code}">${s.code} - ${s.name}</option>`))
+      .join('');
+  }
+  function populateCity(){
+    const citySel = document.getElementById('c-addr-city');
+    const otherWrap = document.getElementById('c-addr-city-other-wrap');
+    if (!citySel) return;
+    const code = stSel ? (stSel.value || '').toUpperCase() : '';
+    const cities = STATE_CITIES[code] || ['Other'];
+    citySel.innerHTML = cities.map(c => `<option>${c}</option>`).join('');
+    if (typeof toggleOther === 'function') toggleOther(citySel, otherWrap);
+  }
+  if (stSel){
+    stSel.addEventListener('change', populateCity);
+    populateCity();
+  }
+  const citySel = document.getElementById('c-addr-city');
+  if (citySel){
+    citySel.addEventListener('change', ()=>{
+      const otherWrap = document.getElementById('c-addr-city-other-wrap');
+      if (typeof toggleOther === 'function') toggleOther(citySel, otherWrap);
+    });
+  }
+}
+function toggleAddressForLocation(){
+  var sel = document.getElementById('c-location-select');
+  var block = document.getElementById('c-address-block');
+  if (!sel || !block) return;
+  var show = (sel.value === 'Other');
+  block.style.display = show ? '' : 'none';
+}
