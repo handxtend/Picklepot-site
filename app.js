@@ -1,3 +1,4 @@
+
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
 /* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
@@ -181,8 +182,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
-  $('#btn-create').addEventListener('click', createPot);
-  $('#btn-join').addEventListener('click', joinPot);
+  $('#btn-create').addEventListener('click', startCreatePotCheckout);
+$('#btn-join').addEventListener('click', joinPot);
 
   const loadBtn = $('#btn-load');
   if (loadBtn) { loadBtn.disabled = false; loadBtn.addEventListener('click', onLoadPotClicked); }
@@ -284,72 +285,9 @@ function getPaymentMethods(p){
 
 /* ---------- Create Pot ---------- */
 async function createPot(){
-  try{
-    const uid = firebase.auth().currentUser?.uid;
-    if(!uid){ alert('Auth not ready, please try again.'); return; }
-
-    const name = getSelectValue($('#c-name-select'), $('#c-name-other')) || 'Sunday Round Robin';
-    const organizer = ($('#c-organizer').value==='Other') ? ($('#c-org-other').value.trim()||'Other') : 'Pickleball Compete';
-    const event = getSelectValue($('#c-event'), $('#c-event-other'));
-    const skill = getSelectValue($('#c-skill'), $('#c-skill-other'));
-    const location = getSelectValue($('#c-location-select'), $('#c-location-other'));
-    const buyin_member = Number($('#c-buyin-m').value || 0);
-    const buyin_guest  = Number($('#c-buyin-g').value || 0);
-    const date = $('#c-date').value || '';
-    const time = $('#c-time').value || '';
-    const endTime = $('#c-end-time').value || '';
-
-    const pot_share_pct = Math.max(0, Math.min(100, Number($('#c-pot-pct').value || 100)));
-
-    let start_at = null, end_at = null;
-    if(date && time){
-      const startLocal = new Date(`${date}T${time}:00`);
-      start_at = firebase.firestore.Timestamp.fromDate(startLocal);
-      if(endTime){
-        let endLocal = new Date(`${date}T${endTime}:00`);
-        if(endLocal < startLocal){ endLocal = new Date(startLocal.getTime() + 2*60*60*1000); }
-        end_at = firebase.firestore.Timestamp.fromDate(endLocal);
-      }else{
-        const endLocal = new Date(startLocal.getTime() + 2*60*60*1000);
-        end_at = firebase.firestore.Timestamp.fromDate(endLocal);
-      }
-    }
-
-    const allowStripe = ($('#c-allow-stripe')?.value||'no') === 'yes';
-    const zelleInfo   = $('#c-pay-zelle')?.value || '';
-    const cashInfo    = $('#c-pay-cashapp')?.value || '';
-    const onsiteYes   = ($('#c-pay-onsite')?.value||'yes') === 'yes';
-
-    const pot = {
-      name, organizer, event, skill, location,
-      buyin_member, buyin_guest,
-      date, time,
-      status:'open',
-      ownerUid: uid,
-      adminUids: [],
-      created_at: firebase.firestore.FieldValue.serverTimestamp(),
-      pay_zelle: zelleInfo,
-      pay_cashapp: cashInfo,
-      pay_onsite: onsiteYes,
-      payment_methods: {
-        stripe: allowStripe,
-        zelle: !!zelleInfo,
-        cashapp: !!cashInfo,
-        onsite: onsiteYes
-      },
-      start_at, end_at,
-      pot_share_pct
-    };
-
-    const docRef = await db.collection('pots').add(pot);
-    localStorage.setItem(`owner_${docRef.id}`, '1');
-    $('#create-result').innerHTML = `Created! Pot ID: <b>${docRef.id}</b>`;
-  }catch(e){
-    console.error(e);
-    $('#create-result').textContent = 'Failed to create pot.';
-  }
+  // Route to Stripe checkout (draft first)
+  return startCreatePotCheckout();
 }
-
 /* ---------- Active list / Totals ---------- */
 let JOIN_POTS_CACHE = [];
 let JOIN_POTS_SUB = null;
@@ -2149,3 +2087,13 @@ async function startCreatePotCheckout(){
     new MutationObserver(function(){ rebindCreateToCheckout(); }).observe(document.documentElement||document.body, {childList:true, subtree:true});
   }catch(_){}
 })();
+
+
+// Ensure Create button triggers Stripe checkout (idempotent binding)
+document.addEventListener('DOMContentLoaded', function(){
+  var btn = document.getElementById('btn-create');
+  if (btn && !btn.__stripeBound){
+    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
+    btn.__stripeBound = true;
+  }
+});
