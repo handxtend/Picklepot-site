@@ -132,8 +132,13 @@ function escapeHtml(s){
   return String(s||'').replace(/[&<>"'`=\/]/g, c => map[c]);
 }
 
-/* ---------- FIREBASE ---------- */
-const db = firebase.firestore();
+/* ---------- FIREBASE (safe) ---------- */
+let db = null;
+(function initDbSafely(){
+  try{
+    if (window.firebase && firebase.firestore){ db = firebase.firestore(); }
+  }catch(e){ console.info('Firebase not loaded on this page (success/cancel ok).'); }
+})();
 
 /* ---------- UI bootstrap ---------- */
 document.addEventListener('DOMContentLoaded', () => {
@@ -167,9 +172,9 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleOther($('#c-location-select'), $('#c-location-other-wrap'));
   $('#c-location-select').addEventListener('change', ()=>toggleOther($('#c-location-select'), $('#c-location-other-wrap')));
 
-  attachActivePotsListener();
+  if (db) attachActivePotsListener();
 
-  $('#j-refresh').addEventListener('click', ()=>{ attachActivePotsListener(); onJoinPotChange(); });
+  $('#j-refresh').addEventListener('click', ()=>{ if (db) attachActivePotsListener(); onJoinPotChange(); });
   $('#j-pot-select').addEventListener('change', onJoinPotChange);
   $('#j-skill').addEventListener('change', evaluateJoinEligibility);
   $('#j-mtype').addEventListener('change', ()=>{ updateJoinCost(); evaluateJoinEligibility(); });
@@ -912,7 +917,7 @@ async function deleteCurrentPot(){
     alert('Pot deleted.');
     CURRENT_DETAIL_POT = null;
     $('#pot-info').style.display = 'none';
-    attachActivePotsListener();
+    if (db) attachActivePotsListener();
   }catch(e){ console.error(e); alert('Failed to delete pot.'); }
 }
 
@@ -1129,7 +1134,7 @@ function checkStripeReturn(){
     const potId = sessionStorage.getItem('potId');
     const entryId = sessionStorage.getItem('entryId');
 
-    if (potId && entryId){
+    if (potId && entryId && db){
       // Live-listen for paid:true flip (webhook)
       db.collection('pots').doc(potId).collection('entries').doc(entryId)
         .onSnapshot(doc=>{
@@ -1171,7 +1176,7 @@ try{
   });
 }catch(e){ console.warn('Auth button init error', e); }
 
-firebase.auth().onAuthStateChanged(async (user)=>{
+((window.firebase && firebase.auth) ? firebase.auth() : { onAuthStateChanged: function(){} }).onAuthStateChanged(async (user)=>{
   try{
     const isReal = !!(user && !user.isAnonymous);
     const name = isReal ? (user && (user.displayName || "Signed In")) : "";
@@ -1348,7 +1353,7 @@ async function handleSubscriptionReturn(){
   // Hook into auth state
   try{
     if (firebase && firebase.auth){
-      firebase.auth().onAuthStateChanged(async () => {
+      ((window.firebase && firebase.auth) ? firebase.auth() : { onAuthStateChanged: function(){} }).onAuthStateChanged(async () => {
         await ensureOrganizerFlag();
       });
     }
@@ -1480,7 +1485,7 @@ async function handleSubscriptionReturn(){
   // Run on load and on auth changes
   document.addEventListener('DOMContentLoaded', refreshOrganizerUI);
   try {
-    firebase.auth().onAuthStateChanged(refreshOrganizerUI);
+    ((window.firebase && firebase.auth) ? firebase.auth() : { onAuthStateChanged: function(){} }).onAuthStateChanged(refreshOrganizerUI);
   } catch(_){}
 
   // Expose for manual retry / debugging
@@ -1672,7 +1677,7 @@ async function handleSubscriptionReturn(){
 
   // Update gate on auth state
   try{
-    firebase.auth().onAuthStateChanged(()=>{
+    ((window.firebase && firebase.auth) ? firebase.auth() : { onAuthStateChanged: function(){} }).onAuthStateChanged(()=>{
       // reflect label
       const user = firebase.auth().currentUser;
       const label = document.getElementById('auth-user');
