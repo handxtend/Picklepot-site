@@ -1962,3 +1962,185 @@ async function startCreatePotCheckout(){
   var _uxObs = new MutationObserver(function(){ try{ wireHowTo(); wireShowDetail(); }catch(_){}});
   _uxObs.observe(document.documentElement || document.body, {childList:true, subtree:true});
 })();
+
+
+/* ====================== CREATE-POT CHECKOUT DRAFT FIX (append-only) ======================
+   - Rebinds #btn-create to Stripe Checkout via /create-pot-session
+   - Stores draft_id in sessionStorage ("createDraftId")
+   - On cancel.html?flow=create -> calls /cancel-pot-session to delete the draft
+   - On success.html?flow=create -> clears draft marker; webhook creates pot
+   - Leaves ALL other features unchanged
+========================================================================================== */
+(function(){
+  function $id(id){ return document.getElementById(id); }
+  function pick(selectEl, otherEl){
+    if (!selectEl) return '';
+    var v = selectEl.value || '';
+    if (/^Other$/i.test(v) && otherEl) return (otherEl.value||'').trim();
+    return v;
+  }
+  function isAdmin(){
+    try{ return (typeof isSiteAdmin==='function') ? isSiteAdmin() : false; }catch(_){ return false; }
+  }
+  function originHost(){
+    return (window.location.protocol === 'file:' ? 'https://pickleballcompete.com' : window.location.origin);
+  }
+
+  // Build a minimal draft from the existing Create form fields
+  function collectCreateDraft(){
+    try{
+      var name      = pick($id('c-name-select'), $id('c-name-other')) || 'Tournament';
+      var organizer = ($id('c-organizer') && $id('c-organizer').value==='Other')
+                        ? (($id('c-org-other')?.value||'').trim() || 'Other')
+                        : ($id('c-organizer')?.value || 'Pickleball Compete');
+      var event     = pick($id('c-event'), $id('c-event-other'));
+      var skill     = pick($id('c-skill'), $id('c-skill-other'));
+      var location  = pick($id('c-location-select'), $id('c-location-other'));
+
+      var buyin_member = Number($id('c-buyin-m')?.value || 0);
+      var buyin_guest  = Number($id('c-buyin-g')?.value || 0);
+      var pot_share_pct = Math.max(0, Math.min(100, Number($id('c-pot-pct')?.value || 100)));
+
+      var date      = $id('c-date')?.value || '';
+      var time      = $id('c-time')?.value || '';
+      var end_time  = $id('c-end-time')?.value || '';
+
+      var pay_zelle   = $id('c-pay-zelle')?.value || '';
+      var pay_cashapp = $id('c-pay-cashapp')?.value || '';
+      var pay_onsite  = (($id('c-pay-onsite')?.value || 'yes') === 'yes');
+
+      // Admin-only toggle for Stripe payments on the pot itself (not the organizer checkout)
+      var allow_stripe = isAdmin() ? (( $id('c-allow-stripe')?.value || 'no') === 'yes') : false;
+
+      return {
+        name, organizer, event, skill, location,
+        buyin_member, buyin_guest, pot_share_pct,
+        date, time, end_time,
+        pay_zelle, pay_cashapp, pay_onsite,
+        payment_methods: { stripe: allow_stripe, zelle: !!pay_zelle, cashapp: !!pay_cashapp, onsite: !!pay_onsite }
+      };
+    }catch(e){
+      console.warn('[CreateDraft] failed to read fields', e);
+      return null;
+    }
+  }
+
+  async function startCreatePotCheckout(){
+    var btn = $id('btn-create');
+    var status = $id('create-result');
+    var setBusy = function(on, text){ if(btn){ btn.disabled=!!on; btn.textContent = on ? (text||'Working…') : 'Create Pot'; } };
+    var fail = function(m){ if(status) status.textContent = m || 'Failed.'; setBusy(false); };
+
+    try{
+      var draft = collectCreateDraft();
+      if (!draft){ return fail('Missing form fields.'); }
+      if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
+
+      // Mark this flow so success/cancel pages can tell it's a Create-Pot checkout
+      try{ sessionStorage.setItem('createFlow', '1'); }catch(_){}
+
+      setBusy(true, 'Redirecting to checkout…');
+      if (status) status.textContent = '';
+
+      var payload = {
+        draft: draft,
+        success_url: originHost() + '/success.html?flow=create',
+        cancel_url:  originHost() + '/cancel.html?flow=create'
+      };
+
+      var res = await fetch(String(window.API_BASE).replace(/\/+$/,'') + '/create-pot-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var data = null; try{ data = await res.json(); }catch(_){}
+      if (!res.ok || !data || !data.url){
+        return fail((data && data.error) ? data.error : 'Payment server error.');
+      }
+
+      // Save draft_id so the cancel page can delete it if needed
+      try{ if (data.draft_id) sessionStorage.setItem('createDraftId', data.draft_id); }catch(_){}
+      try{ window.location.href = data.url; }catch(_){ window.open(data.url, '_blank', 'noopener'); }
+    }catch(err){
+      console.error('[CreatePot Checkout] failed', err);
+      fail('Failed to start checkout.');
+    }
+  }
+
+  // Ensure #btn-create uses ONLY checkout (replace any old listeners)
+  function rebindCreateToCheckout(){
+    var b = $id('btn-create');
+    if (!b || b.dataset._create_checkout_wired === '1') return;
+    var clone = b.cloneNode(true);
+    clone.dataset._create_checkout_wired = '1';
+    b.parentNode.replaceChild(clone, b);
+    clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); startCreatePotCheckout(); });
+  }
+
+  // Handle returns specifically for Create-Pot flow
+  async function handleCreateCheckoutReturn(){
+    try{
+      var params = new URLSearchParams(location.search);
+      var flow = params.get('flow');
+      if (flow !== 'create') return; // not our flow
+
+      var onCancel = /cancel\.html$/i.test(location.pathname);
+      var onSuccess = /success\.html$/i.test(location.pathname);
+      var draftId = null;
+      try{ draftId = sessionStorage.getItem('createDraftId'); }catch(_){}
+
+      if (onCancel){
+        // Best-effort: tell backend to discard draft; then clear marker
+        try{
+          var payload = { draft_id: draftId, session_id: params.get('session_id') || null };
+          await fetch(String(window.API_BASE).replace(/\/+$/,'') + '/cancel-pot-session', {
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body: JSON.stringify(payload)
+          });
+        }catch(e){ console.warn('[CreatePot Cancel] notify failed', e); }
+        try{ sessionStorage.removeItem('createDraftId'); }catch(_){}
+        try{ sessionStorage.removeItem('createFlow'); }catch(_){}
+        // Optionally show a gentle note if there's a banner element
+        var banner = document.getElementById('pay-banner');
+        if (banner){ banner.style.display=''; banner.textContent='Checkout canceled. Draft removed.'; }
+        // Clean query
+        if (history.replaceState){
+          var clean = location.pathname + location.hash;
+          history.replaceState(null, '', clean);
+        }
+        return;
+      }
+
+      if (onSuccess){
+        // Do NOT create pot on client; webhook will apply draft
+        try{ sessionStorage.removeItem('createDraftId'); }catch(_){}
+        try{ sessionStorage.removeItem('createFlow'); }catch(_){}
+        // Optional banner
+        var banner2 = document.getElementById('pay-banner');
+        if (banner2){
+          banner2.style.display='';
+          banner2.textContent='Payment successful! Finalizing your tournament…';
+          setTimeout(()=>{ try{ banner2.style.display='none'; }catch(_){ } }, 8000);
+        }
+        // Clean query
+        if (history.replaceState){
+          var clean2 = location.pathname + location.hash;
+          history.replaceState(null, '', clean2);
+        }
+        return;
+      }
+    }catch(e){ console.warn('[Create Checkout Return] error', e); }
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    // Rebind after other scripts run, to override any createPot binding
+    try{ rebindCreateToCheckout(); setTimeout(rebindCreateToCheckout, 0); setTimeout(rebindCreateToCheckout, 300); }catch(_){}
+    handleCreateCheckoutReturn();
+  });
+
+  try{
+    // If DOM is replaced, keep our binding intact
+    new MutationObserver(function(){ rebindCreateToCheckout(); }).observe(document.documentElement||document.body, {childList:true, subtree:true});
+  }catch(_){}
+})();
