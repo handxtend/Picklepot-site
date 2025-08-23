@@ -190,8 +190,15 @@
         <div><label>End Time (optional)</label><input id="c-end-time" type="time" placeholder="e.g., 16:00"/></div>
 
         <div><label>Location</label><select id="c-location-select"></select></div>
-        <div id="c-location-other-wrap" style="display:none"><label>Other Location</label><input id="c-location-other" placeholder="Enter location"/></div>
-
+        <!-- Address fields: shown only when Location = Other -->
+        <div id="c-address-block" style="display:none">
+          <div><label>Event Location: Address</label><input id="c-addr-line1" placeholder="Street address"/></div>
+          <div><label>State</label><select id="c-addr-state"></select></div>
+          <div><label>City</label><select id="c-addr-city"></select></div>
+          <div id="c-addr-city-other-wrap" style="display:none"><label>City (other)</label><input id="c-addr-city-other" placeholder="Enter city"/></div>
+          <div><label>Zip Code</label><input id="c-addr-zip" inputmode="numeric" pattern="\d{5}(-\d{4})?" placeholder="e.g., 30301"/></div>
+        </div>
+        
         <div class="row" style="margin-top:8px">
           <div><label>Allow Stripe (card)</label><select id="c-allow-stripe"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
           <div><label>Zelle Info (optional)</label><input id="c-pay-zelle" placeholder="e.g., name / phone / email"/></div>
