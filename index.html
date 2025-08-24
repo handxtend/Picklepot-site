@@ -114,6 +114,17 @@
   <link rel="icon" type="image/png" sizes="48x48" href="favicon-48.png">
   <link rel="manifest" href="site.webmanifest">
   <meta name="theme-color" content="#0ea5b7">
+
+<style>
+  /* clearer collapse control */
+  #btn-create-collapse:hover{ color:#000; transform: translateY(-1px); }
+</style>
+
+<style>
+  /* admin footer subtle hover */
+  .foot .admin-foot-btn:hover,
+  .foot .admin-foot-status:hover { color: rgba(255,255,255,.48) !important; }
+</style>
 </head>
 <body>
 
@@ -132,11 +143,7 @@
         <h1>PiCo Pickle Pot</h1>
         <small class="muted">Win or Lose...Learn.</small>
       </div>
-      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-        <button class="btn" id="site-admin-toggle">Admin Login</button>
-        <button class="btn" id="site-admin-logout" style="display:none">Logout</button>
-        <small class="muted" id="site-admin-status" style="white-space:nowrap"></small>
-      </div>
+      
     </div>
 
     <!-- Payment success banner (hidden by default) -->
@@ -213,7 +220,13 @@
           <div class="muted" id="create-result"></div>
         </div>
       </div>
-    </section>
+    
+      <div class="collapse-create" style="text-align:center; margin-top:10px;">
+        <button id="btn-create-collapse" type="button" aria-label="Collapse Create section" 
+                style="background:transparent;border:none;color:#222;font-size:26px;cursor:pointer;line-height:1;">↑↑</button>
+        <div style="font-size:13px;color:#444;line-height:1;margin-top:4px;">close</div>
+      </div>
+</section>
 
     <!-- ======= JOIN A POT ======= -->
     <section class="card">
@@ -380,7 +393,13 @@
     <a href="picklepot_privacypolicy_comprehensive.pdf" target="_blank" rel="noopener">Privacy Policy</a> ·
     <a href="picklepot_termsofuse_comprehensive.pdf" target="_blank" rel="noopener">Terms of Use</a> ·
     <a href="picklepot_guide.pdf" target="_blank" rel="noopener">PicklePot Guide</a>
-  </div>
+  
+    <div class="admin-foot" style="margin-top:6px; display:flex; gap:10px; align-items:center; justify-content:center;">
+      <button id="site-admin-toggle" class="admin-foot-btn" type="button" style="background:transparent;border:none;color:rgba(255,255,255,.16);font-size:10px;cursor:pointer;padding:0;">admin login</button>
+      <span id="site-admin-status" class="admin-foot-status" style="color:rgba(255,255,255,.16);font-size:10px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:2px;">00</span>
+      <button id="site-admin-logout" class="admin-foot-btn" type="button" style="display:none;background:transparent;border:none;color:rgba(255,255,255,.16);font-size:10px;cursor:pointer;padding:0;">logout</button>
+    </div>
+</div>
 
   <!-- Firebase (compat) -->
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
