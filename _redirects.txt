@@ -1,4 +1,0 @@
-https://picklepotters.com/*   https://picklepotters.netlify.app/:splat 301!
-http://picklepotters.com/*    https://picklepotters.netlify.app/:splat 301!
-https://www.picklepotters.com/*  https://picklepotters.netlify.app/:splat 301!
-http://www.picklepotters.com/*   https://picklepotters.netlify.app/:splat 301!
