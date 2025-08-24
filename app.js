@@ -110,7 +110,7 @@ function refreshAdminUI(){
   const status    = $('#site-admin-status');
   if (btnLogin)  btnLogin.style.display  = on ? 'none' : '';
   if (btnLogout) btnLogout.style.display = on ? '' : 'none';
-  if (status)    status.textContent      = on ? 'Admin mode ON' : 'Admin mode OFF';
+  if (status) status.textContent = on ? '01' : '00';
 
   if (CURRENT_DETAIL_POT) renderRegistrations(LAST_DETAIL_ENTRIES);
 }
@@ -2320,3 +2320,18 @@ async function createPotDirect(){
   }
 }
 
+
+
+/* Collapse Create-a-Pot section (arrows) */
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('btn-create-collapse');
+  if (btn && !btn.__bound){
+    btn.addEventListener('click', () => {
+      const sec = document.getElementById('create-card');
+      if (sec) sec.style.display = 'none';
+      const cta = document.getElementById('btn-start-create') || document.getElementById('btn-create');
+      try{ cta?.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
+    });
+    btn.__bound = true;
+  }
+});
