@@ -103,7 +103,7 @@ function isOrganizerOwnerWithSub(){
 
 /* ---------- Admin UI ---------- */
 function refreshAdminUI(){
-  const on = (isSiteAdmin() || isOrganizerOwnerWithSub());
+  const on = isSiteAdmin();
   $$('.admin-only').forEach(el => { el.style.display = on ? '' : 'none'; });
   const btnLogin  = $('#site-admin-toggle');
   const btnLogout = $('#site-admin-logout');
@@ -191,36 +191,7 @@ let db = null;
 
 /* ---------- UI bootstrap ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  
-  // === Added: wire Create CTA and Show Details ===
-  try{
-    const cta = document.getElementById('btn-start-create');
-    if (cta && !cta.__boundFix){
-      cta.addEventListener('click', (e)=>{
-        // Use existing handler/policy
-        try { if (typeof onCreateClick==='function') return onCreateClick(e); } catch(_){}
-        // fallback to checkout
-        try { if (typeof startCreatePotCheckout==='function') return startCreatePotCheckout(); } catch(_){}
-      });
-      cta.__boundFix = true;
-    }
-  }catch(_){}
-  try{
-    const show = document.getElementById('btn-show-detail');
-    if (show && !show.__boundFix){
-      show.addEventListener('click', (e)=>{
-        try{
-          const sel = document.getElementById('j-pot-select');
-          const v = document.getElementById('v-pot');
-          const id = sel && sel.value ? sel.value : (v ? v.value : '');
-          if (v && id) v.value = id;
-          if (typeof onLoadPotClicked==='function') onLoadPotClicked();
-        }catch(err){ console.error(err); alert('Could not load pot details.'); }
-      });
-      show.__boundFix = true;
-    }
-  }catch(_){}
-// Force Create button to use Stripe Checkout
+  // Force Create button to use Stripe Checkout
   try{
     const _btn = document.getElementById('btn-create');
     if (_btn){
@@ -2348,13 +2319,4 @@ async function createPotDirect(){
     alert('Failed to create pot.');
   }
 }
-// Safety re-bind: btn-load
-document.addEventListener('DOMContentLoaded', ()=>{
-  try{
-    const loadBtn = document.getElementById('btn-load');
-    if (loadBtn && !loadBtn.__boundFix2){
-      loadBtn.addEventListener('click', (e)=>{ try{ if (typeof onLoadPotClicked==='function') onLoadPotClicked(); }catch(_){} });
-      loadBtn.__boundFix2 = true;
-    }
-  }catch(_){}
-});
+
