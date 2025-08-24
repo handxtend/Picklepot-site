@@ -47,6 +47,15 @@ function initAuthGate() {
   if (statusEl){ try{ statusEl.textContent=''; statusEl.style.display='none'; }catch(_){}}const signOutBtn = document.querySelector('[data-action=\"signout\"], #btnSignOut');
 if (signOutBtn){ try{ signOutBtn.style.display='none'; }catch(_){} }
 if (!signed) localStorage.removeItem('pp_admin');
+
+  // Filters for Active Tournaments
+  ['j-filter-name','j-filter-org','j-filter-city'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el && !el.__filterBound){
+      el.addEventListener('input', function(){ try{ renderJoinPotSelectFromCache(); }catch(e){} });
+      el.__filterBound = true;
+    }
+  });
 }
 
 /* ---------- Organizer Subscription (front-end) ---------- */
@@ -144,6 +153,16 @@ const SKILL_ORDER={ "Any":0, "2.5 - 3.0":1, "3.25+":2 };
 const skillRank = s => SKILL_ORDER[s] ?? 0;
 
 /* ---------- Helpers ---------- */
+
+function toggleOrganizerExtras(){
+  var sel = document.getElementById('c-organizer');
+  var emailWrap = document.getElementById('c-org-email-wrap');
+  var isOther = (sel && sel.value === 'Other');
+  if (emailWrap){ emailWrap.style.display = isOther ? '' : 'none'; }
+  var email = document.getElementById('c-org-email');
+  if (email){ email.required = !!isOther; }
+}
+
 function fillSelect(id, items){
   const el = (typeof id==='string') ? document.getElementById(id) : id;
   if (!el) return;
@@ -178,7 +197,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_btn){
       const _clone = _btn.cloneNode(true);
       _btn.parentNode.replaceChild(_clone, _btn);
-      _clone.addEventListener('click', startCreatePotCheckout);
+      _clone.addEventListener('click', onCreateClick);
     }
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
@@ -196,6 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
   toggleOther($('#c-name-select'), $('#c-name-other-wrap'));
   $('#c-name-select').addEventListener('change', ()=>toggleOther($('#c-name-select'), $('#c-name-other-wrap')));
   toggleOther($('#c-organizer'), $('#c-org-other-wrap'));
+  try{ toggleOrganizerExtras(); $('#c-organizer').addEventListener('change', toggleOrganizerExtras); }catch(_){}
   $('#c-organizer').addEventListener('change', ()=>toggleOther($('#c-organizer'), $('#c-org-other-wrap')));
   toggleOther($('#c-event'), $('#c-event-other-wrap'));
   $('#c-event').addEventListener('change', ()=>toggleOther($('#c-event'), $('#c-event-other-wrap')));
@@ -213,7 +233,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
-  $('#btn-create').addEventListener('click', startCreatePotCheckout);
+  $('#btn-create').addEventListener('click', onCreateClick);
 $('#btn-join').addEventListener('click', joinPot);
 
   const loadBtn = $('#btn-load');
@@ -328,6 +348,52 @@ let DETAIL_ENTRIES_UNSUB = null;
 let LAST_DETAIL_ENTRIES = [];
 let CURRENT_DETAIL_POT = null;
 
+
+// --- Active list filtering helpers ---
+function getActiveFilters(){
+  return {
+    name: (document.getElementById('j-filter-name')?.value || '').trim().toLowerCase(),
+    org:  (document.getElementById('j-filter-org')?.value  || '').trim().toLowerCase(),
+    city: (document.getElementById('j-filter-city')?.value || '').trim().toLowerCase()
+  };
+}
+function renderJoinPotSelectFromCache(){
+  const sel = document.getElementById('j-pot-select');
+  if (!sel) return;
+  const pots = (typeof JOIN_POTS_CACHE!=='undefined' && JOIN_POTS_CACHE) ? JOIN_POTS_CACHE : [];
+  const f = getActiveFilters();
+  const filtered = pots.filter(p=>{
+    const n = (p.name||'').toLowerCase();
+    const o = (p.organizer||'').toLowerCase();
+    const c = ((p.addr_city || p.location || '')+'').toLowerCase();
+    return (!f.name || n.includes(f.name)) &&
+           (!f.org  || o.includes(f.org)) &&
+           (!f.city || c.includes(f.city));
+  });
+  if(!filtered.length){
+    sel.innerHTML = `<option value="">No matches</option>`;
+    const joinBtn = document.getElementById('btn-join');
+    if (joinBtn) joinBtn.disabled = true;
+    const brief = document.getElementById('j-pot-summary-brief');
+    if (brief) brief.textContent = '—';
+    const startedBadge = document.getElementById('j-started-badge');
+    if (startedBadge) startedBadge.style.display='none';
+    if (typeof updateBigTotals === 'function') updateBigTotals(0,0);
+    if (typeof watchPotTotals === 'function') watchPotTotals(null);
+    return;
+  }
+  const prev = sel.value;
+  sel.innerHTML = filtered.map(p=>{
+    const label = [p.name||'Unnamed', p.event||'—', p.skill||'Any'].join(' • ');
+    return `<option value="${p.id}">${label}</option>`;
+  }).join('');
+  if (filtered.some(p=>p.id===prev)) sel.value = prev;
+  if (sel.selectedIndex < 0) sel.selectedIndex = 0;
+  const potIdInput = document.getElementById('v-pot');
+  if (potIdInput && sel.value) potIdInput.value = sel.value;
+  if (typeof onJoinPotChange === 'function') onJoinPotChange();
+}
+
 function attachActivePotsListener(){
   const sel = $('#j-pot-select');
   if(JOIN_POTS_SUB){ try{JOIN_POTS_SUB();}catch(_){} JOIN_POTS_SUB=null; }
@@ -361,12 +427,8 @@ function attachActivePotsListener(){
         return;
       }
 
-      sel.innerHTML = pots.map(p=>{
-        const label = [p.name||'Unnamed', p.event||'—', p.skill||'Any'].join(' • ');
-        return `<option value="${p.id}">${label}</option>`;
-      }).join('');
-
-      if(sel.selectedIndex < 0) sel.selectedIndex = 0;
+      renderJoinPotSelectFromCache();
+if(sel.selectedIndex < 0) sel.selectedIndex = 0;
 
       const firstId = sel.value;
       if (firstId) { const potIdInput = $('#v-pot'); if(potIdInput) potIdInput.value = firstId; }
@@ -2164,3 +2226,97 @@ function toggleAddressForLocation(){
   var show = (sel.value === 'Other');
   block.style.display = show ? '' : 'none';
 }
+
+function onCreateClick(e){
+  try{
+    e && e.preventDefault && e.preventDefault();
+    if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
+      return createPotDirect();
+    } else {
+      return startCreatePotCheckout();
+    }
+  }catch(err){ console.error('Create click failed', err); }
+}
+
+
+
+async function createPotDirect(){
+  try{
+    if(!db){ alert('Firebase is not initialized.'); return; }
+    const uid = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : null;
+    // Admin bypass allows no auth uid, but we will still store null ownerUid if absent
+    const name = getSelectValue($('#c-name-select'), $('#c-name-other')) || 'Sunday Round Robin';
+    const organizer = ($('#c-organizer') && $('#c-organizer').value==='Other') ? ($('#c-org-other')?.value?.trim()||'Other') : 'Pickleball Compete';
+    const orgEmail = ($('#c-organizer') && $('#c-organizer').value==='Other') ? ($('#c-org-email')?.value?.trim()||'') : '';
+    if(($('#c-organizer') && $('#c-organizer').value==='Other') && !orgEmail){
+      alert('Please enter Organizer Email so registrants can reach the organizer.'); return;
+    }
+    const event = getSelectValue($('#c-event'), $('#c-event-other'));
+    const skill = getSelectValue($('#c-skill'), $('#c-skill-other'));
+    const locSel = $('#c-location-select');
+    const location = (locSel && locSel.value === 'Other') ? '' : (locSel ? locSel.value : '');
+    const buyin_member = Number($('#c-buyin-m')?.value || 0);
+    const buyin_guest  = Number($('#c-buyin-g')?.value || 0);
+    const date = $('#c-date')?.value || '';
+    const time = $('#c-time')?.value || '';
+    const endTime = $('#c-end-time')?.value || '';
+
+    const allowStripe = ($('#c-allow-stripe')?.value||'no') === 'yes';
+    const zelleInfo   = $('#c-pay-zelle')?.value || '';
+    const cashInfo    = $('#c-pay-cashapp')?.value || '';
+    const onsiteYes   = ($('#c-pay-onsite')?.value||'yes') === 'yes';
+
+    let pctRaw = Number(document.getElementById('c-pot-pct')?.value);
+    if (!Number.isFinite(pctRaw)) pctRaw = 100;
+    const pot_share_pct = Math.max(0, Math.min(100, pctRaw));
+
+    // Build date/times
+    let start_at = null, end_at = null;
+    if(date && (time || endTime)){
+      if (time) start_at = firebase.firestore.Timestamp.fromDate(new Date(`${date}T${time}:00`));
+      if (endTime){
+        let endLocal = new Date(`${date}T${endTime}:00`);
+        if (time){ const startLocal = new Date(`${date}T${time}:00`); if (endLocal < startLocal) endLocal = new Date(startLocal.getTime() + 2*60*60*1000); }
+        end_at = firebase.firestore.Timestamp.fromDate(endLocal);
+      }
+    }
+
+    // Compose address if "Other" location
+    const addr_line1 = ($('#c-addr-line1')?.value||'').trim();
+    const addr_state = ($('#c-addr-state')?.value||'').trim();
+    const citySel = $('#c-addr-city');
+    const addr_city = citySel ? (citySel.value==='Other' ? ($('#c-addr-city-other')?.value||'').trim() : citySel.value) : '';
+    const addr_zip  = ($('#c-addr-zip')?.value||'').trim();
+    const fullLocation = location || [addr_line1, [addr_city, addr_state].filter(Boolean).join(', '), addr_zip].filter(Boolean).join(' ');
+
+    const pot = {
+      name, organizer, event, skill,
+      buyin_member, buyin_guest,
+      date, time, location: fullLocation,
+      status:'open',
+      ownerUid: uid || null,
+      adminUids: uid ? [uid] : [],
+      pay_zelle: zelleInfo,
+      pay_cashapp: cashInfo,
+      pay_onsite: onsiteYes,
+      payment_methods: { stripe: allowStripe, zelle: !!zelleInfo, cashapp: !!cashInfo, onsite: onsiteYes },
+      pot_share_pct,
+      start_at, end_at,
+      org_email: orgEmail
+    };
+
+    const ref = await db.collection('pots').add(pot);
+    const resultEl = document.getElementById('create-result');
+    if (resultEl) resultEl.textContent = `Created (ID: ${ref.id}).`;
+    alert('Pot created.');
+    // optional: auto-load details
+    if (document.getElementById('v-pot')){
+      document.getElementById('v-pot').value = ref.id;
+      if (typeof onLoadPotClicked === 'function') onLoadPotClicked();
+    }
+  }catch(e){
+    console.error('[CreateDirect] Failed:', e);
+    alert('Failed to create pot.');
+  }
+}
+
