@@ -172,6 +172,8 @@
 
         <div><label>Organizer</label><select id="c-organizer"><option>Pickleball Compete</option><option>Other</option></select></div>
         <div id="c-org-other-wrap" style="display:none"><label>Other Organizer</label><input id="c-org-other" placeholder="Organizer name"/></div>
+        <div id="c-org-email-wrap" style="display:none"><label>Organizer Email (registrants will reach you here)</label><input id="c-org-email" type="email" placeholder="organizer@example.com"/></div>
+
 
         <div><label>Event</label><select id="c-event"></select></div>
         <div id="c-event-other-wrap" style="display:none"><label>Other Event</label><input id="c-event-other" placeholder="Event name"/></div>
@@ -232,7 +234,14 @@
 
       <div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px"><h3 style="margin:0">Active Tournaments</h3><button class="btn" id="btn-howto" type="button" aria-expanded="false" aria-controls="howto-panel">How To Use</button></div><div id="howto-panel" class="alert" style="display:none"><ol style="margin:0 0 8px 18px"><li><b>Join a Pot is free to use.</b></li><li>Use <b>Active Tournaments</b> to find an event you’re interested in — the selected Pot's details appear at the bottom.</li><li>Fill out your info and choose a <b>payment option</b>.</li><li>Once payment is made, you'll be marked as <b>PAID</b> in the Pot Detail section and registered.</li><li>Be at the venue on the day/time of the event about <b>30 minutes earlier</b> to verify your registration.</li></ol><div class="muted"><b>Note:</b> For <b>Doubles</b>, make sure your partner is also registered here.</div></div>
 
-      <div class="row">
+      
+      <!-- Active Tournaments Filters -->
+      <div class="row" style="margin-top:6px">
+        <div><label>Filter by Name</label><input id="j-filter-name" placeholder="Tournament name"/></div>
+        <div><label>Organizer</label><input id="j-filter-org" placeholder="Organizer name"/></div>
+        <div><label>City</label><input id="j-filter-city" placeholder="City"/></div>
+      </div>
+<div class="row">
         <div style="flex:1">
           <label style="display:none">Active Tournaments</label>
           <select id="j-pot-select"></select>
@@ -368,9 +377,9 @@
   </div> <!-- /.wrap -->
 
   <div class="foot">© <span id="year"></span> PiCo ·
-    <a href="Picklepot_PrivacyPolicy_Comprehensive.pdf" target="_blank" rel="noopener">Privacy Policy</a> ·
-    <a href="Picklepot_TermsOfUse_Comprehensive.pdf" target="_blank" rel="noopener">Terms of Use</a> ·
-    <a href="PicklePot_Guide.pdf" target="_blank" rel="noopener">PicklePot Guide</a>
+    <a href="picklepot_privacypolicy_comprehensive.pdf" target="_blank" rel="noopener">Privacy Policy</a> ·
+    <a href="picklepot_termsofuse_comprehensive.pdf" target="_blank" rel="noopener">Terms of Use</a> ·
+    <a href="picklepot_guide.pdf" target="_blank" rel="noopener">PicklePot Guide</a>
   </div>
 
   <!-- Firebase (compat) -->
