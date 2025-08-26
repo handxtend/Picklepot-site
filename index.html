@@ -147,7 +147,7 @@
     </div>
 
     <!-- Payment success banner (hidden by default) -->
-    
+    <div id="pay-banner" class="alert success" style="display:none"></div>
 
     <!-- TOP SPONSOR BANNER -->
     <div id="ad-top" class="ad-slot" aria-label="Sponsored" style="display:none"></div>
@@ -155,22 +155,6 @@
 
     <!-- Tips (black with white text) -->
     <div class="tips-bar" id="tipsBar" role="status" aria-live="polite">
-<!-- Optional: Install button (shows only when installable) -->
-<button id="btn-install" class="btn" style="display:none;margin:8px auto;">Install the App</button>
-<script>
-(function(){
-  let deferred;
-  window.addEventListener('beforeinstallprompt', (e)=>{
-    e.preventDefault(); deferred = e;
-    const b = document.getElementById('btn-install');
-    if (b) b.style.display = '';
-  });
-  document.getElementById('btn-install')?.addEventListener('click', async ()=>{
-    try{ await deferred?.prompt(); }catch(_){}
-  });
-})();
-</script>
-
       <strong>Tip:</strong> <span id="tipText">Use the Active Tournaments list to pick your event.</span>
     </div>
 

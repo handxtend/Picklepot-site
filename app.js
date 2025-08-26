@@ -1061,6 +1061,8 @@ PiCo Pickle Pot`;
 
 /* ---------- Rotating Banners ---------- */
 (function(){
+  function getCountOrOne(){try{return Math.max(1, parseInt((document.getElementById("c-count")||{}).value||"1",10));}catch(e){return 1;}}
+
   const ROTATE_MS = 20000;
   const FADE_MS = 1200;
 
@@ -1333,6 +1335,8 @@ async function handleSubscriptionReturn(){
 
 /* ====== ORGANIZER VISIBILITY FIX (non-breaking) ====== */
 (function(){
+  function getCountOrOne(){try{return Math.max(1, parseInt((document.getElementById("c-count")||{}).value||"1",10));}catch(e){return 1;}}
+
   const ACTIVE_STATUSES = ['active','trialing','past_due'];
 
   async function readOrganizerActive(uid, email){
@@ -1402,6 +1406,8 @@ async function handleSubscriptionReturn(){
 
 // ===== Organizer UI Fix (drop-in addon; safe to append at end of app.js) =====
 (function(){
+  function getCountOrOne(){try{return Math.max(1, parseInt((document.getElementById("c-count")||{}).value||"1",10));}catch(e){return 1;}}
+
   const ACTIVE = ['active','trialing','past_due'];
 
   // If API_BASE isn't defined in the page, set it here (adjust if yours differs)
@@ -1535,6 +1541,8 @@ async function handleSubscriptionReturn(){
    This block APPENDS behavior; it does NOT modify existing code.
 ======================================================================================= */
 (function(){
+  function getCountOrOne(){try{return Math.max(1, parseInt((document.getElementById("c-count")||{}).value||"1",10));}catch(e){return 1;}}
+
   const ACTIVE = ['active','trialing','past_due'];
   const API_BASE = (typeof window.API_BASE !== 'undefined' && window.API_BASE) ? window.API_BASE : 'https://picklepot-stripe.onrender.com';
   const $  = (s,el=document)=>el.querySelector(s);
@@ -1843,6 +1851,8 @@ try{ const _oldGate = gateUI; window.gateUI = async function(){ try{ await _oldG
 
 // If create flow exists, force allowed_stripe false for non-admins before posting
 (function(){
+  function getCountOrOne(){try{return Math.max(1, parseInt((document.getElementById("c-count")||{}).value||"1",10));}catch(e){return 1;}}
+
   try{
     const orig = window.startCreatePotCheckout;
     if (typeof orig === 'function'){
@@ -1995,7 +2005,9 @@ async function startCreatePotCheckout(){
     try{ wireHowTo(); wireShowDetail(); }catch(_){}
   });
   // Also attempt late-binding in case DOM is injected later
-  var _uxObs = new MutationObserver(function(){ try{ wireHowTo(); wireShowDetail(); }catch(_){}});
+  var _uxObs = new MutationObserver(function(){
+  function getCountOrOne(){try{return Math.max(1, parseInt((document.getElementById("c-count")||{}).value||"1",10));}catch(e){return 1;}}
+ try{ wireHowTo(); wireShowDetail(); }catch(_){}});
   _uxObs.observe(document.documentElement || document.body, {childList:true, subtree:true});
 })();
 
@@ -2008,6 +2020,8 @@ async function startCreatePotCheckout(){
    - Leaves ALL other features unchanged
 ========================================================================================== */
 (function(){
+  function getCountOrOne(){try{return Math.max(1, parseInt((document.getElementById("c-count")||{}).value||"1",10));}catch(e){return 1;}}
+
   function $id(id){ return document.getElementById(id); }
   function pick(selectEl, otherEl){
     if (!selectEl) return '';
@@ -2177,7 +2191,9 @@ async function startCreatePotCheckout(){
 
   try{
     // If DOM is replaced, keep our binding intact
-    new MutationObserver(function(){ rebindCreateToCheckout(); }).observe(document.documentElement||document.body, {childList:true, subtree:true});
+    new MutationObserver(function(){
+  function getCountOrOne(){try{return Math.max(1, parseInt((document.getElementById("c-count")||{}).value||"1",10));}catch(e){return 1;}}
+ rebindCreateToCheckout(); }).observe(document.documentElement||document.body, {childList:true, subtree:true});
   }catch(_){}
 })();
 
@@ -2335,3 +2351,6 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.__bound = true;
   }
 });
+
+/*__COUNT_HELPER__*/
+window.__getPotCount = function(){ return (typeof getCountOrOne==="function") ? getCountOrOne() : 1; };
