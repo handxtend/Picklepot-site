@@ -1910,7 +1910,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
 /* === Create Pot -> Stripe Checkout === */
 
-async function startCreatePotCheckout_legacy(){
+async function startCreatePotCheckout(){
   const btn = document.getElementById('btn-create-pot');
   const revert = btn ? btn.innerHTML : null;
   const fail = (msg) => {
@@ -1938,7 +1938,8 @@ async function startCreatePotCheckout_legacy(){
     const payload = {
       draft,
       success_url: origin + '/success.html',
-      cancel_url: origin + '/cancel.html'
+      cancel_url: origin + '/cancel.html',
+      count: Math.max(1, parseInt(document.getElementById('c-count')?.value || '1', 10))
     };
 
     if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
@@ -2128,10 +2129,7 @@ async function startCreatePotCheckout_legacy(){
     }
   }
 
-    // expose new checkout function globally for inline handlers
-  try{ window.startCreatePotCheckout = startCreatePotCheckout; }catch(_){}
-
-// Ensure #btn-create uses ONLY checkout (replace any old listeners)
+  // Ensure #btn-create uses ONLY checkout (replace any old listeners)
   function rebindCreateToCheckout(){
     var b = $id('btn-create');
     if (!b || b.dataset._create_checkout_wired === '1') return;
