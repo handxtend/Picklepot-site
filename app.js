@@ -1537,23 +1537,6 @@ async function handleSubscriptionReturn(){
 (function(){
   const ACTIVE = ['active','trialing','past_due'];
   const API_BASE = (typeof window.API_BASE !== 'undefined' && window.API_BASE) ? window.API_BASE : 'https://picklepot-stripe.onrender.com';
-
-// --- Warm the API (helps wake Render free dyno & avoid transient CORS/preflight hiccups)
-async function warmApi() {
-  const url = `${API_BASE}/health`;
-  try {
-    const ctrl = new AbortController();
-    const tid = setTimeout(() => ctrl.abort(), 2500);
-    const r = await fetch(url, { mode: 'cors', cache: 'no-store', signal: ctrl.signal });
-    clearTimeout(tid);
-    // don't block on result — if it's 200 great; if not we still try checkout
-    // console.log('warmApi', r.status);
-  } catch (e) {
-    // swallow; this is only a best-effort warmup
-    // console.debug('warmApi failed', e);
-  }
-}
-
   const $  = (s,el=document)=>el.querySelector(s);
 
   // 1) Ensure auth persistence
@@ -1909,70 +1892,62 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
 
 /* === Create Pot -> Stripe Checkout === */
-
 async function startCreatePotCheckout(){
-  const btn = document.getElementById('btn-create-pot');
-  const revert = btn ? btn.innerHTML : null;
-  const fail = (msg) => {
-    if (btn && revert) btn.innerHTML = revert;
-    if (btn) btn.disabled = false;
-    const el = document.getElementById('create-pot-error');
-    if (el){ el.textContent = msg; el.style.display = 'inline'; }
-  };
-
-  // optimistic UI
-  if (btn){ btn.disabled = true; btn.innerHTML = 'Redirecting to checkout…'; }
-  const errEl = document.getElementById('create-pot-error');
-  if (errEl){ errEl.textContent = ''; errEl.style.display = 'none'; }
+  const $ = (s)=>document.querySelector(s);
+  const btn = $('#btn-create');
+  const status = $('#create-result');
+  const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; btn.textContent = on ? (t||'Working…') : 'Create Pot'; } };
+  const fail=(m)=>{ if(status) status.textContent=m||'Failed.'; setBusy(false); };
 
   try{
-    // build 'draft' exactly as before
-    const draft = gatherCreatePotDraft();
+    setBusy(true, 'Redirecting to checkout…');
+    if (status) status.textContent = '';
 
-    // Admin-only: only admins can enable Stripe on the pot
-    draft.allow_stripe = (typeof isSiteAdmin==='function' && isSiteAdmin())
-      ? ((document.getElementById('c-allow-stripe')?.value||'no')==='yes')
-      : false;
+    const getSel=(sel,other)=>{ if(!sel) return ''; const v=sel.value||''; if(/^other$/i.test(v) && other) return (other.value||'').trim(); return v; };
+
+    const draft = {
+      name: getSel(document.getElementById('c-name-select'), document.getElementById('c-name-other')) || 'Sunday Round Robin',
+      organizer: (document.getElementById('c-organizer')?.value==='Other')
+                  ? (document.getElementById('c-org-other')?.value.trim()||'Other')
+                  : (document.getElementById('c-organizer')?.value || 'Pickleball Compete'),
+      event: getSel(document.getElementById('c-event'), document.getElementById('c-event-other')),
+      skill: getSel(document.getElementById('c-skill'), document.getElementById('c-skill-other')),
+      location: getSel(document.getElementById('c-location-select'), document.getElementById('c-location-other')),
+      buyin_member: Number(document.getElementById('c-buyin-m')?.value || 0),
+      buyin_guest:  Number(document.getElementById('c-buyin-g')?.value || 0),
+      pot_share_pct: Math.max(0, Math.min(100, Number(document.getElementById('c-pot-pct')?.value || 100))),
+      date: document.getElementById('c-date')?.value || '',
+      time: document.getElementById('c-time')?.value || '',
+      end_time: document.getElementById('c-end-time')?.value || '',
+      pay_zelle: document.getElementById('c-pay-zelle')?.value || '',
+      pay_cashapp: document.getElementById('c-pay-cashapp')?.value || '',
+      pay_onsite: (document.getElementById('c-pay-onsite')?.value||'yes') === 'yes',
+      // Admin-only: only admins can enable Stripe on the pot
+      allow_stripe: (typeof isSiteAdmin==='function' && isSiteAdmin())
+                      ? ((document.getElementById('c-allow-stripe')?.value||'no')==='yes')
+                      : false
+    };
 
     const origin = (window.location.protocol === 'file:' ? 'https://pickleballcompete.com' : window.location.origin);
     const payload = {
       draft,
       success_url: origin + '/success.html',
-      cancel_url: origin + '/cancel.html',
-      count: Math.max(1, parseInt(document.getElementById('c-count')?.value || '1', 10))
+      cancel_url: origin + '/cancel.html'
     };
 
     if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
 
-    // Warm the API (Render free tier can take a moment to wake)
-    await warmApi();
-
-    // Call the backend with a solid timeout and CORS-friendly options
-    let res;
-    try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 12000);
-      res = await fetch(`${window.API_BASE}/create-pot-session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        mode: 'cors',
-        cache: 'no-store',
-        redirect: 'follow',
-        signal: ctrl.signal
-      });
-      clearTimeout(tid);
-    } catch (netErr){
-      console.error('[CREATE-POT] network error', netErr);
-      return fail('Could not reach payment server (network/CORS). Please try again in a few seconds.');
-    }
+    const res = await fetch(`${window.API_BASE}/create-pot-session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
 
     let data = null;
     try{ data = await res.json(); }catch(_){}
 
     if (!res.ok || !data || !data.url){
-      const msg = (data && data.error) ? data.error : `Payment server error (${res.status||'?'})`;
-      return fail(msg);
+      return fail((data && data.error) ? data.error : 'Payment server error.');
     }
 
     if (data.draft_id) sessionStorage.setItem('potDraftId', data.draft_id);
@@ -1983,7 +1958,6 @@ async function startCreatePotCheckout(){
     fail('Failed to start checkout.');
   }
 }
-
 
 
 /* === Ensure How To Use + Show Pot Details wiring (idempotent) === */
@@ -2080,8 +2054,7 @@ async function startCreatePotCheckout(){
         date, time, end_time,
         pay_zelle, pay_cashapp, pay_onsite,
         payment_methods: { stripe: allow_stripe, zelle: !!pay_zelle, cashapp: !!pay_cashapp, onsite: !!pay_onsite }
-      ,
-    count: Math.max(1, parseInt(document.getElementById('c-count')?.value || '1', 10))};
+      };
     }catch(e){
       console.warn('[CreateDraft] failed to read fields', e);
       return null;
@@ -2105,11 +2078,11 @@ async function startCreatePotCheckout(){
       setBusy(true, 'Redirecting to checkout…');
       if (status) status.textContent = '';
 
-      var payload = { draft: draft,
+      var payload = {
+        draft: draft,
         success_url: originHost() + '/success.html?flow=create',
         cancel_url:  originHost() + '/cancel.html?flow=create'
-      ,
-  count: Math.max(1, parseInt(document.getElementById('c-count')?.value || '1', 10)) };
+      };
 
       var res = await fetch(String(window.API_BASE).replace(/\/+$/,'') + '/create-pot-session', {
         method: 'POST',
@@ -2362,144 +2335,3 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.__bound = true;
   }
 });
-
-
-// --- Robust Create Pot button binder (id or text) ---
-(function(){
-  function wireCreateButton(){
-    let btn = document.getElementById('btn-create');
-    if(!btn){
-      const candidates = Array.from(document.querySelectorAll('button, a'));
-      btn = candidates.find(el => /create\s*pot/i.test((el.textContent||'').trim()));
-    }
-    if(!btn) return false;
-    try{ if (btn.type) btn.type = 'button'; }catch(_){}
-    btn.onclick = function(e){
-      try{ e && e.preventDefault(); }catch(_){}
-      try{
-        if (typeof startCreatePotCheckout === 'function'){
-          console.log('[CREATE] startCreatePotCheckout firing');
-          return startCreatePotCheckout();
-        } else if (window && window.startCreatePotCheckout){
-          console.log('[CREATE] window.startCreatePotCheckout firing');
-          return window.startCreatePotCheckout();
-        }
-        alert('Create Pot action is not available yet on this page.');
-      }catch(err){
-        console.error('[CREATE] error', err);
-        alert('Create Pot failed: ' + (err && err.message ? err.message : err));
-      }
-    };
-    console.log('[CREATE] button wired');
-    return true;
-  }
-  function boot(){
-    if (!wireCreateButton()){
-      // try again soon if DOM not ready
-      setTimeout(wireCreateButton, 300);
-    }
-  }
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
-  }
-  // rebind if DOM is swapped
-  try{
-    const mo = new MutationObserver(() => wireCreateButton());
-    mo.observe(document.body, {childList: true, subtree: true});
-  }catch(_){}
-})();
-
-
-// === Ultra-robust Create Pot binder (delegation + validation + logging) ===
-(function(){
-  function findCreateEl(root){
-    const sels = [
-      '#btn-create',
-      'button#create-pot',
-      'button[data-role="create-pot"]',
-      '[data-action="create-pot"]',
-      'button.create-pot',
-      'a.create-pot',
-      'a[data-role="create-pot"]',
-      '[aria-label*="Create Pot" i]',
-      '[title*="Create Pot" i]',
-      'button, a, [role="button"]'
-    ];
-    // pass 1: exact selectors
-    for(const s of sels.slice(0,8)){
-      const el = root.querySelector(s);
-      if (el) return el;
-    }
-    // pass 2: any clickable whose text says "Create Pot"
-    const all = root.querySelectorAll('button, a, [role="button"], .btn, .button');
-    for(const el of all){
-      const txt = (el.textContent || '').trim();
-      if (/^create\s*pot$/i.test(txt) || /create\s*pot/i.test(txt)){
-        return el;
-      }
-    }
-    return null;
-  }
-
-  function clickHandler(ev){
-    const target = ev.target.closest('button, a, [role="button"], .btn, .button');
-    if (!target) return;
-    const isCreate =
-      target.id === 'btn-create' ||
-      target.matches('button#create-pot, button[data-role="create-pot"], [data-action="create-pot"], .create-pot, a.create-pot, a[data-role="create-pot"], [aria-label*="Create Pot" i], [title*="Create Pot" i]') ||
-      /create\s*pot/i.test((target.textContent||'').trim());
-
-    if (!isCreate) return;
-    ev.preventDefault(); ev.stopPropagation();
-
-    // Ensure type doesn't trigger native submit
-    try{ if (target.tagName === 'BUTTON') target.type = 'button'; }catch(_){}
-
-    // If there is a form, respect validity (and show native bubbles)
-    const form = target.closest('form');
-    if (form && !form.reportValidity()) {
-      console.warn('[CREATE] Form not valid; blocking checkout');
-      return;
-    }
-
-    try {
-      const fn = window.startCreatePotCheckout || (typeof startCreatePotCheckout==='function' ? startCreatePotCheckout : null);
-      if (!fn) {
-        console.error('[CREATE] startCreatePotCheckout not found');
-        alert('Create Pot action is not available yet on this page.');
-        return;
-      }
-      console.log('[CREATE] invoking startCreatePotCheckout');
-      fn();
-    } catch (err){
-      console.error('[CREATE] error', err);
-      alert('Create Pot failed: ' + (err && err.message ? err.message : err));
-    }
-  }
-
-  // delegate on document for maximum reliability
-  document.addEventListener('click', clickHandler, true);
-
-  // also wire once directly if element exists now or later
-  function wireDirect(){
-    const el = findCreateEl(document);
-    if (!el || el.dataset.ppCreateWired) return;
-    el.dataset.ppCreateWired = '1';
-    try{ if (el.tagName === 'BUTTON') el.type = 'button'; }catch(_){}
-    el.addEventListener('click', clickHandler, true);
-    console.log('[CREATE] direct binder attached');
-  }
-
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', wireDirect);
-  } else {
-    wireDirect();
-  }
-
-  try{
-    const mo = new MutationObserver(wireDirect);
-    mo.observe(document.documentElement, {subtree: true, childList: true});
-  }catch(_){}
-})();
