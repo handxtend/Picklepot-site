@@ -1910,7 +1910,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
 /* === Create Pot -> Stripe Checkout === */
 
-async function startCreatePotCheckout(){
+async function startCreatePotCheckout_legacy(){
   const btn = document.getElementById('btn-create-pot');
   const revert = btn ? btn.innerHTML : null;
   const fail = (msg) => {
@@ -2128,7 +2128,10 @@ async function startCreatePotCheckout(){
     }
   }
 
-  // Ensure #btn-create uses ONLY checkout (replace any old listeners)
+    // expose new checkout function globally for inline handlers
+  try{ window.startCreatePotCheckout = startCreatePotCheckout; }catch(_){}
+
+// Ensure #btn-create uses ONLY checkout (replace any old listeners)
   function rebindCreateToCheckout(){
     var b = $id('btn-create');
     if (!b || b.dataset._create_checkout_wired === '1') return;
