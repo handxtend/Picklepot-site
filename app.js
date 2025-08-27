@@ -2361,3 +2361,51 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.__bound = true;
   }
 });
+
+
+// --- Robust Create Pot button binder (id or text) ---
+(function(){
+  function wireCreateButton(){
+    let btn = document.getElementById('btn-create');
+    if(!btn){
+      const candidates = Array.from(document.querySelectorAll('button, a'));
+      btn = candidates.find(el => /create\s*pot/i.test((el.textContent||'').trim()));
+    }
+    if(!btn) return false;
+    try{ if (btn.type) btn.type = 'button'; }catch(_){}
+    btn.onclick = function(e){
+      try{ e && e.preventDefault(); }catch(_){}
+      try{
+        if (typeof startCreatePotCheckout === 'function'){
+          console.log('[CREATE] startCreatePotCheckout firing');
+          return startCreatePotCheckout();
+        } else if (window && window.startCreatePotCheckout){
+          console.log('[CREATE] window.startCreatePotCheckout firing');
+          return window.startCreatePotCheckout();
+        }
+        alert('Create Pot action is not available yet on this page.');
+      }catch(err){
+        console.error('[CREATE] error', err);
+        alert('Create Pot failed: ' + (err && err.message ? err.message : err));
+      }
+    };
+    console.log('[CREATE] button wired');
+    return true;
+  }
+  function boot(){
+    if (!wireCreateButton()){
+      // try again soon if DOM not ready
+      setTimeout(wireCreateButton, 300);
+    }
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+  // rebind if DOM is swapped
+  try{
+    const mo = new MutationObserver(() => wireCreateButton());
+    mo.observe(document.body, {childList: true, subtree: true});
+  }catch(_){}
+})();
