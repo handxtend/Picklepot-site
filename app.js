@@ -2080,7 +2080,8 @@ async function startCreatePotCheckout(){
         date, time, end_time,
         pay_zelle, pay_cashapp, pay_onsite,
         payment_methods: { stripe: allow_stripe, zelle: !!pay_zelle, cashapp: !!pay_cashapp, onsite: !!pay_onsite }
-      };
+      ,
+    count: Math.max(1, parseInt(document.getElementById('c-count')?.value || '1', 10))};
     }catch(e){
       console.warn('[CreateDraft] failed to read fields', e);
       return null;
@@ -2104,11 +2105,11 @@ async function startCreatePotCheckout(){
       setBusy(true, 'Redirecting to checkout…');
       if (status) status.textContent = '';
 
-      var payload = {
-        draft: draft,
+      var payload = { draft: draft,
         success_url: originHost() + '/success.html?flow=create',
         cancel_url:  originHost() + '/cancel.html?flow=create'
-      };
+      ,
+  count: Math.max(1, parseInt(document.getElementById('c-count')?.value || '1', 10)) };
 
       var res = await fetch(String(window.API_BASE).replace(/\/+$/,'') + '/create-pot-session', {
         method: 'POST',
@@ -2407,5 +2408,98 @@ document.addEventListener('DOMContentLoaded', () => {
   try{
     const mo = new MutationObserver(() => wireCreateButton());
     mo.observe(document.body, {childList: true, subtree: true});
+  }catch(_){}
+})();
+
+
+// === Ultra-robust Create Pot binder (delegation + validation + logging) ===
+(function(){
+  function findCreateEl(root){
+    const sels = [
+      '#btn-create',
+      'button#create-pot',
+      'button[data-role="create-pot"]',
+      '[data-action="create-pot"]',
+      'button.create-pot',
+      'a.create-pot',
+      'a[data-role="create-pot"]',
+      '[aria-label*="Create Pot" i]',
+      '[title*="Create Pot" i]',
+      'button, a, [role="button"]'
+    ];
+    // pass 1: exact selectors
+    for(const s of sels.slice(0,8)){
+      const el = root.querySelector(s);
+      if (el) return el;
+    }
+    // pass 2: any clickable whose text says "Create Pot"
+    const all = root.querySelectorAll('button, a, [role="button"], .btn, .button');
+    for(const el of all){
+      const txt = (el.textContent || '').trim();
+      if (/^create\s*pot$/i.test(txt) || /create\s*pot/i.test(txt)){
+        return el;
+      }
+    }
+    return null;
+  }
+
+  function clickHandler(ev){
+    const target = ev.target.closest('button, a, [role="button"], .btn, .button');
+    if (!target) return;
+    const isCreate =
+      target.id === 'btn-create' ||
+      target.matches('button#create-pot, button[data-role="create-pot"], [data-action="create-pot"], .create-pot, a.create-pot, a[data-role="create-pot"], [aria-label*="Create Pot" i], [title*="Create Pot" i]') ||
+      /create\s*pot/i.test((target.textContent||'').trim());
+
+    if (!isCreate) return;
+    ev.preventDefault(); ev.stopPropagation();
+
+    // Ensure type doesn't trigger native submit
+    try{ if (target.tagName === 'BUTTON') target.type = 'button'; }catch(_){}
+
+    // If there is a form, respect validity (and show native bubbles)
+    const form = target.closest('form');
+    if (form && !form.reportValidity()) {
+      console.warn('[CREATE] Form not valid; blocking checkout');
+      return;
+    }
+
+    try {
+      const fn = window.startCreatePotCheckout || (typeof startCreatePotCheckout==='function' ? startCreatePotCheckout : null);
+      if (!fn) {
+        console.error('[CREATE] startCreatePotCheckout not found');
+        alert('Create Pot action is not available yet on this page.');
+        return;
+      }
+      console.log('[CREATE] invoking startCreatePotCheckout');
+      fn();
+    } catch (err){
+      console.error('[CREATE] error', err);
+      alert('Create Pot failed: ' + (err && err.message ? err.message : err));
+    }
+  }
+
+  // delegate on document for maximum reliability
+  document.addEventListener('click', clickHandler, true);
+
+  // also wire once directly if element exists now or later
+  function wireDirect(){
+    const el = findCreateEl(document);
+    if (!el || el.dataset.ppCreateWired) return;
+    el.dataset.ppCreateWired = '1';
+    try{ if (el.tagName === 'BUTTON') el.type = 'button'; }catch(_){}
+    el.addEventListener('click', clickHandler, true);
+    console.log('[CREATE] direct binder attached');
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', wireDirect);
+  } else {
+    wireDirect();
+  }
+
+  try{
+    const mo = new MutationObserver(wireDirect);
+    mo.observe(document.documentElement, {subtree: true, childList: true});
   }catch(_){}
 })();
