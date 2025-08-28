@@ -1065,14 +1065,14 @@ PiCo Pickle Pot`;
   const FADE_MS = 1200;
 
   const TOP_BANNERS = [
-    { src: 'ads/top_728x90_1.png', url: 'https://pickleballcompete.com' },
-    { src: 'ads/top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
-    { src: 'ads/sponsor_728x90.png', url: 'https://pickleballcompete.com' }
+    { src: 'top_728x90_1.png', url: 'https://pickleballcompete.com' },
+    { src: 'top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
+    { src: 'sponsor_728x90.png', url: 'https://pickleballcompete.com' }
   ];
   const BOTTOM_BANNERS = [
-    { src: 'ads/bottom_300x250_1.png', url: '' },
-    { src: 'ads/bottom_300x250_2.png', url: '' },
-    { src: 'ads/sponsor_300x250.png', url: '' }
+    { src: '/bottom_300x250_1.png', url: '' },
+    { src: '/bottom_300x250_2.png', url: '' },
+    { src: '/sponsor_300x250.png', url: '' }
   ];
 
   function preload(banners){
