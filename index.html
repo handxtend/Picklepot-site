@@ -232,7 +232,7 @@
 <div class="muted" style="margin-top:6px">Summary: <span class="soft-blue-box" id="j-pot-summary-brief">—</span></div>
 <div class="badge warn" id="j-started-badge" style="display:none;margin-top:6px">Tournament Started</div>
 </div>
-<div><label> </label><button class="btn" id="j-refresh">Refresh</button> <button class="btn" id="btn-show-detail" type="button">Show Pot Details</button></div>
+<div><label> </label><button class="btn" id="j-refresh">Refresh</button> <button class="btn" id="btn-show-detail" type="button">Show Pot Details</button></div>
 </div>
 <div class="pot-highlight" id="j-pot-total" style="margin-top:6px;display:none">Total Pot: $0</div>
 <div class="row" style="margin-top:12px">
@@ -371,11 +371,13 @@
       console.error("Firebase init error:", e);
     }
   </script>
-<!-- App -->
+
+<!-- Your requested snippet: set API base + load app.js -->
 <script>
-  window.API_BASE = 'https://picklepot-stripe.onrender.com';
+  window.API_BASE = "https://picklepot-stripe.onrender.com";
 </script>
-<script src="app.js?v=cb202508261751"></script>
+<script src="app.js" defer></script>
+
 <!-- Tips rotator -->
 <script>
     (function(){
