@@ -1065,14 +1065,14 @@ PiCo Pickle Pot`;
   const FADE_MS = 1200;
 
   const TOP_BANNERS = [
-    { src: 'top_728x90_1.png', url: 'https://pickleballcompete.com' },
-    { src: 'top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
-    { src: 'sponsor_728x90.png', url: 'https://pickleballcompete.com' }
+    { src: 'ads/top_728x90_1.png', url: 'https://pickleballcompete.com' },
+    { src: 'ads/top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
+    { src: 'ads/sponsor_728x90.png', url: 'https://pickleballcompete.com' }
   ];
   const BOTTOM_BANNERS = [
-    { src: '/bottom_300x250_1.png', url: '' },
-    { src: '/bottom_300x250_2.png', url: '' },
-    { src: '/sponsor_300x250.png', url: '' }
+    { src: 'ads/bottom_300x250_1.png', url: '' },
+    { src: 'ads/bottom_300x250_2.png', url: '' },
+    { src: 'ads/sponsor_300x250.png', url: '' }
   ];
 
   function preload(banners){
@@ -2078,6 +2078,7 @@ async function startCreatePotCheckout(){
         buyin_member, buyin_guest, pot_share_pct,
         date, time, end_time,
         pay_zelle, pay_cashapp, pay_onsite,
+        count: Math.max(1, parseInt(($id('c-count')?.value||'1'), 10) || 1),
         payment_methods: { stripe: allow_stripe, zelle: !!pay_zelle, cashapp: !!pay_cashapp, onsite: !!pay_onsite }
       };
     }catch(e){
@@ -2105,6 +2106,7 @@ async function startCreatePotCheckout(){
 
       var payload = {
         draft: draft,
+        count: Math.max(1, parseInt(($id('c-count')?.value||'1'), 10) || 1),
         success_url: originHost() + '/success.html?flow=create',
         cancel_url:  originHost() + '/cancel.html?flow=create'
       };
