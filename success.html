@@ -1,60 +1,68 @@
-﻿<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Payment Successful — Organizer Links</title>
-  <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#f8fafc;color:#0f172a;margin:0}
-    .wrap{max-width:760px;margin:10vh auto;padding:24px}
-    .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:24px}
-    .btn{display:inline-block;margin-top:14px;padding:10px 14px;border-radius:10px;background:#16a34a;color:#fff;text-decoration:none}
-    code{background:#f1f5f9;padding:2px 6px;border-radius:6px}
-    ul{padding-left:18px}
-    .warn{color:#b45309}
-  </style>
-</head>
-<body>
-  <div class="wrap">
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Payment Successful — Pot Create</title>
+    <link rel="icon" href="logo.png">
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f6f8fb;margin:0}
+      .card{max-width:720px;margin:48px auto;padding:28px 32px;background:#fff;border-radius:14px;box-shadow:0 6px 26px rgba(16,24,40,.08)}
+      h1{margin:0 0 10px 0;font-size:28px}
+      p{color:#475467;margin:8px 0 18px}
+      .btns{display:flex;gap:10px;margin-top:12px}
+      .btn{background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+      .subtle{background:#e5e7eb;color:#111827}
+      .result{margin-top:18px;padding:12px 14px;border-radius:10px;background:#f3faf4;border:1px solid #d1fadf}
+      code{background:#111827;color:#fff;padding:.2rem .45rem;border-radius:.4rem}
+    </style>
+  </head>
+  <body>
     <div class="card">
       <h1>Payment Successful</h1>
       <p>Your tournament is being created. The organizer link and owner code will appear below once ready.</p>
-      <div id="result" class="warn">Loading…</div>
-      <a class="btn" href="./">Back to Home</a>
-      <a class="btn" href="./manage.html">Open Organizer Manage Page</a>
+      <div id="status" class="result">Preparing results…</div>
+      <div class="btns">
+        <a class="btn subtle" href="index.html">Back to Home</a>
+        <a id="openManage" class="btn" href="#" style="display:none" target="_blank" rel="noopener">Open Organizer Manage Page</a>
+      </div>
     </div>
-  </div>
-  <script>
-  (function(){
-    const API_BASE = 'https://picklepot-stripe.onrender.com'; // your Render backend
-    const params = new URLSearchParams(location.search);
-    const sid = params.get('session_id');
-    const out = document.getElementById('result');
+    <script>
+      const BACKEND = (location.hostname.includes('localhost') ?
+        (localStorage.getItem('dev_backend') || 'http://127.0.0.1:8000') :
+        'https://picklepot-stripe.onrender.com');
 
-    if(!sid){
-      out.innerHTML = 'Missing <code>session_id</code> in URL. This page only works when you come from Stripe and the success_url includes <code>?session_id={CHECKOUT_SESSION_ID}</code>.';
-      return;
-    }
+      const params = new URLSearchParams(location.search);
+      const sessionId = params.get('session_id');
 
-    async function fetchResult(){
-      try{
-        const r = await fetch(API_BASE + '/create-status?session_id=' + encodeURIComponent(sid));
-        if(!r.ok){ out.textContent = 'Still preparing results… retrying…'; setTimeout(fetchResult, 2500); return; }
-        const data = await r.json();
-        const pots = (data && data.pots) || [];
-        if(!pots.length){ out.textContent = 'No pots returned yet. Retrying…'; setTimeout(fetchResult, 2500); return; }
-        const ul = document.createElement('ul');
-        pots.forEach((p,i)=>{
-          const li = document.createElement('li');
-          li.innerHTML = '<strong>Pot ' + (i+1) + '</strong> — <a href="'+p.manage_url+
-                         '" target="_blank" rel="noopener">Open Organizer Manage</a> &nbsp;|&nbsp; Owner code: <code>'+p.owner_code+'</code>';
-          ul.appendChild(li);
-        });
-        out.innerHTML = ''; out.appendChild(ul);
-      }catch(e){ out.textContent = e.message || 'Could not load results.'; }
-    }
-    fetchResult();
-  })();
-  </script>
-</body>
+      const $status = document.getElementById('status');
+      const $open = document.getElementById('openManage');
+
+      async function poll() {
+        if(!sessionId){
+          $status.textContent = 'Missing session id.';
+          return;
+        }
+        try{
+          const r = await fetch(`${BACKEND}/create-status?session_id=${encodeURIComponent(sessionId)}`, {credentials:'omit'});
+          if(!r.ok){ throw new Error('not ready'); }
+          const j = await r.json();
+          if(!j.ready){ $status.textContent = 'Still preparing results… retrying…'; setTimeout(poll, 1400); return; }
+          if(!j.results || !j.results.length){ $status.textContent = 'No results found yet. Retrying…'; setTimeout(poll, 1400); return; }
+          const first = j.results[0];
+          $status.innerHTML = `
+            <div><strong>Pot ID:</strong> <code>${first.pot_id || '(unknown)'}</code></div>
+            <div><strong>Owner code:</strong> <code>${first.owner_code || '(hidden)'}</code></div>
+            <div style="margin-top:8px"><a href="${first.manage_url}" target="_blank" rel="noopener">Manage link</a></div>`;
+          $open.style.display = 'inline-block';
+          $open.href = first.manage_url;
+        }catch(e){
+          console.warn(e);
+          $status.textContent = 'Waiting for webhook… retrying…';
+          setTimeout(poll, 1400);
+        }
+      }
+      poll();
+    </script>
+  </body>
 </html>

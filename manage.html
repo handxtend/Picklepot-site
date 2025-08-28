@@ -1,65 +1,85 @@
 <!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Organizer — Manage Pot</title>
-  <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#f8fafc;color:#0f172a;margin:0}
-    header{padding:16px 20px;background:#0f172a;color:#fff}
-    main{max-width:900px;margin:20px auto;padding:0 16px}
-    .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;margin:16px 0}
-    label{display:block;font-size:14px;color:#475569;margin:8px 0 6px}
-    input{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:10px}
-    .btn{display:inline-block;padding:10px 14px;border-radius:10px;background:#0ea5e9;color:#fff;border:0;cursor:pointer}
-    .btn.gray{background:#64748b}
-    .btn.red{background:#ef4444}
-    code{background:#f1f5f9;padding:2px 6px;border-radius:6px}
-    .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  </style>
-</head>
-<body>
-  <header>
-    <strong>Organizer — Manage Pot</strong>
-  </header>
-  <main>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Organizer — Manage Pot</title>
+    <link rel="icon" href="logo.png">
+    <style>
+      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f6f8fb;margin:0}
+      .card{max-width:860px;margin:28px auto;padding:24px 28px;background:#fff;border-radius:14px;box-shadow:0 6px 26px rgba(16,24,40,.08)}
+      h1{margin:0 0 10px 0;font-size:22px}
+      label{display:block;font-weight:600;margin-top:10px}
+      input{width:100%;padding:9px 10px;border:1px solid #d0d5dd;border-radius:10px}
+      .row{display:grid;grid-template-columns: 1fr 1.2fr; gap:14px}
+      .btn{margin-top:12px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
+      .muted{color:#667085}
+    </style>
+  </head>
+  <body>
     <div class="card">
-      <h2>Authenticate</h2>
+      <h1>Authenticate</h1>
       <div class="row">
         <div>
           <label>Pot ID</label>
-          <input id="m-pot" placeholder="pot_abc123"/>
+          <input id="pot" placeholder="pot_abc123" />
         </div>
         <div>
           <label>Owner Link Key (from URL)</label>
-          <input id="m-key" placeholder="paste &key=... from manage link"/>
-        </div>
-        <div>
-          <label>Owner Code (alternative auth)</label>
-          <input id="m-code" placeholder="e.g., 9X7BP"/>
+          <input id="key" placeholder="paste key=… from manage link" />
         </div>
       </div>
-      <div style="margin-top:10px;display:flex;gap:10px">
-        <button id="btn-owner-auth" class="btn">Verify Access</button>
-        <span id="m-msg"></span>
-      </div>
+      <label>Owner Code (alternative auth)</label>
+      <input id="code" placeholder="e.g., 9X7BP" />
+      <button id="go" class="btn">Verify Access</button>
+      <p class="muted">Tip: Paste a full manage link here (it will auto-fill): <code>?pot=…&key=…</code>.</p>
     </div>
 
-    <div id="m-tools" class="card" style="display:none">
-      <h2>Owner Tools</h2>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <button id="btn-rotate-link" class="btn">Rotate Owner Link</button>
-        <button id="btn-rotate-code" class="btn">Rotate Owner Code</button>
-        <button id="btn-revoke-all" class="btn red">Revoke All (link + code)</button>
-      </div>
-      <div style="margin-top:12px">
-        <div><strong>Current Manage Link:</strong> <a id="m-manage-link" href="#" target="_blank" rel="noopener"></a></div>
-        <div><strong>Current Owner Code:</strong> <code id="m-owner-code"></code></div>
-      </div>
-    </div>
-  </main>
+    <script>
+      const BACKEND = (location.hostname.includes('localhost') ?
+        (localStorage.getItem('dev_backend') || 'http://127.0.0.1:8000') :
+        'https://picklepot-stripe.onrender.com');
 
-  <script>window.API_BASE='https://picklepot-stripe.onrender.com';</script>
-  <script src="app.js?v=manage-1"></script>
-</body>
+      const $pot = document.getElementById('pot');
+      const $key = document.getElementById('key');
+      const $code = document.getElementById('code');
+      const $go  = document.getElementById('go');
+
+      // Autofill from query params
+      const urlp = new URLSearchParams(location.search);
+      if(urlp.get('pot')) $pot.value = urlp.get('pot');
+      if(urlp.get('key')) $key.value = urlp.get('key');
+
+      async function maybeResolve() {
+        // If we have a token key but not pot, try resolve token -> pot
+        if($key.value && !$pot.value){
+          try{
+            const r = await fetch(`${BACKEND}/resolve-owner-code?token=${encodeURIComponent($key.value)}`);
+            if(r.ok){ const j = await r.json(); $pot.value = j.pot_id || $pot.value; }
+          }catch(e){ console.warn(e); }
+        }
+        // If we have a code but not pot, resolve code -> pot
+        if($code.value && !$pot.value){
+          try{
+            const r = await fetch(`${BACKEND}/resolve-owner-code?code=${encodeURIComponent($code.value)}`);
+            if(r.ok){ const j = await r.json(); $pot.value = j.pot_id || $pot.value; }
+          }catch(e){ console.warn(e); }
+        }
+      }
+
+      $key.addEventListener('change', maybeResolve);
+      $code.addEventListener('change', maybeResolve);
+      document.addEventListener('DOMContentLoaded', maybeResolve);
+
+      $go.addEventListener('click', (e)=>{
+        e.preventDefault();
+        if(!$pot.value){ alert('Enter or resolve a Pot ID first'); return; }
+        // Your real app likely validates the key/code against backend and then renders entries.
+        // Here we simply navigate to your existing manage UI route (if different, adjust).
+        const qs = new URLSearchParams({ pot: $pot.value });
+        if($key.value) qs.set('key', $key.value);
+        location.href = `manage.html?${qs.toString()}`;
+      });
+    </script>
+  </body>
 </html>
