@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Organizer — Manage Pot</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#f8fafc;color:#0f172a;margin:0}
+    header{padding:16px 20px;background:#0f172a;color:#fff}
+    main{max-width:900px;margin:20px auto;padding:0 16px}
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:20px;margin:16px 0}
+    label{display:block;font-size:14px;color:#475569;margin:8px 0 6px}
+    input{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:10px}
+    .btn{display:inline-block;padding:10px 14px;border-radius:10px;background:#0ea5e9;color:#fff;border:0;cursor:pointer}
+    .btn.gray{background:#64748b}
+    .btn.red{background:#ef4444}
+    code{background:#f1f5f9;padding:2px 6px;border-radius:6px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  </style>
+</head>
+<body>
+  <header>
+    <strong>Organizer — Manage Pot</strong>
+  </header>
+  <main>
+    <div class="card">
+      <h2>Authenticate</h2>
+      <div class="row">
+        <div>
+          <label>Pot ID</label>
+          <input id="m-pot" placeholder="pot_abc123"/>
+        </div>
+        <div>
+          <label>Owner Link Key (from URL)</label>
+          <input id="m-key" placeholder="paste &key=... from manage link"/>
+        </div>
+        <div>
+          <label>Owner Code (alternative auth)</label>
+          <input id="m-code" placeholder="e.g., 9X7BP"/>
+        </div>
+      </div>
+      <div style="margin-top:10px;display:flex;gap:10px">
+        <button id="btn-owner-auth" class="btn">Verify Access</button>
+        <span id="m-msg"></span>
+      </div>
+    </div>
+
+    <div id="m-tools" class="card" style="display:none">
+      <h2>Owner Tools</h2>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button id="btn-rotate-link" class="btn">Rotate Owner Link</button>
+        <button id="btn-rotate-code" class="btn">Rotate Owner Code</button>
+        <button id="btn-revoke-all" class="btn red">Revoke All (link + code)</button>
+      </div>
+      <div style="margin-top:12px">
+        <div><strong>Current Manage Link:</strong> <a id="m-manage-link" href="#" target="_blank" rel="noopener"></a></div>
+        <div><strong>Current Owner Code:</strong> <code id="m-owner-code"></code></div>
+      </div>
+    </div>
+  </main>
+
+  <script>window.API_BASE='https://picklepot-stripe.onrender.com';</script>
+  <script src="app.js?v=manage-1"></script>
+</body>
+</html>
