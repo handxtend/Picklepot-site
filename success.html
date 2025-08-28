@@ -1,68 +1,93 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Payment Successful — Pot Create</title>
-    <link rel="icon" href="logo.png">
-    <style>
-      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f6f8fb;margin:0}
-      .card{max-width:720px;margin:48px auto;padding:28px 32px;background:#fff;border-radius:14px;box-shadow:0 6px 26px rgba(16,24,40,.08)}
-      h1{margin:0 0 10px 0;font-size:28px}
-      p{color:#475467;margin:8px 0 18px}
-      .btns{display:flex;gap:10px;margin-top:12px}
-      .btn{background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
-      .subtle{background:#e5e7eb;color:#111827}
-      .result{margin-top:18px;padding:12px 14px;border-radius:10px;background:#f3faf4;border:1px solid #d1fadf}
-      code{background:#111827;color:#fff;padding:.2rem .45rem;border-radius:.4rem}
-    </style>
-  </head>
-  <body>
-    <div class="card">
-      <h1>Payment Successful</h1>
-      <p>Your tournament is being created. The organizer link and owner code will appear below once ready.</p>
-      <div id="status" class="result">Preparing results…</div>
-      <div class="btns">
-        <a class="btn subtle" href="index.html">Back to Home</a>
-        <a id="openManage" class="btn" href="#" style="display:none" target="_blank" rel="noopener">Open Organizer Manage Page</a>
-      </div>
-    </div>
-    <script>
-      const BACKEND = (location.hostname.includes('localhost') ?
-        (localStorage.getItem('dev_backend') || 'http://127.0.0.1:8000') :
-        'https://picklepot-stripe.onrender.com');
+<head>
+  <meta charset="utf-8" />
+  <title>Payment Successful — Pot Created</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="app.css" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
+    .card { max-width: 680px; margin: 40px auto; padding: 24px; border: 1px solid #eee; border-radius: 12px; }
+    .row { display:flex; gap:8px; flex-wrap:wrap; }
+    .btn { background:#198754; color:#fff; border:0; padding:10px 14px; border-radius:8px; cursor:pointer; }
+    .btn.secondary { background:#0d6efd; }
+    .muted { color:#666 }
+    pre { background:#f7f7f7; padding:12px; border-radius:8px; overflow:auto}
+    .hidden{ display:none;}
+  </style>
+</head>
+<body>
+<div class="card">
+  <h2>Payment Successful</h2>
+  <p>Your tournament is being created. The organizer link and owner code will appear below once ready.</p>
 
-      const params = new URLSearchParams(location.search);
-      const sessionId = params.get('session_id');
+  <div id="status" class="muted">Checking status…</div>
 
-      const $status = document.getElementById('status');
-      const $open = document.getElementById('openManage');
+  <div id="result" class="hidden">
+    <h3>Organizer Details</h3>
+    <p><strong>Pot ID:</strong> <span id="potId"></span></p>
+    <p><strong>Owner Code:</strong> <span id="ownerCode"></span></p>
+    <p><strong>Organizer Manage Link:</strong><br>
+      <a id="manageLink" target="_blank" rel="noopener"></a>
+    </p>
+  </div>
 
-      async function poll() {
-        if(!sessionId){
-          $status.textContent = 'Missing session id.';
-          return;
-        }
-        try{
-          const r = await fetch(`${BACKEND}/create-status?session_id=${encodeURIComponent(sessionId)}`, {credentials:'omit'});
-          if(!r.ok){ throw new Error('not ready'); }
-          const j = await r.json();
-          if(!j.ready){ $status.textContent = 'Still preparing results… retrying…'; setTimeout(poll, 1400); return; }
-          if(!j.results || !j.results.length){ $status.textContent = 'No results found yet. Retrying…'; setTimeout(poll, 1400); return; }
-          const first = j.results[0];
-          $status.innerHTML = `
-            <div><strong>Pot ID:</strong> <code>${first.pot_id || '(unknown)'}</code></div>
-            <div><strong>Owner code:</strong> <code>${first.owner_code || '(hidden)'}</code></div>
-            <div style="margin-top:8px"><a href="${first.manage_url}" target="_blank" rel="noopener">Manage link</a></div>`;
-          $open.style.display = 'inline-block';
-          $open.href = first.manage_url;
-        }catch(e){
-          console.warn(e);
-          $status.textContent = 'Waiting for webhook… retrying…';
-          setTimeout(poll, 1400);
-        }
-      }
-      poll();
-    </script>
-  </body>
+  <div class="row" style="margin-top:16px">
+    <a href="./" class="btn">Back to Home</a>
+    <a id="openManage" class="btn secondary hidden" href="#" target="_blank" rel="noopener">Open Organizer Manage Page</a>
+  </div>
+</div>
+
+<script>
+const BACKEND = (localStorage.getItem("backend_url") || "https://picklepot-stripe.onrender.com").replace(/\/$/,'');
+const qs = new URLSearchParams(location.search);
+const sessionId = qs.get("session_id");
+
+const statusEl = document.getElementById('status');
+const resultEl = document.getElementById('result');
+const potIdEl = document.getElementById('potId');
+const ownerEl = document.getElementById('ownerCode');
+const manageA = document.getElementById('manageLink');
+const openBtn = document.getElementById('openManage');
+
+async function poll() {
+  if (!sessionId) {
+    statusEl.textContent = "Missing session_id in URL.";
+    return;
+  }
+  try {
+    const r = await fetch(`${BACKEND}/create-status?session_id=${encodeURIComponent(sessionId)}`, { credentials: "include" });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+
+    if (!data.ready) {
+      statusEl.textContent = "Still preparing results… retrying…";
+      setTimeout(poll, 2000);
+      return;
+    }
+
+    // show the details
+    statusEl.classList.add('hidden');
+    resultEl.classList.remove('hidden');
+    potIdEl.textContent = data.pot_id;
+    ownerEl.textContent = data.owner_code;
+    manageA.textContent = data.manage_link;
+    manageA.href = data.manage_link;
+    openBtn.classList.remove('hidden');
+    openBtn.href = data.manage_link;
+
+    // Keep a copy client-side
+    localStorage.setItem("last_pot_id", data.pot_id);
+    localStorage.setItem("last_owner_code", data.owner_code);
+    localStorage.setItem("last_manage_link", data.manage_link);
+
+  } catch (err) {
+    statusEl.textContent = "Error: " + (err?.message || err);
+    setTimeout(poll, 2500);
+  }
+}
+
+poll();
+</script>
+</body>
 </html>
