@@ -1,21 +1,4 @@
 
-// ---- Create Draft Shim (aliases) ----
-(function(){
-  try{
-    var g = (typeof window!=='undefined') ? window : self;
-    if (typeof g.collectCreateDraft !== 'function') {
-      if (typeof g.collectCreatePotDraft === 'function') {
-        g.collectCreateDraft = g.collectCreatePotDraft;
-        console.log('[CREATE-POT] shim: collectCreateDraft -> collectCreatePotDraft');
-      } else if (typeof g.gatherCreatePotDraft === 'function') {
-        g.collectCreateDraft = g.gatherCreatePotDraft;
-        console.log('[CREATE-POT] shim: collectCreateDraft -> gatherCreatePotDraft');
-      }
-    }
-  }catch(e){ console.warn('[CREATE-POT] shim error', e); }
-})();
-
-
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
 /* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
@@ -677,7 +660,8 @@ async function joinPot(){
           ? 'https://pickleballcompete.com'
           : window.location.origin;
 
-      const payload = { pot_id: p.id,
+      const payload = {
+        pot_id: p.id,
         entry_id: entryId,
         amount_cents,
         player_name: name || 'Player',
@@ -685,8 +669,7 @@ async function joinPot(){
         success_url: origin + '/success.html',
         cancel_url:  origin + '/cancel.html',
         method: 'stripe'
-      ,
-  count: Math.max(1, parseInt(document.getElementById('c-count')?.value || '1', 10)) };
+      };
 
       console.log('[JOIN] Creating checkout session…', payload);
 
@@ -1955,8 +1938,7 @@ async function startCreatePotCheckout(){
     const payload = {
       draft,
       success_url: origin + '/success.html',
-      cancel_url: origin + '/cancel.html',
-      count: Math.max(1, parseInt(document.getElementById('c-count')?.value || '1', 10))
+      cancel_url: origin + '/cancel.html'
     };
 
     if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
@@ -2379,289 +2361,222 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
-
-// --- Robust Create Pot button binder (id or text) ---
+/* =================== Global UI Init & Wiring (All-Fix v2) =================== */
 (function(){
-  function wireCreateButton(){
-    let btn = document.getElementById('btn-create');
-    if(!btn){
-      const candidates = Array.from(document.querySelectorAll('button, a'));
-      btn = candidates.find(el => /create\s*pot/i.test((el.textContent||'').trim()));
+  const $ = (s,el=document)=>el.querySelector(s);
+  const byId = id => document.getElementById(id);
+  const originHost = () => (location.protocol==='file:' ? 'https://pickleballcompete.com' : location.origin);
+  const toCents = v => Math.round(Number(v||0)*100);
+
+  function ensureOptions(id, values){
+    const el = byId(id);
+    if(!el) return;
+    const hasOptions = el.options && el.options.length>0;
+    if (!hasOptions){
+      el.innerHTML = values.map(v=>`<option>${v}</option>`).join('');
     }
-    if(!btn) return false;
-    try{ if (btn.type) btn.type = 'button'; }catch(_){}
-    btn.onclick = function(e){
-      try{ e && e.preventDefault(); }catch(_){}
-      try{
-        if (typeof startCreatePotCheckout === 'function'){
-          console.log('[CREATE] startCreatePotCheckout firing');
-          return startCreatePotCheckout();
-        } else if (window && window.startCreatePotCheckout){
-          console.log('[CREATE] window.startCreatePotCheckout firing');
-          return window.startCreatePotCheckout();
-        }
-        alert('Create Pot action is not available yet on this page.');
-      }catch(err){
-        console.error('[CREATE] error', err);
-        alert('Create Pot failed: ' + (err && err.message ? err.message : err));
-      }
+  }
+  function toggleOther(selectId, wrapId){
+    const sel = byId(selectId), wrap = byId(wrapId);
+    if(!sel || !wrap) return;
+    const set = ()=>{ wrap.style.display = (/^other$/i.test(sel.value||'') ? '' : 'none'); };
+    sel.addEventListener('change', set); set();
+  }
+
+  function populateCreate(){
+    ensureOptions('c-name-select', ['Pickleball Compete Open','Club Night','Saturday Smash','Other']);
+    ensureOptions('c-event', ['Singles','Doubles','Mixed Doubles','Round Robin','Other']);
+    ensureOptions('c-skill', ['Beginner','Intermediate','Advanced','Any','Other']);
+    ensureOptions('c-location-select', ['Clubhouse Court','Rec Center','Community Park','Other']);
+    if (byId('c-pot-pct') && !byId('c-pot-pct').value) byId('c-pot-pct').value = 100;
+    if (byId('c-count') && !byId('c-count').value) byId('c-count').value = 1;
+    try{
+      const today = new Date(), d = today.toISOString().slice(0,10);
+      if (byId('c-date') && !byId('c-date').value) byId('c-date').value = d;
+      if (byId('c-time') && !byId('c-time').value) byId('c-time').value = (today.toTimeString().slice(0,5));
+    }catch(_){}
+    toggleOther('c-name-select','c-name-other-wrap');
+    toggleOther('c-event','c-event-other-wrap');
+    toggleOther('c-skill','c-skill-other-wrap');
+    toggleOther('c-organizer','c-org-other-wrap');
+  }
+
+  function collectCreateDraft(){
+    const val = id => (byId(id)?.value || '').trim();
+    const pickOther = (sel,other)=>{
+      const s = byId(sel), o = byId(other);
+      if (s && /^other$/i.test(s.value||'') && o) return (o.value||'').trim();
+      return val(sel);
     };
-    console.log('[CREATE] button wired');
-    return true;
-  }
-  function boot(){
-    if (!wireCreateButton()){
-      // try again soon if DOM not ready
-      setTimeout(wireCreateButton, 300);
-    }
-  }
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', boot);
-  } else {
-    boot();
-  }
-  // rebind if DOM is swapped
-  try{
-    const mo = new MutationObserver(() => wireCreateButton());
-    mo.observe(document.body, {childList: true, subtree: true});
-  }catch(_){}
-})();
-
-
-// === Ultra-robust Create Pot binder (delegation + validation + logging) ===
-(function(){
-  function findCreateEl(root){
-    const sels = [
-      '#btn-create',
-      'button#create-pot',
-      'button[data-role="create-pot"]',
-      '[data-action="create-pot"]',
-      'button.create-pot',
-      'a.create-pot',
-      'a[data-role="create-pot"]',
-      '[aria-label*="Create Pot" i]',
-      '[title*="Create Pot" i]',
-      'button, a, [role="button"]'
-    ];
-    // pass 1: exact selectors
-    for(const s of sels.slice(0,8)){
-      const el = root.querySelector(s);
-      if (el) return el;
-    }
-    // pass 2: any clickable whose text says "Create Pot"
-    const all = root.querySelectorAll('button, a, [role="button"], .btn, .button');
-    for(const el of all){
-      const txt = (el.textContent || '').trim();
-      if (/^create\s*pot$/i.test(txt) || /create\s*pot/i.test(txt)){
-        return el;
-      }
-    }
-    return null;
-  }
-
-  function clickHandler(ev){
-    const target = ev.target.closest('button, a, [role="button"], .btn, .button');
-    if (!target) return;
-    const isCreate =
-      target.id === 'btn-create' ||
-      target.matches('button#create-pot, button[data-role="create-pot"], [data-action="create-pot"], .create-pot, a.create-pot, a[data-role="create-pot"], [aria-label*="Create Pot" i], [title*="Create Pot" i]') ||
-      /create\s*pot/i.test((target.textContent||'').trim());
-
-    if (!isCreate) return;
-    ev.preventDefault(); ev.stopPropagation();
-
-    // Ensure type doesn't trigger native submit
-    try{ if (target.tagName === 'BUTTON') target.type = 'button'; }catch(_){}
-
-    // If there is a form, respect validity (and show native bubbles)
-    const form = target.closest('form');
-    if (form && !form.reportValidity()) {
-      console.warn('[CREATE] Form not valid; blocking checkout');
-      return;
-    }
-
-    try {
-      const fn = window.startCreatePotCheckout || (typeof startCreatePotCheckout==='function' ? startCreatePotCheckout : null);
-      if (!fn) {
-        console.error('[CREATE] startCreatePotCheckout not found');
-        alert('Create Pot action is not available yet on this page.');
-        return;
-      }
-      console.log('[CREATE] invoking startCreatePotCheckout');
-      fn();
-    } catch (err){
-      console.error('[CREATE] error', err);
-      alert('Create Pot failed: ' + (err && err.message ? err.message : err));
-    }
-  }
-
-  // delegate on document for maximum reliability
-  document.addEventListener('click', clickHandler, true);
-
-  // also wire once directly if element exists now or later
-  function wireDirect(){
-    const el = findCreateEl(document);
-    if (!el || el.dataset.ppCreateWired) return;
-    el.dataset.ppCreateWired = '1';
-    try{ if (el.tagName === 'BUTTON') el.type = 'button'; }catch(_){}
-    el.addEventListener('click', clickHandler, true);
-    console.log('[CREATE] direct binder attached');
-  }
-
-  if (document.readyState === 'loading'){
-    document.addEventListener('DOMContentLoaded', wireDirect);
-  } else {
-    wireDirect();
-  }
-
-  try{
-    const mo = new MutationObserver(wireDirect);
-    mo.observe(document.documentElement, {subtree: true, childList: true});
-  }catch(_){}
-})();
-
-/* ========================= PiCo Create Pot – Safe Override =========================
-   - Provides collectCreateDraft() if missing.
-   - Provides startCreatePotCheckout() override that uses /create-pot-session.
-   - Sends `count` from #c-count to backend.
-   - Robust button bind for #btn-create.
-   - Non-breaking: appends at end; does not remove existing logic.
-==================================================================================== */
-(function(){
-  const D = document;
-  function byId(id){ return D.getElementById(id); }
-  function pick(selectEl, otherEl){
-    if(!selectEl) return '';
-    const v = (selectEl.value || '').trim();
-    if (/^Other$/i.test(v) && otherEl) return (otherEl.value||'').trim();
-    return v;
-  }
-  function num(el, fallback){
-    const n = Number((el && el.value) || fallback || 0);
-    return Number.isFinite(n) ? n : (fallback||0);
-  }
-  // Provide collectCreateDraft if missing
-  if (typeof window.collectCreateDraft !== 'function'){
-    window.collectCreateDraft = function collectCreateDraft(){
-      try{
-        const name      = pick(byId('c-name-select'), byId('c-name-other')) || 'Tournament';
-        const organizer = pick(byId('c-organizer'),   byId('c-org-other'))   || 'Pickleball Compete';
-        const event     = pick(byId('c-event'),       byId('c-event-other'));
-        const skill     = pick(byId('c-skill'),       byId('c-skill-other'));
-        const location  = pick(byId('c-location-select'), byId('c-location-other'));
-
-        const buyin_member = num(byId('c-buyin-m'), 0);
-        const buyin_guest  = num(byId('c-buyin-g'), 0);
-        const pot_share_pct = Math.max(0, Math.min(100, num(byId('c-pot-pct'), 100)));
-
-        const date      = (byId('c-date')?.value || '').trim();
-        const time      = (byId('c-time')?.value || '').trim();
-        const end_time  = (byId('c-end-time')?.value || '').trim();
-
-        const pay_zelle   = (byId('c-pay-zelle')?.value || '').trim();
-        const pay_cashapp = (byId('c-pay-cashapp')?.value || '').trim();
-        const pay_onsite  = ((byId('c-pay-onsite')?.value || '').trim().toLowerCase() === 'allowed')
-                            || ((byId('c-pay-onsite')?.value || '').trim().toLowerCase() === 'yes');
-
-        // Admin toggle for Stripe (if present)
-        const allow_stripe = ((byId('c-allow-stripe')?.value || '').trim().toLowerCase() === 'yes');
-
-        return {
-          name, organizer, event, skill, location,
-          buyin_member, buyin_guest, pot_share_pct,
-          date, time, end_time,
-          pay_zelle, pay_cashapp, pay_onsite,
-          payment_methods: { stripe: allow_stripe, zelle: !!pay_zelle, cashapp: !!pay_cashapp, onsite: !!pay_onsite }
-        };
-      }catch(e){
-        console.error('[CREATE-POT] collectCreateDraft failed', e);
-        return null;
-      }
+    const name = pickOther('c-name-select','c-name-other') || val('c-name') || 'Tournament';
+    const organizer = pickOther('c-organizer','c-org-other') || 'Pickleball Compete';
+    const event = pickOther('c-event','c-event-other');
+    const skill = pickOther('c-skill','c-skill-other') || 'Any';
+    const location = pickOther('c-location-select','c-location-other');
+    const draft = {
+      name, organizer, event, skill, location,
+      buyin_member: Number(val('c-buyin-m') || val('c-buyin-member') || 0),
+      buyin_guest:  Number(val('c-buyin-g') || val('c-buyin-guest') || 0),
+      pot_share_pct: Number(byId('c-pot-pct')?.value ?? 100),
+      date: val('c-date'), time: val('c-time'), end_time: val('c-end-time'),
+      pay_zelle: val('c-pay-zelle'), pay_cashapp: val('c-pay-cashapp'),
+      payment_methods: {
+        stripe: (byId('c-allow-stripe')?.value || 'yes') === 'yes',
+        zelle: !!val('c-pay-zelle'),
+        cashapp: !!val('c-pay-cashapp'),
+        onsite: (val('c-pay-onsite') || 'Allowed').toLowerCase() !== 'not allowed'
+      },
+      status: 'open'
     };
-    console.log('[CREATE-POT] collectCreateDraft provided by override');
+    return draft;
   }
+  if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
-  // Utility: current origin (works on file:// too)
-  function originHost(){
-    return (location.protocol === 'file:')
-      ? 'https://pickleballcompete.com'
-      : (location.origin || (location.protocol + '//' + location.host));
-  }
-
-  // Provide / override startCreatePotCheckout
-  window.startCreatePotCheckout = async function startCreatePotCheckout(){
+  async function startCreatePotCheckout(){
     const btn = byId('btn-create');
-    const msg = byId('create-result') || byId('create-msg');
-    function setBusy(on, text){
-      if (btn){ btn.disabled = !!on; if(text) btn.textContent = text; }
-    }
-    function show(text){
-      if (msg){ msg.textContent = text; msg.style.display = ''; }
-      else if (text) console.log('[CREATE-POT]', text);
-    }
+    const msg = byId('create-msg') || byId('create-result');
+    const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
+    const show=(t)=>{ if(msg){ msg.textContent=t; msg.style.display=''; } };
 
     try{
-      setBusy(true, 'Creating…');
-      show('');
-
-      const draft = (typeof collectCreateDraft==='function') ? collectCreateDraft() : null;
-      if (!draft){ show('Could not read form.'); setBusy(false); return; }
-
-      // count from UI
       const count = Math.max(1, parseInt(byId('c-count')?.value || '1', 10));
-
       const payload = {
-        draft,
-        success_url: originHost() + '/success.html?flow=create',
-        cancel_url:  originHost() + '/cancel.html?flow=create',
-        count
+        draft: collectCreateDraft(),
+        count,
+        success_url: originHost() + '/success.html',
+        cancel_url: originHost() + '/cancel.html'
       };
-
-      const api = (typeof window.API_BASE!=='undefined' && window.API_BASE) ? window.API_BASE : 'https://picklepot-stripe.onrender.com';
-      const res = await fetch(api + '/create-pot-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+      setBusy(true, 'Redirecting…');
+      const r = await fetch((window.API_BASE||'') + '/create-pot-session', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
       });
-      let data = null;
-      try{ data = await res.json(); }catch(_){}
-      if (!res.ok || !data?.url){
-        const err = (data && (data.error || data.message)) || ('Payment server error (' + res.status + ').');
-        show(err);
-        setBusy(false, 'Create Pot');
-        return;
-      }
-      // Redirect to Stripe
-      window.location.href = data.url;
-    }catch(err){
-      console.error('[CREATE-POT] startCreatePotCheckout error', err);
-      setBusy(false, 'Create Pot');
-      const msgText = (err && err.message) ? err.message : String(err);
-      if (byId('create-result')) byId('create-result').textContent = msgText;
-      else alert('Create failed: ' + msgText);
-    }
-  };
+      const data = await r.json().catch(()=>null);
+      if (!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
+      location.href = data.url;
+    }catch(e){
+      console.error('[CREATE]', e);
+      show(e.message||String(e));
+    }finally{ setBusy(false, 'Create Pot'); }
+  }
+  if (typeof window.startCreatePotCheckout !== 'function') window.startCreatePotCheckout = startCreatePotCheckout;
 
-  // Bind button robustly
-  document.addEventListener('DOMContentLoaded', function(){
-    const b = byId('btn-create');
-    if (b && !b.dataset.ppCreateWired){
-      b.dataset.ppCreateWired='1';
-      b.type = 'button';
-      b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); startCreatePotCheckout(); });
-      console.log('[CREATE-POT] Create button wired');
+  async function startJoinCheckout(){
+    const potId = byId('v-pot')?.value?.trim() || '';
+    const amountDollars = byId('j-cost')?.value || byId('j-amount')?.value || '10';
+    const playerName = byId('j-name')?.value || byId('j-player')?.value || 'Player';
+    const playerEmail= byId('j-email')?.value || '';
+    const entryId = 'e_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+    if (!potId){ alert('Enter a Pot ID first.'); return; }
+
+    const payload = {
+      pot_id: potId,
+      entry_id: entryId,
+      amount_cents: toCents(amountDollars),
+      player_name: playerName,
+      player_email: playerEmail,
+      success_url: originHost() + '/success.html',
+      cancel_url: originHost() + '/cancel.html'
+    };
+    try{
+      const r = await fetch((window.API_BASE||'') + '/create-checkout-session', {
+        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+      });
+      const data = await r.json().catch(()=>null);
+      if(!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
+      location.href = data.url;
+    }catch(e){
+      console.error('[JOIN]', e);
+      alert('Join failed: ' + (e.message || e));
     }
+  }
+  if (typeof window.startJoinCheckout !== 'function') window.startJoinCheckout = startJoinCheckout;
+
+  function wire(id, fn){
+    const el = byId(id);
+    if (el && !el.dataset.wired){
+      el.dataset.wired='1';
+      el.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
+    }
+  }
+
+  function showCreateCard(){ const c = byId('create-card'); if(c){ c.style.display=''; c.scrollIntoView({behavior:'smooth', block:'start'});} }
+  function hideCreateCard(){ const c = byId('create-card'); if(c){ c.style.display='none'; window.scrollTo({top:0, behavior:'smooth'});} }
+
+  function loadPotFromInput(){
+    const potId = (byId('v-pot')?.value||'').trim();
+    const out = byId('pot-load-msg') || byId('join-msg');
+    if (!potId){ if(out) out.textContent='Enter a Pot ID.'; return; }
+    window.CURRENT_POT_ID = potId;
+    if(out){ out.textContent = 'Loaded Pot ' + potId + '. You can now Join.'; out.style.display=''; }
+    const detail = byId('pot-detail-section'); if (detail) detail.style.display='';
+  }
+
+  function adminLogin(){
+    const p = prompt('Admin password:');
+    if (p === 'Jesus7'){ localStorage.setItem('site_admin','1'); alert('Admin enabled'); document.location.reload(); }
+    else if (p!=null){ alert('Wrong password'); }
+  }
+  function adminLogout(){ localStorage.removeItem('site_admin'); alert('Admin disabled'); document.location.reload(); }
+
+  function notImplemented(msg){ return ()=>alert(msg || 'Coming soon'); }
+
+  function bindAll(){
+    wire('btn-start-create', showCreateCard);
+    wire('btn-create-collapse', hideCreateCard);
+    wire('btn-create', startCreatePotCheckout);
+    wire('btn-load', loadPotFromInput);
+    wire('btn-join', startJoinCheckout);
+    wire('btn-refresh', ()=>location.reload());
+    wire('btn-show-details', ()=>{ const s=byId('pot-detail-section'); if(s){ s.style.display=''; s.scrollIntoView({behavior:'smooth'})}});
+    wire('btn-admin-login', adminLogin);
+    wire('btn-claim', notImplemented('Claim subscription coming soon.'));
+    wire('btn-edit', ()=>{ const f=byId('pot-edit-form'); if(f) f.style.display=''; });
+    wire('btn-cancel-edit', ()=>{ const f=byId('pot-edit-form'); if(f) f.style.display='none'; });
+    wire('btn-save-pot', notImplemented('Saving edits requires API endpoint.'));
+    wire('btn-hold', notImplemented('Hold requires backend endpoint.'));
+    wire('btn-resume', notImplemented('Resume requires backend endpoint.'));
+    wire('btn-delete', notImplemented('Delete requires backend endpoint.'));
+    wire('btn-admin-grant', notImplemented('Grant co-admin requires backend endpoint.'));
+    wire('btn-admin-revoke', notImplemented('Revoke co-admin requires backend endpoint.'));
+    const signIn = byId('btn-signin'), signOut = byId('btn-signout');
+    if(signIn && !signIn.dataset.wired){ signIn.dataset.wired='1'; signIn.addEventListener('click', adminLogin); }
+    if(signOut && !signOut.dataset.wired){ signOut.dataset.wired='1'; signOut.addEventListener('click', adminLogout); }
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    populateCreate();
+    bindAll();
+    if (typeof checkStripeReturn==='function') try{ checkStripeReturn(); }catch(_){}
   });
-  try{
-    const mo = new MutationObserver(()=>{
-      const b = byId('btn-create');
-      if (b && !b.dataset.ppCreateWired){
-        b.dataset.ppCreateWired='1';
-        b.type = 'button';
-        b.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); startCreatePotCheckout(); });
-        console.log('[CREATE-POT] Create button wired (late)');
-      }
-    });
-    mo.observe(document.documentElement, {childList:true, subtree:true});
-  }catch(_){}
+
+  document.addEventListener('click', function(e){
+    const el = e.target.closest('button, [role="button"], a.btn');
+    if (!el || el.dataset.wired) return;
+    const id = el.id || '';
+    const map = {
+      'btn-start-create': showCreateCard,
+      'btn-create-collapse': hideCreateCard,
+      'btn-create': startCreatePotCheckout,
+      'btn-load': loadPotFromInput,
+      'btn-join': startJoinCheckout,
+      'btn-refresh': ()=>location.reload(),
+      'btn-show-details': ()=>{ const s=byId('pot-detail-section'); if(s){ s.style.display=''; s.scrollIntoView({behavior:'smooth'})}},
+      'btn-admin-login': adminLogin,
+      'btn-claim': notImplemented('Claim subscription coming soon.'),
+      'btn-edit': ()=>{ const f=byId('pot-edit-form'); if(f) f.style.display=''; },
+      'btn-cancel-edit': ()=>{ const f=byId('pot-edit-form'); if(f) f.style.display='none'; },
+      'btn-save-pot': notImplemented('Saving edits requires API endpoint.'),
+      'btn-hold': notImplemented('Hold requires backend endpoint.'),
+      'btn-resume': notImplemented('Resume requires backend endpoint.'),
+      'btn-delete': notImplemented('Delete requires backend endpoint.'),
+      'btn-admin-grant': notImplemented('Grant co-admin requires backend endpoint.'),
+      'btn-admin-revoke': notImplemented('Revoke co-admin requires backend endpoint.'),
+    };
+    const fn = map[id];
+    if (fn){
+      e.preventDefault(); e.stopPropagation();
+      fn.call(el, e);
+    }
+  }, true);
 })();
