@@ -1065,14 +1065,14 @@ PiCo Pickle Pot`;
   const FADE_MS = 1200;
 
   const TOP_BANNERS = [
-    { src: 'ads/top_728x90_1.png', url: 'https://pickleballcompete.com' },
-    { src: 'ads/top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
-    { src: 'ads/sponsor_728x90.png', url: 'https://pickleballcompete.com' }
+    { src: 'top_728x90_1.png', url: 'https://pickleballcompete.com' },
+    { src: 'top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
+    { src: 'sponsor_728x90.png', url: 'https://pickleballcompete.com' }
   ];
   const BOTTOM_BANNERS = [
-    { src: 'ads/bottom_300x250_1.png', url: '' },
-    { src: 'ads/bottom_300x250_2.png', url: '' },
-    { src: 'ads/sponsor_300x250.png', url: '' }
+    { src: '/bottom_300x250_1.png', url: '' },
+    { src: '/bottom_300x250_2.png', url: '' },
+    { src: '/sponsor_300x250.png', url: '' }
   ];
 
   function preload(banners){
@@ -2582,3 +2582,44 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, true);
 })();
+
+
+/* ===== Manage page helpers: auto-resolve pot by owner code ===== */
+async function resolvePotByOwnerCode(ownerCode) {
+  try {
+    if (!ownerCode || ownerCode.trim().length < 4) return null;
+    const res = await fetch(API_BASE + '/owner/resolve', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ owner_code: ownerCode.trim() })
+    });
+    if (!res.ok) return null;
+    return await res.json(); // {pot_id, owner_link}
+  } catch (e) { console.error('[MANAGE] resolve error', e); return null; }
+}
+
+function initManageAutoFill() {
+  const potInput = document.querySelector('input[name="pot-id"], #pot-id, input[placeholder^="pot_"]');
+  const codeInput = document.querySelector('input[name="owner-code"], #owner-code, input[placeholder*="code"], input[placeholder*="Code"]');
+  if (!potInput || !codeInput) return;
+
+  // from URL ?pot= & key= or ?owner=CODE
+  const qs = new URLSearchParams(location.search);
+  const pot = qs.get('pot');
+  if (pot) potInput.value = pot;
+
+  // When they type the owner code, auto-resolve pot id
+  codeInput.addEventListener('change', async () => {
+    const info = await resolvePotByOwnerCode(codeInput.value);
+    if (info && info.pot_id) {
+      potInput.value = info.pot_id;
+      console.log('[MANAGE] Resolved pot', info.pot_id);
+    }
+  });
+}
+
+// Run on manage.html
+if (location.pathname.endsWith('/manage.html') || location.pathname.endsWith('manage.html')) {
+  document.addEventListener('DOMContentLoaded', initManageAutoFill);
+}
+

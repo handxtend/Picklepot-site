@@ -38,7 +38,7 @@
 
     async function fetchResult(){
       try{
-        const r = await fetch(API_BASE + '/create-result?session_id=' + encodeURIComponent(sid));
+        const r = await fetch(API_BASE + '/create-status?session_id=' + encodeURIComponent(sid));
         if(!r.ok){ out.textContent = 'Still preparing results… retrying…'; setTimeout(fetchResult, 2500); return; }
         const data = await r.json();
         const pots = (data && data.pots) || [];
