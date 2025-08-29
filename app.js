@@ -1065,14 +1065,14 @@ PiCo Pickle Pot`;
   const FADE_MS = 1200;
 
   const TOP_BANNERS = [
-    { src: 'top_728x90_1.png', url: 'https://pickleballcompete.com' },
-    { src: 'top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
-    { src: 'sponsor_728x90.png', url: 'https://pickleballcompete.com' }
+    { src: 'ads/top_728x90_1.png', url: 'https://pickleballcompete.com' },
+    { src: 'ads/top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
+    { src: 'ads/sponsor_728x90.png', url: 'https://pickleballcompete.com' }
   ];
   const BOTTOM_BANNERS = [
-    { src: '/bottom_300x250_1.png', url: '' },
-    { src: '/bottom_300x250_2.png', url: '' },
-    { src: '/sponsor_300x250.png', url: '' }
+    { src: 'ads/bottom_300x250_1.png', url: '' },
+    { src: 'ads/bottom_300x250_2.png', url: '' },
+    { src: 'ads/sponsor_300x250.png', url: '' }
   ];
 
   function preload(banners){
@@ -2078,7 +2078,6 @@ async function startCreatePotCheckout(){
         buyin_member, buyin_guest, pot_share_pct,
         date, time, end_time,
         pay_zelle, pay_cashapp, pay_onsite,
-        count: Math.max(1, parseInt(($id('c-count')?.value||'1'), 10) || 1),
         payment_methods: { stripe: allow_stripe, zelle: !!pay_zelle, cashapp: !!pay_cashapp, onsite: !!pay_onsite }
       };
     }catch(e){
@@ -2106,7 +2105,6 @@ async function startCreatePotCheckout(){
 
       var payload = {
         draft: draft,
-        count: Math.max(1, parseInt(($id('c-count')?.value||'1'), 10) || 1),
         success_url: originHost() + '/success.html?flow=create',
         cancel_url:  originHost() + '/cancel.html?flow=create'
       };
@@ -2362,264 +2360,3 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.__bound = true;
   }
 });
-
-/* =================== Global UI Init & Wiring (All-Fix v2) =================== */
-(function(){
-  const $ = (s,el=document)=>el.querySelector(s);
-  const byId = id => document.getElementById(id);
-  const originHost = () => (location.protocol==='file:' ? 'https://pickleballcompete.com' : location.origin);
-  const toCents = v => Math.round(Number(v||0)*100);
-
-  function ensureOptions(id, values){
-    const el = byId(id);
-    if(!el) return;
-    const hasOptions = el.options && el.options.length>0;
-    if (!hasOptions){
-      el.innerHTML = values.map(v=>`<option>${v}</option>`).join('');
-    }
-  }
-  function toggleOther(selectId, wrapId){
-    const sel = byId(selectId), wrap = byId(wrapId);
-    if(!sel || !wrap) return;
-    const set = ()=>{ wrap.style.display = (/^other$/i.test(sel.value||'') ? '' : 'none'); };
-    sel.addEventListener('change', set); set();
-  }
-
-  function populateCreate(){
-    ensureOptions('c-name-select', ['Pickleball Compete Open','Club Night','Saturday Smash','Other']);
-    ensureOptions('c-event', ['Singles','Doubles','Mixed Doubles','Round Robin','Other']);
-    ensureOptions('c-skill', ['Beginner','Intermediate','Advanced','Any','Other']);
-    ensureOptions('c-location-select', ['Clubhouse Court','Rec Center','Community Park','Other']);
-    if (byId('c-pot-pct') && !byId('c-pot-pct').value) byId('c-pot-pct').value = 100;
-    if (byId('c-count') && !byId('c-count').value) byId('c-count').value = 1;
-    try{
-      const today = new Date(), d = today.toISOString().slice(0,10);
-      if (byId('c-date') && !byId('c-date').value) byId('c-date').value = d;
-      if (byId('c-time') && !byId('c-time').value) byId('c-time').value = (today.toTimeString().slice(0,5));
-    }catch(_){}
-    toggleOther('c-name-select','c-name-other-wrap');
-    toggleOther('c-event','c-event-other-wrap');
-    toggleOther('c-skill','c-skill-other-wrap');
-    toggleOther('c-organizer','c-org-other-wrap');
-  }
-
-  function collectCreateDraft(){
-    const val = id => (byId(id)?.value || '').trim();
-    const pickOther = (sel,other)=>{
-      const s = byId(sel), o = byId(other);
-      if (s && /^other$/i.test(s.value||'') && o) return (o.value||'').trim();
-      return val(sel);
-    };
-    const name = pickOther('c-name-select','c-name-other') || val('c-name') || 'Tournament';
-    const organizer = pickOther('c-organizer','c-org-other') || 'Pickleball Compete';
-    const event = pickOther('c-event','c-event-other');
-    const skill = pickOther('c-skill','c-skill-other') || 'Any';
-    const location = pickOther('c-location-select','c-location-other');
-    const draft = {
-      name, organizer, event, skill, location,
-      buyin_member: Number(val('c-buyin-m') || val('c-buyin-member') || 0),
-      buyin_guest:  Number(val('c-buyin-g') || val('c-buyin-guest') || 0),
-      pot_share_pct: Number(byId('c-pot-pct')?.value ?? 100),
-      date: val('c-date'), time: val('c-time'), end_time: val('c-end-time'),
-      pay_zelle: val('c-pay-zelle'), pay_cashapp: val('c-pay-cashapp'),
-      payment_methods: {
-        stripe: (byId('c-allow-stripe')?.value || 'yes') === 'yes',
-        zelle: !!val('c-pay-zelle'),
-        cashapp: !!val('c-pay-cashapp'),
-        onsite: (val('c-pay-onsite') || 'Allowed').toLowerCase() !== 'not allowed'
-      },
-      status: 'open'
-    };
-    return draft;
-  }
-  if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
-
-  async function startCreatePotCheckout(){
-    const btn = byId('btn-create');
-    const msg = byId('create-msg') || byId('create-result');
-    const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
-    const show=(t)=>{ if(msg){ msg.textContent=t; msg.style.display=''; } };
-
-    try{
-      const count = Math.max(1, parseInt(byId('c-count')?.value || '1', 10));
-      const payload = {
-        draft: collectCreateDraft(),
-        count,
-        success_url: originHost() + '/success.html',
-        cancel_url: originHost() + '/cancel.html'
-      };
-      setBusy(true, 'Redirecting…');
-      const r = await fetch((window.API_BASE||'') + '/create-pot-session', {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-      });
-      const data = await r.json().catch(()=>null);
-      if (!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
-      location.href = data.url;
-    }catch(e){
-      console.error('[CREATE]', e);
-      show(e.message||String(e));
-    }finally{ setBusy(false, 'Create Pot'); }
-  }
-  if (typeof window.startCreatePotCheckout !== 'function') window.startCreatePotCheckout = startCreatePotCheckout;
-
-  async function startJoinCheckout(){
-    const potId = byId('v-pot')?.value?.trim() || '';
-    const amountDollars = byId('j-cost')?.value || byId('j-amount')?.value || '10';
-    const playerName = byId('j-name')?.value || byId('j-player')?.value || 'Player';
-    const playerEmail= byId('j-email')?.value || '';
-    const entryId = 'e_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
-
-    if (!potId){ alert('Enter a Pot ID first.'); return; }
-
-    const payload = {
-      pot_id: potId,
-      entry_id: entryId,
-      amount_cents: toCents(amountDollars),
-      player_name: playerName,
-      player_email: playerEmail,
-      success_url: originHost() + '/success.html',
-      cancel_url: originHost() + '/cancel.html'
-    };
-    try{
-      const r = await fetch((window.API_BASE||'') + '/create-checkout-session', {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-      });
-      const data = await r.json().catch(()=>null);
-      if(!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
-      location.href = data.url;
-    }catch(e){
-      console.error('[JOIN]', e);
-      alert('Join failed: ' + (e.message || e));
-    }
-  }
-  if (typeof window.startJoinCheckout !== 'function') window.startJoinCheckout = startJoinCheckout;
-
-  function wire(id, fn){
-    const el = byId(id);
-    if (el && !el.dataset.wired){
-      el.dataset.wired='1';
-      el.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
-    }
-  }
-
-  function showCreateCard(){ const c = byId('create-card'); if(c){ c.style.display=''; c.scrollIntoView({behavior:'smooth', block:'start'});} }
-  function hideCreateCard(){ const c = byId('create-card'); if(c){ c.style.display='none'; window.scrollTo({top:0, behavior:'smooth'});} }
-
-  function loadPotFromInput(){
-    const potId = (byId('v-pot')?.value||'').trim();
-    const out = byId('pot-load-msg') || byId('join-msg');
-    if (!potId){ if(out) out.textContent='Enter a Pot ID.'; return; }
-    window.CURRENT_POT_ID = potId;
-    if(out){ out.textContent = 'Loaded Pot ' + potId + '. You can now Join.'; out.style.display=''; }
-    const detail = byId('pot-detail-section'); if (detail) detail.style.display='';
-  }
-
-  function adminLogin(){
-    const p = prompt('Admin password:');
-    if (p === 'Jesus7'){ localStorage.setItem('site_admin','1'); alert('Admin enabled'); document.location.reload(); }
-    else if (p!=null){ alert('Wrong password'); }
-  }
-  function adminLogout(){ localStorage.removeItem('site_admin'); alert('Admin disabled'); document.location.reload(); }
-
-  function notImplemented(msg){ return ()=>alert(msg || 'Coming soon'); }
-
-  function bindAll(){
-    wire('btn-start-create', showCreateCard);
-    wire('btn-create-collapse', hideCreateCard);
-    wire('btn-create', startCreatePotCheckout);
-    wire('btn-load', loadPotFromInput);
-    wire('btn-join', startJoinCheckout);
-    wire('btn-refresh', ()=>location.reload());
-    wire('btn-show-details', ()=>{ const s=byId('pot-detail-section'); if(s){ s.style.display=''; s.scrollIntoView({behavior:'smooth'})}});
-    wire('btn-admin-login', adminLogin);
-    wire('btn-claim', notImplemented('Claim subscription coming soon.'));
-    wire('btn-edit', ()=>{ const f=byId('pot-edit-form'); if(f) f.style.display=''; });
-    wire('btn-cancel-edit', ()=>{ const f=byId('pot-edit-form'); if(f) f.style.display='none'; });
-    wire('btn-save-pot', notImplemented('Saving edits requires API endpoint.'));
-    wire('btn-hold', notImplemented('Hold requires backend endpoint.'));
-    wire('btn-resume', notImplemented('Resume requires backend endpoint.'));
-    wire('btn-delete', notImplemented('Delete requires backend endpoint.'));
-    wire('btn-admin-grant', notImplemented('Grant co-admin requires backend endpoint.'));
-    wire('btn-admin-revoke', notImplemented('Revoke co-admin requires backend endpoint.'));
-    const signIn = byId('btn-signin'), signOut = byId('btn-signout');
-    if(signIn && !signIn.dataset.wired){ signIn.dataset.wired='1'; signIn.addEventListener('click', adminLogin); }
-    if(signOut && !signOut.dataset.wired){ signOut.dataset.wired='1'; signOut.addEventListener('click', adminLogout); }
-  }
-
-  document.addEventListener('DOMContentLoaded', ()=>{
-    populateCreate();
-    bindAll();
-    if (typeof checkStripeReturn==='function') try{ checkStripeReturn(); }catch(_){}
-  });
-
-  document.addEventListener('click', function(e){
-    const el = e.target.closest('button, [role="button"], a.btn');
-    if (!el || el.dataset.wired) return;
-    const id = el.id || '';
-    const map = {
-      'btn-start-create': showCreateCard,
-      'btn-create-collapse': hideCreateCard,
-      'btn-create': startCreatePotCheckout,
-      'btn-load': loadPotFromInput,
-      'btn-join': startJoinCheckout,
-      'btn-refresh': ()=>location.reload(),
-      'btn-show-details': ()=>{ const s=byId('pot-detail-section'); if(s){ s.style.display=''; s.scrollIntoView({behavior:'smooth'})}},
-      'btn-admin-login': adminLogin,
-      'btn-claim': notImplemented('Claim subscription coming soon.'),
-      'btn-edit': ()=>{ const f=byId('pot-edit-form'); if(f) f.style.display=''; },
-      'btn-cancel-edit': ()=>{ const f=byId('pot-edit-form'); if(f) f.style.display='none'; },
-      'btn-save-pot': notImplemented('Saving edits requires API endpoint.'),
-      'btn-hold': notImplemented('Hold requires backend endpoint.'),
-      'btn-resume': notImplemented('Resume requires backend endpoint.'),
-      'btn-delete': notImplemented('Delete requires backend endpoint.'),
-      'btn-admin-grant': notImplemented('Grant co-admin requires backend endpoint.'),
-      'btn-admin-revoke': notImplemented('Revoke co-admin requires backend endpoint.'),
-    };
-    const fn = map[id];
-    if (fn){
-      e.preventDefault(); e.stopPropagation();
-      fn.call(el, e);
-    }
-  }, true);
-})();
-
-
-/* ===== Manage page helpers: auto-resolve pot by owner code ===== */
-async function resolvePotByOwnerCode(ownerCode) {
-  try {
-    if (!ownerCode || ownerCode.trim().length < 4) return null;
-    const res = await fetch(API_BASE + '/owner/resolve', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ owner_code: ownerCode.trim() })
-    });
-    if (!res.ok) return null;
-    return await res.json(); // {pot_id, owner_link}
-  } catch (e) { console.error('[MANAGE] resolve error', e); return null; }
-}
-
-function initManageAutoFill() {
-  const potInput = document.querySelector('input[name="pot-id"], #pot-id, input[placeholder^="pot_"]');
-  const codeInput = document.querySelector('input[name="owner-code"], #owner-code, input[placeholder*="code"], input[placeholder*="Code"]');
-  if (!potInput || !codeInput) return;
-
-  // from URL ?pot= & key= or ?owner=CODE
-  const qs = new URLSearchParams(location.search);
-  const pot = qs.get('pot');
-  if (pot) potInput.value = pot;
-
-  // When they type the owner code, auto-resolve pot id
-  codeInput.addEventListener('change', async () => {
-    const info = await resolvePotByOwnerCode(codeInput.value);
-    if (info && info.pot_id) {
-      potInput.value = info.pot_id;
-      console.log('[MANAGE] Resolved pot', info.pot_id);
-    }
-  });
-}
-
-// Run on manage.html
-if (location.pathname.endsWith('/manage.html') || location.pathname.endsWith('manage.html')) {
-  document.addEventListener('DOMContentLoaded', initManageAutoFill);
-}
-

@@ -1,85 +1,98 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Organizer — Manage Pot</title>
-    <link rel="icon" href="logo.png">
-    <style>
-      body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#f6f8fb;margin:0}
-      .card{max-width:860px;margin:28px auto;padding:24px 28px;background:#fff;border-radius:14px;box-shadow:0 6px 26px rgba(16,24,40,.08)}
-      h1{margin:0 0 10px 0;font-size:22px}
-      label{display:block;font-weight:600;margin-top:10px}
-      input{width:100%;padding:9px 10px;border:1px solid #d0d5dd;border-radius:10px}
-      .row{display:grid;grid-template-columns: 1fr 1.2fr; gap:14px}
-      .btn{margin-top:12px;background:#16a34a;color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:600;cursor:pointer}
-      .muted{color:#667085}
-    </style>
-  </head>
-  <body>
-    <div class="card">
-      <h1>Authenticate</h1>
-      <div class="row">
-        <div>
-          <label>Pot ID</label>
-          <input id="pot" placeholder="pot_abc123" />
-        </div>
-        <div>
-          <label>Owner Link Key (from URL)</label>
-          <input id="key" placeholder="paste key=… from manage link" />
-        </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Organizer — Manage Pot</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    body { padding: 2rem; }
+    .card { max-width: 1000px; margin: 0 auto; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body>
+  <article class="card">
+    <header>
+      <h2>Organizer — Manage Pot</h2>
+      <p class="mono">Use the Owner Link (from the success page) or Owner Code to unlock your pot.</p>
+    </header>
+
+    <section>
+      <label>Pot ID
+        <input id="potId" class="mono" placeholder="pot_abc123" />
+      </label>
+      <label>Owner Link Key (from manage URL)
+        <input id="ownerKey" class="mono" placeholder="paste &key=… from manage link" />
+      </label>
+      <label>Owner Code (alternative auth)
+        <input id="ownerCode" class="mono" placeholder="e.g., 9X7BP" />
+      </label>
+      <div>
+        <button id="btnVerify">Verify Access</button>
+        <span id="status" class="mono"></span>
       </div>
-      <label>Owner Code (alternative auth)</label>
-      <input id="code" placeholder="e.g., 9X7BP" />
-      <button id="go" class="btn">Verify Access</button>
-      <p class="muted">Tip: Paste a full manage link here (it will auto-fill): <code>?pot=…&key=…</code>.</p>
-    </div>
+    </section>
 
-    <script>
-      const BACKEND = (location.hostname.includes('localhost') ?
-        (localStorage.getItem('dev_backend') || 'http://127.0.0.1:8000') :
-        'https://picklepot-stripe.onrender.com');
+    <section id="panel" hidden>
+      <h4>Pot is unlocked</h4>
+      <p class="mono">Pot ID: <span id="showPid"></span></p>
+      <p><em>Here you can render your management UI (entries table, actions, etc.).</em></p>
+    </section>
+  </article>
 
-      const $pot = document.getElementById('pot');
-      const $key = document.getElementById('key');
-      const $code = document.getElementById('code');
-      const $go  = document.getElementById('go');
+  <script>
+    const backend = (window.PP_BACKEND || "https://picklepot-stripe.onrender.com").replace(/\/$/,"");
+    const qs = new URLSearchParams(location.search);
+    const potId = document.getElementById("potId");
+    const ownerKey = document.getElementById("ownerKey");
+    const ownerCode = document.getElementById("ownerCode");
+    const statusEl = document.getElementById("status");
+    const panel = document.getElementById("panel");
+    const showPid = document.getElementById("showPid");
 
-      // Autofill from query params
-      const urlp = new URLSearchParams(location.search);
-      if(urlp.get('pot')) $pot.value = urlp.get('pot');
-      if(urlp.get('key')) $key.value = urlp.get('key');
+    // Autofill from URL
+    const urlPot = qs.get("pot");
+    const urlKey = qs.get("key");
+    if (urlPot) potId.value = urlPot;
+    if (urlKey) ownerKey.value = urlKey;
 
-      async function maybeResolve() {
-        // If we have a token key but not pot, try resolve token -> pot
-        if($key.value && !$pot.value){
-          try{
-            const r = await fetch(`${BACKEND}/resolve-owner-code?token=${encodeURIComponent($key.value)}`);
-            if(r.ok){ const j = await r.json(); $pot.value = j.pot_id || $pot.value; }
-          }catch(e){ console.warn(e); }
+    async function resolveIfNeeded() {
+      try {
+        // Prefer token ownerKey
+        if (!potId.value && ownerKey.value) {
+          const r = await fetch(`${backend}/resolve-owner-code?token=${encodeURIComponent(ownerKey.value)}`);
+          if (r.ok) {
+            const j = await r.json();
+            potId.value = j.pot_id;
+          }
         }
-        // If we have a code but not pot, resolve code -> pot
-        if($code.value && !$pot.value){
-          try{
-            const r = await fetch(`${BACKEND}/resolve-owner-code?code=${encodeURIComponent($code.value)}`);
-            if(r.ok){ const j = await r.json(); $pot.value = j.pot_id || $pot.value; }
-          }catch(e){ console.warn(e); }
+        // Or by short code
+        if (!potId.value && ownerCode.value) {
+          const r = await fetch(`${backend}/resolve-owner-code?code=${encodeURIComponent(ownerCode.value)}`);
+          if (r.ok) {
+            const j = await r.json();
+            potId.value = j.pot_id;
+          }
         }
+      } catch(e){ console.warn("resolve error", e); }
+    }
+
+    document.getElementById("btnVerify").addEventListener("click", async () => {
+      statusEl.textContent = "Verifying…";
+      await resolveIfNeeded();
+      if (!potId.value) {
+        statusEl.textContent = "Could not resolve Pot ID. Provide the owner code or link key.";
+        return;
       }
+      // At this point you'd call your secured backend with potId + auth.
+      statusEl.textContent = "Access granted.";
+      panel.hidden = false;
+      showPid.textContent = potId.value;
+    });
 
-      $key.addEventListener('change', maybeResolve);
-      $code.addEventListener('change', maybeResolve);
-      document.addEventListener('DOMContentLoaded', maybeResolve);
-
-      $go.addEventListener('click', (e)=>{
-        e.preventDefault();
-        if(!$pot.value){ alert('Enter or resolve a Pot ID first'); return; }
-        // Your real app likely validates the key/code against backend and then renders entries.
-        // Here we simply navigate to your existing manage UI route (if different, adjust).
-        const qs = new URLSearchParams({ pot: $pot.value });
-        if($key.value) qs.set('key', $key.value);
-        location.href = `manage.html?${qs.toString()}`;
-      });
-    </script>
-  </body>
+    // Try resolve immediately if link has ?key
+    if (ownerKey.value) resolveIfNeeded();
+  </script>
+</body>
 </html>
