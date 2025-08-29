@@ -1,150 +1,118 @@
 
-/**
- * PicklePot UI add-on
- * - Adds a light-gold "Join A Pot" button under the top CTAs
- * - Reveals the existing Join section and adds a bottom "↑↑ close"
- * - Ensures "Number of Pots" field exists in Create form
- * - Wires the "Create Pot" button to your existing startCreatePotCheckout()
- * No layout rewrite; pure progressive enhancement.
- */
-(function(){
-  const $  = (s,sc)=> (sc||document).querySelector(s);
-  const $$ = (s,sc)=> Array.from((sc||document).querySelectorAll(s));
+// ui-join-addon.js
+// Adds a light-gold "Join A Pot" button under your top CTAs.
+// The Join section stays hidden until clicked, and shows a bottom "↑↑ close".
 
-  function textIncludes(el, needle){
-    if(!el) return false;
-    return (el.textContent||"").toLowerCase().includes(needle.toLowerCase());
+(function () {
+  const TXT_JOIN = "Join A Pot";
+  const CLASS_HIDDEN = "jp-hidden";
+  const GOLD_BTN_CLASS = "jp-gold-btn";
+
+  function normText(el) {
+    return (el.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
   }
-  function closestWithText(start, needle){
-    let el = start;
-    while (el && el !== document.body){
-      if (textIncludes(el, needle)) return el;
-      el = el.parentElement;
+
+  function findButtonByLabel(label) {
+    const target = label.toLowerCase();
+    const btns = Array.from(document.querySelectorAll('button, a, input[type="button"], input[type="submit"]'));
+    return btns.find(b => normText(b) === target);
+  }
+
+  function findTopCtaRow() {
+    // Try to locate the row that contains "Create A Pot" and/or "Organizer"
+    const createBtn = findButtonByLabel("Create A Pot");
+    if (createBtn && createBtn.parentElement) {
+      // insert after that button's container
+      return createBtn.parentElement;
+    }
+    // fallback: first header area with buttons
+    const candidates = Array.from(document.querySelectorAll("header, .cta, .cta-row, .button-row, .top-row, .top"));
+    return candidates.find(x => x.querySelector("button, a"));
+  }
+
+  function findJoinPanel() {
+    // Prefer known ids/classes first
+    const ids = ["join", "join-panel", "join-section", "joinArea", "join_wrap", "joinWrap"];
+    for (const id of ids) {
+      const el = document.getElementById(id);
+      if (el) return el;
+    }
+    const classes = [".join", ".join-panel", ".join-section", "[data-role='join']"];
+    for (const sel of classes) {
+      const el = document.querySelector(sel);
+      if (el) return el;
+    }
+    // Heuristic: container that holds "Active Tournaments"
+    const h = Array.from(document.querySelectorAll("h2,h3,h4,div,span"))
+      .find(n => /active tournaments/i.test(normText(n)));
+    if (h) {
+      // go up to a reasonably sized container
+      let cur = h;
+      for (let i = 0; i < 4 && cur && cur.parentElement; i++) cur = cur.parentElement;
+      return cur || h;
     }
     return null;
   }
-  function show(el){ if(el) el.style.display=''; }
-  function hide(el){ if(el) el.style.display='none'; }
-  function scrollInto(el){
-    if(!el) return;
-    try{ el.scrollIntoView({behavior:'smooth',block:'start'}); }catch(_){}
+
+  function ensureCloseAtBottom(panel, hideFn) {
+    if (!panel.querySelector(".jp-close")) {
+      const closeRow = document.createElement("div");
+      closeRow.className = "jp-close";
+      closeRow.innerHTML = '<span class="jp-arrows">↑↑</span> close';
+      closeRow.addEventListener("click", hideFn);
+      panel.appendChild(closeRow);
+    }
   }
 
-  function ensureCountField(){
-    // Try by id
-    let count = $('#c-count');
-    if (count) return;
+  function mount() {
+    const joinPanel = findJoinPanel();
+    if (!joinPanel) return; // nothing to do
 
-    // Try to find guest buy-in field to insert after
-    const guestInput = $('#c-guest') ||
-      $$('label').find(l => textIncludes(l, 'guest') && l.htmlFor && $('#'+l.htmlFor));
-    let afterNode = null;
-    if (guestInput && guestInput.id){
-      afterNode = guestInput.closest('.field') || guestInput.parentElement;
-    }else if (guestInput && guestInput.nodeType===1){
-      afterNode = guestInput.closest('.field') || guestInput.parentElement;
-    }
-    // If not found, fallback to any create card container
-    const createCard = $('#create-card') || closestWithText($('body'),'member buy-in');
-    if (!afterNode && createCard){
-      afterNode = createCard;
-    }
-    if (!afterNode) return;
+    // Hide join panel by default
+    joinPanel.classList.add(CLASS_HIDDEN);
 
-    const wrap = document.createElement('div');
-    wrap.className = 'field';
-    wrap.innerHTML = `
-      <label for="c-count">Number of Pots</label>
-      <input id="c-count" type="number" min="1" step="1" value="1" inputmode="numeric" />
-    `;
-    afterNode.insertAdjacentElement('afterend', wrap);
-  }
+    // Insert a light-gold "Join A Pot" button under the top CTAs (or before the join panel as fallback)
+    let hostRow = findTopCtaRow();
+    if (!hostRow) hostRow = joinPanel.parentElement || document.body;
 
-  function wireCreateButton(){
-    // Find a Create button inside a "create" area
-    const explicit = $('#btn-create');
-    const guessed  = $$('button').find(b=>textIncludes(b,'create pot'));
-    const createBtn = explicit || guessed;
-    if (!createBtn) return;
+    // Avoid duplicating if already added
+    if (!document.querySelector(".jp-join-btn")) {
+      const joinBtn = document.createElement("button");
+      joinBtn.type = "button";
+      joinBtn.className = `jp-join-btn ${GOLD_BTN_CLASS}`;
+      joinBtn.textContent = TXT_JOIN;
 
-    const handler = (ev)=>{
-      // Let form submit naturally if you have an action, else call known handlers
-      if (typeof window.startCreatePotCheckout === 'function'){
-        ev.preventDefault();
-        return window.startCreatePotCheckout();
+      const show = () => {
+        joinPanel.classList.remove(CLASS_HIDDEN);
+        ensureCloseAtBottom(joinPanel, hide);
+        // Scroll into view just below the buttons
+        setTimeout(() => {
+          joinPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+          window.scrollBy({ top: -16, behavior: "smooth" });
+        }, 30);
+      };
+      const hide = () => {
+        joinPanel.classList.add(CLASS_HIDDEN);
+      };
+
+      joinBtn.addEventListener("click", show);
+
+      // place the button just after the hostRow's first button (keeps your layout intact)
+      if (hostRow.firstElementChild && hostRow.firstElementChild.nextSibling) {
+        hostRow.insertBefore(joinBtn, hostRow.firstElementChild.nextSibling.nextSibling);
+      } else {
+        hostRow.appendChild(joinBtn);
       }
-      if (typeof window.onCreateClick === 'function'){
-        ev.preventDefault();
-        return window.onCreateClick();
-      }
-      // otherwise, allow default behavior
-    };
-    // Avoid duplicate bindings
-    createBtn.addEventListener('click', handler, {capture:false});
+
+      // Also add bottom close (↑↑ close)
+      ensureCloseAtBottom(joinPanel, hide);
+    }
   }
 
-  function injectJoinCTA(){
-    // Locate the top CTA row by its buttons (Create/Organizer) and insert gold Join beneath
-    const createTopBtn = $$('button').find(b=>textIncludes(b,'create a pot'));
-    const organizerBtn = $$('button').find(b=>textIncludes(b,'organizer'));
-    let anchor = null;
-    if (createTopBtn && organizerBtn){
-      // Use their shared container if possible
-      anchor = createTopBtn.parentElement;
-      // climb until both are inside the same container
-      while (anchor && !anchor.contains(organizerBtn)) anchor = anchor.parentElement;
-    }
-    if (!anchor) anchor = (createTopBtn||organizerBtn)?.parentElement || document.body;
-
-    // Build the gold Join CTA row
-    const row = document.createElement('div');
-    row.className = 'cta-bar-join';
-    row.style.cssText = 'display:flex;justify-content:center;align-items:center;margin:-4px 0 10px;';
-
-    const joinBtn = document.createElement('button');
-    joinBtn.id = 'btn-start-join';
-    joinBtn.className = 'btn xl btn-gold-light';
-    joinBtn.type = 'button';
-    joinBtn.textContent = 'Join A Pot';
-    row.appendChild(joinBtn);
-
-    // Insert row after the anchor block
-    anchor.insertAdjacentElement('afterend', row);
-
-    // Locate the existing Join section by the "Active Tournaments" marker
-    let joinCard = null;
-    const marker = $$('*').find(el=>textIncludes(el,'active tournaments'));
-    if (marker){
-      // prefer a <section> or card wrapper
-      joinCard = marker.closest('section') || marker.closest('.card') || marker.parentElement;
-    }
-
-    // If not found, do nothing gracefully
-    if (!joinCard) return;
-
-    // Hide by default
-    joinCard.style.display = 'none';
-
-    // Add bottom collapse control
-    const bottomWrap = document.createElement('div');
-    bottomWrap.style.cssText = 'display:flex;justify-content:center;margin:18px 0 6px;';
-    bottomWrap.innerHTML = `
-      <button id="btn-join-collapse-bottom" type="button"
-              title="Hide Join a Pot"
-              style="background:none;border:none;color:#666;cursor:pointer;font-weight:600">
-        ↑↑ close
-      </button>
-    `;
-    joinCard.appendChild(bottomWrap);
-
-    // Wire open/close
-    joinBtn.addEventListener('click', ()=>{ joinCard.style.display=''; scrollInto(joinCard); });
-    bottomWrap.querySelector('button').addEventListener('click', ()=>{ joinCard.style.display='none'; });
+  // mount when DOM is ready
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", mount);
+  } else {
+    mount();
   }
-
-  document.addEventListener('DOMContentLoaded', ()=>{
-    ensureCountField();
-    wireCreateButton();
-    injectJoinCTA();
-  });
 })();
