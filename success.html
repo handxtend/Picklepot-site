@@ -5,73 +5,75 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Payment Successful — Pot Created</title>
   <style>
-    :root {
-      --bg:#f6f7fb; --card:#fff; --text:#1f2937; --muted:#6b7280;
-      --brand:#2563eb; --brand-weak:#dbeafe; --ok:#16a34a;
-      --shadow:0 10px 25px rgba(0,0,0,.07), 0 2px 6px rgba(0,0,0,.06);
-    }
-    html,body {height:100%}
-    body {
-      margin:0; background:var(--bg); color:var(--text); font:16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji";
-      display:grid; place-items:center; padding:24px;
-    }
-    .card {
-      background:var(--card); width:min(860px, 92vw); border-radius:14px; box-shadow:var(--shadow);
-      overflow:hidden; border:1px solid #e5e7eb;
-    }
-    header { padding:22px 26px; border-bottom:1px solid #e5e7eb; }
-    header h1 { margin:0 0 6px; font-size:28px }
-    header p { margin:0; color:var(--muted) }
-
-    .section { padding:24px 26px; }
-    .progress { width:100%; height:10px; appearance:none; }
-    .progress::-webkit-progress-bar { background:#eef2ff; border-radius:8px }
-    .progress::-webkit-progress-value { background:var(--brand); border-radius:8px }
-    .progress::-moz-progress-bar { background:var(--brand) }
-    .muted { color:var(--muted) }
-
-    .row { margin-top:14px }
-    .k { font-weight:600; display:inline-block; min-width:110px }
-    .v { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace }
-
-    .actions { padding:18px 26px; background:#fafafa; border-top:1px solid #e5e7eb; display:flex; gap:12px; flex-wrap:wrap }
-    .btn {
-      display:inline-flex; align-items:center; gap:8px; padding:10px 14px; border-radius:10px;
-      text-decoration:none; border:1px solid #e5e7eb; background:#ffffff; color:#111827; font-weight:600;
-    }
-    .btn.primary { background:var(--brand); color:white; border-color:var(--brand) }
-    .ok { color:var(--ok); font-weight:600 }
-    .hidden { display:none !important }
+    :root { --bg:#f6f7fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --brand:#2563eb; --ok:#16a34a; --border:#e5e7eb; }
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica Neue,Arial}
+    .card{background:var(--card);width:min(860px,92vw);border-radius:14px;box-shadow:0 10px 25px rgba(0,0,0,.07),0 2px 6px rgba(0,0,0,.06);border:1px solid var(--border);overflow:hidden}
+    header{padding:22px 26px;border-bottom:1px solid var(--border)}
+    header h1{margin:0 0 6px;font-size:28px}
+    header p{margin:0;color:var(--muted)}
+    .section{padding:24px 26px}
+    .progress{width:100%;height:10px;appearance:none}
+    .progress::-webkit-progress-bar{background:#eef2ff;border-radius:8px}
+    .progress::-webkit-progress-value{background:var(--brand);border-radius:8px}
+    .progress::-moz-progress-bar{background:var(--brand)}
+    .muted{color:var(--muted)}
+    .row{margin-top:14px}
+    .k{font-weight:600;display:inline-block;min-width:120px}
+    .v{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .actions{padding:18px 26px;background:#fafafa;border-top:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;text-decoration:none;border:1px solid var(--border);background:#fff;color:#111827;font-weight:600}
+    .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .ok{color:var(--ok);font-weight:600}
+    .hidden{display:none !important}
+    .inline{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .copy{border:1px solid var(--border);padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px;background:#fff;color:#111827}
+    .copy[disabled]{opacity:.5;cursor:not-allowed}
   </style>
 </head>
 <body>
   <article class="card" role="status" aria-live="polite">
     <header>
       <h1>Payment Successful</h1>
-      <p>Your tournament is being created. The organizer link and pot ID will appear below once ready.</p>
+      <p>Your tournament is being created. The organizer link and details will appear below once ready.</p>
     </header>
 
     <div class="section">
       <progress id="bar" class="progress" value="8" max="100" aria-label="progress"></progress>
       <p id="msg" class="muted row">Preparing results…</p>
 
-      <!-- Details appear when ready -->
       <div id="details" class="row hidden">
         <p class="ok">Ready! Your organizer tools are below.</p>
-        <p><span class="k">Pot ID:</span> <span id="potId" class="v"></span></p>
-        <!-- owner code is not returned by the backend; we keep the element for compatibility but leave it empty/hidden -->
-        <p id="ownerRow" class="hidden"><span class="k">Owner Code:</span> <span id="ownerCode" class="v"></span></p>
+
+        <p class="inline">
+          <span class="k">Pot ID:</span>
+          <span id="potId" class="v"></span>
+          <button class="copy" id="copyPot">Copy</button>
+        </p>
+
+        <p id="ownerRow" class="inline hidden">
+          <span class="k">Owner Code:</span>
+          <span id="ownerCode" class="v"></span>
+          <button class="copy" id="copyOwner">Copy</button>
+        </p>
+
+        <p class="inline">
+          <span class="k">Manage link:</span>
+          <a id="manageLink" class="v" href="#" target="_blank" rel="noopener">Open</a>
+          <button class="copy" id="copyManage">Copy</button>
+        </p>
       </div>
     </div>
 
     <div class="actions">
       <a href="/" class="btn">Back to Home</a>
       <a id="openManage" href="#" class="btn primary hidden" rel="noopener">Open Organizer Manage Page</a>
+      <a id="viewActive" href="/" class="btn hidden">View under Active Tournaments</a>
     </div>
   </article>
 
   <script>
-    // Optional override: set window.PP_BACKEND = "https://picklepot-stripe.onrender.com" in index.html
+    // Backend base (override from index.html if you like)
     const BACKEND = (window.PP_BACKEND || "https://picklepot-stripe.onrender.com").replace(/\/$/, "");
     const qs = new URLSearchParams(location.search);
     const sessionId = qs.get("session_id");
@@ -82,13 +84,29 @@
     const potIdEl = document.getElementById("potId");
     const ownerRow = document.getElementById("ownerRow");
     const ownerCodeEl = document.getElementById("ownerCode");
+    const manageLinkEl = document.getElementById("manageLink");
     const openBtn = document.getElementById("openManage");
+    const viewActive = document.getElementById("viewActive");
+    const copyPot = document.getElementById("copyPot");
+    const copyOwner = document.getElementById("copyOwner");
+    const copyManage = document.getElementById("copyManage");
 
-    // Poll the backend for creation status
+    function setCopy(btn, text){
+      btn.onclick = async () => {
+        try {
+          await navigator.clipboard.writeText(text || "");
+          const old = btn.textContent;
+          btn.textContent = "Copied!";
+          setTimeout(() => btn.textContent = old, 1200);
+        } catch(e) {
+          alert("Copy failed. Please copy manually.");
+        }
+      };
+    }
+
     async function fetchStatus() {
       const url = `${BACKEND}/create-status?session_id=${encodeURIComponent(sessionId || "")}`;
-      const r = await fetch(url, { credentials: "omit" });
-      // 404 while webhook hasn’t written anything yet — treat as "not ready"
+      const r = await fetch(url, { cache: "no-store", credentials: "omit" });
       if (r.status === 404) return { ready: false };
       return r.json();
     }
@@ -96,21 +114,35 @@
     async function step() {
       try {
         const data = await fetchStatus();
-        // Accept either { pots:[...] } (current backend) or { results:[...] } (older shape)
         const list = data && (data.pots || data.results) || [];
         const first = list[0];
 
         if (data && data.ready && first) {
-          // Fill UI
-          potIdEl.textContent = first.pot_id || "";
-          // Backend doesn’t return the plaintext owner code; hide the row
-          ownerCodeEl.textContent = "";
-          ownerRow.classList.add("hidden");
+          const potId = first.pot_id || "";
+          const manageUrl = first.manage_url || "#";
+          const ownerCode = first.owner_code || ""; // present only if backend returns during TTL
 
-          if (first.manage_url) {
-            openBtn.href = first.manage_url;
-            openBtn.classList.remove("hidden");
+          // Fill UI
+          potIdEl.textContent = potId;
+          manageLinkEl.href = manageUrl;
+          openBtn.href = manageUrl;
+
+          setCopy(copyPot, potId);
+          setCopy(copyManage, manageUrl);
+
+          if (ownerCode) {
+            ownerCodeEl.textContent = ownerCode;
+            ownerRow.classList.remove("hidden");
+            setCopy(copyOwner, ownerCode);
+          } else {
+            ownerRow.classList.add("hidden");
           }
+
+          // reveal buttons
+          openBtn.classList.remove("hidden");
+          viewActive.href = `/?highlight=${encodeURIComponent(potId)}`;
+          viewActive.classList.remove("hidden");
+
           details.classList.remove("hidden");
           msg.textContent = "Done!";
           bar.value = bar.max;
@@ -123,7 +155,6 @@
         msg.textContent = "Preparing results…";
         setTimeout(step, 1500);
       } catch (e) {
-        console.warn("status poll error", e);
         const current = Number(bar.value) || 0;
         bar.value = Math.min(98, current + 1);
         msg.textContent = "Still preparing results… retrying…";
