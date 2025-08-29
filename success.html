@@ -74,7 +74,7 @@
 
   <script>
     // Backend base (override from index.html if you like)
-    const BACKEND = (window.PP_BACKEND || "https://picklepot-stripe.onrender.com").replace(/\/$/, "");
+    const BACKEND = (window.PP_BACKEND || "https://picklepot-stripe.onrender.com").replace(/\\/$/, "");
     const qs = new URLSearchParams(location.search);
     const sessionId = qs.get("session_id");
 
