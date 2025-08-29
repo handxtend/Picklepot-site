@@ -1,0 +1,8 @@
+
+/* Light gold button helper */
+.btn-gold-light{
+  background:#f7e08c;
+  color:#212529;
+  border:1px solid #d9c46a;
+}
+.btn-gold-light:hover{ filter:brightness(0.97); }

@@ -149,7 +149,6 @@
 <!-- Create CTA replaces Organizer Subscription -->
 <div class="create-cta" style="display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin:8px 0 12px;">
 <button class="btn primary xl" id="btn-start-create" type="button">Create A Pot</button>
-          <button class="btn xl" id="btn-start-join" type="button">Join A Pot</button>
 <a class="btn secondary xl" href="manage.html" role="button" style="text-decoration:none">Organizer: Manage a Pot</a>
 </div>
 <div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
@@ -206,7 +205,7 @@
 <!-- ======= JOIN A POT ======= -->
 <section class="card">
 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
-<h2 class="section-header" style="margin-bottom:0">Join a Pot</h2><div style="margin-left:auto;text-align:center;margin-top:-6px"><button id="btn-join-collapse" type="button" aria-label="Collapse Join section" style="background:transparent;border:none;color:#222;font-size:26px;cursor:pointer;line-height:1;">↑↑</button><div style="font-size:13px;color:#444;line-height:1;margin-top:4px;">close</div></div>
+<h2 class="section-header" style="margin-bottom:0">Join a Pot</h2>
 <div class="inline" id="auth-controls" style="margin-left:8px">
 <button class="btn" id="btn-signin">Sign In</button>
 <button class="btn" id="btn-signout" style="display:none">Sign Out</button>
@@ -378,6 +377,8 @@
   window.API_BASE = "https://picklepot-stripe.onrender.com";
 </script>
 <script src="app.js" defer></script>
+<link rel="stylesheet" href="ui-join-addon.css" />
+<script src="ui-join-addon.js" defer></script>
 
 <!-- Tips rotator -->
 <script>
