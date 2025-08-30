@@ -477,10 +477,6 @@ function attachActivePotsListener(){
     JOIN_POTS_SUB = () => unsubs.forEach(u=>{ try{u();}catch(_){ } });
   }
 }
-, err=>{
-      console.error('pots watch error', err);
-      sel.innerHTML = `<option value="">Error loading pots</option>`;
-    });
 }
 
 function onJoinPotChange(){
