@@ -666,8 +666,8 @@ async function joinPot(){
         amount_cents,
         player_name: name || 'Player',
         player_email: email || undefined,
-        success_url: origin + '/success.html',
-        cancel_url:  origin + '/cancel.html',
+        success_url: origin + '/success.html?flow=join',
+        cancel_url: origin + '/cancel.html?flow=join',
         method: 'stripe'
       };
 
@@ -1937,8 +1937,8 @@ async function startCreatePotCheckout(){
     const origin = (window.location.protocol === 'file:' ? 'https://pickleballcompete.com' : window.location.origin);
     const payload = {
       draft,
-      success_url: origin + '/success.html',
-      cancel_url: origin + '/cancel.html'
+      success_url: origin + '/success.html?flow=join',
+      cancel_url: origin + '/cancel.html?flow=join'
     };
 
     if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
@@ -2107,7 +2107,7 @@ async function startCreatePotCheckout(){
       var payload = {
         draft: draft,
         count: Math.max(1, parseInt(($id('c-count')?.value||'1'), 10) || 1),
-        success_url: originHost() + '/success.html',
+        success_url: originHost() + '/success.html?flow=join',
         cancel_url:  originHost() + '/cancel.html?flow=create'
       };
 
@@ -2445,8 +2445,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = {
         draft: collectCreateDraft(),
         count,
-        success_url: originHost() + '/success.html',
-        cancel_url: originHost() + '/cancel.html'
+        success_url: originHost() + '/success.html?flow=join',
+        cancel_url: originHost() + '/cancel.html?flow=create'
       };
       setBusy(true, 'Redirecting…');
       const r = await fetch((window.API_BASE||'') + '/create-pot-session', {
@@ -2477,8 +2477,8 @@ document.addEventListener('DOMContentLoaded', () => {
       amount_cents: toCents(amountDollars),
       player_name: playerName,
       player_email: playerEmail,
-      success_url: originHost() + '/success.html',
-      cancel_url: originHost() + '/cancel.html'
+      success_url: originHost() + '/success.html?flow=join',
+      cancel_url: originHost() + '/cancel.html?flow=create'
     };
     try{
       const r = await fetch((window.API_BASE||'') + '/create-checkout-session', {
