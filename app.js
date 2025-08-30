@@ -153,9 +153,14 @@ function setSelectOrOther(selectEl, wrap, input, val, list){
   if(list.includes(val)){ selectEl.value=val; wrap.style.display='none'; input.value=''; }
   else { selectEl.value='Other'; wrap.style.display=''; input.value=val||''; }
 }
-function escapeHtml(s){
-  const map = {
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#47;','`':'&#96;','=':'&#61;'
+function escapeHtml(s){ 
+    return String(s||'').replace(/[&<>"']/g, c => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;'
+    })[c]);
   };
   return String(s||'').replace(/[&<>"'`=\/]/g, c => map[c]);
 }
