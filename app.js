@@ -1,7 +1,9 @@
 
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
+
 /* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
 window.API_BASE = window.API_BASE || 'https://picklepot-stripe.onrender.com';
+
 /* ==== Organizer plan prices (safe to expose) ==== */
 const PRICE_MAP = {
   individual_monthly: 'price_1Rwq6nFFPAbZxH9HkmDxBJ73',
@@ -9,28 +11,34 @@ const PRICE_MAP = {
   club_monthly:       'price_1Rwq1JFFPAbZxH9HmpYCSJYv',
   club_yearly:        'price_1RwpyUFFPAbZxH9H2N1Ykd4U'
 };
+
 const SITE_ADMIN_PASS = 'Jesus7';
 function isSiteAdmin(){ return localStorage.getItem('site_admin') === '1'; }
 function setSiteAdmin(on){ on?localStorage.setItem('site_admin','1'):localStorage.removeItem('site_admin'); }
+
 const $  = (s,el=document)=>el.querySelector(s);
 const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
 const dollars = n => '$' + Number(n||0).toFixed(2);
+
 /* --- session helpers --- */
 function clearClientSession() {
   ['pp_uid','pp_profile','pp_admin','pp_token','pp_signed_in'].forEach(k => localStorage.removeItem(k));
   sessionStorage.clear();
 }
+
 (function forceLogoutViaURL(){
   if (new URLSearchParams(location.search).has('logout')) {
     clearClientSession();
     history.replaceState({}, '', location.pathname);
   }
 })();
+
 /* Update “Signed In/Out” label and buttons */
 document.addEventListener('DOMContentLoaded', initAuthGate);
 function initAuthGate() {
   const uid = localStorage.getItem('pp_uid');
   const signed = !!uid;
+
   let statusEl = document.querySelector('#signedStatus, .signed-status, [data-signed-status]');
   if (!statusEl) {
     statusEl = Array.from(document.querySelectorAll('span,div,b,strong,em'))
@@ -39,6 +47,7 @@ function initAuthGate() {
   if (statusEl){ try{ statusEl.textContent=''; statusEl.style.display='none'; }catch(_){}}const signOutBtn = document.querySelector('[data-action=\"signout\"], #btnSignOut');
 if (signOutBtn){ try{ signOutBtn.style.display='none'; }catch(_){} }
 if (!signed) localStorage.removeItem('pp_admin');
+
   // Filters for Active Tournaments
   ['j-filter-name','j-filter-org','j-filter-city'].forEach(function(id){
     var el = document.getElementById(id);
@@ -48,9 +57,11 @@ if (!signed) localStorage.removeItem('pp_admin');
     }
   });
 }
+
 /* ---------- Organizer Subscription (front-end) ---------- */
 let ORG_SUB = { active:false, until:null };
 function hasOrganizerSub(){ return !!ORG_SUB.active; }
+
 async function loadOrganizerSubStatus(){
   try{
     const uid = firebase.auth().currentUser?.uid;
@@ -70,6 +81,7 @@ async function loadOrganizerSubStatus(){
     return ORG_SUB;
   }
 }
+
 function refreshOrganizerUI(){
   try{
     const createCard = document.getElementById('create-card');
@@ -82,11 +94,13 @@ function refreshOrganizerUI(){
     }
   }catch(e){ console.warn('[Sub] refreshOrganizerUI error', e); }
 }
+
 function isOrganizerOwnerWithSub(){
   const uid = firebase.auth().currentUser?.uid;
   const isOwner = !!(uid && CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.ownerUid === uid);
   return isOwner && hasOrganizerSub();
 }
+
 /* ---------- Admin UI ---------- */
 function refreshAdminUI(){
   const on = isSiteAdmin();
@@ -97,9 +111,12 @@ function refreshAdminUI(){
   if (btnLogin)  btnLogin.style.display  = on ? 'none' : '';
   if (btnLogout) btnLogout.style.display = on ? '' : 'none';
   if (status) status.textContent = on ? '01' : '00';
+
   if (CURRENT_DETAIL_POT) renderRegistrations(LAST_DETAIL_ENTRIES);
 }
+
 /* ---------- SELECT OPTIONS ---------- */
+
 /* ---------- ADDRESS OPTIONS (lightweight) ---------- */
 const US_STATES = [
   {code:'AL',name:'Alabama'},{code:'AZ',name:'Arizona'},{code:'CA',name:'California'},{code:'CO',name:'Colorado'},
@@ -127,13 +144,16 @@ const STATE_CITIES = {
   "WA": ["Seattle","Spokane","Tacoma","Vancouver","Bellevue","Other"],
   "WI": ["Milwaukee","Madison","Green Bay","Kenosha","Racine","Other"]
 };
+
 const NAME_OPTIONS = ["GPC April (AL)","GPC September League (SL)","PiCoSO (55+)","BOTP","Other"];
 const EVENTS = ["Mixed Doubles","Coed Doubles","Men's Doubles","Women's Doubles","Full Singles (Men)","Full Singles (Women)","Skinny Singles (Coed)","Other"];
 const SKILLS = ["Any","2.5 - 3.0","3.25+","Other"];
 const LOCATIONS = ["VR Parks& Rec. 646 Industrial Blvd. Villa Rica GA 30180","Other"];
 const SKILL_ORDER={ "Any":0, "2.5 - 3.0":1, "3.25+":2 };
 const skillRank = s => SKILL_ORDER[s] ?? 0;
+
 /* ---------- Helpers ---------- */
+
 function toggleOrganizerExtras(){
   var sel = document.getElementById('c-organizer');
   var emailWrap = document.getElementById('c-org-email-wrap');
@@ -142,6 +162,7 @@ function toggleOrganizerExtras(){
   var email = document.getElementById('c-org-email');
   if (email){ email.required = !!isOther; }
 }
+
 function fillSelect(id, items){
   const el = (typeof id==='string') ? document.getElementById(id) : id;
   if (!el) return;
@@ -159,6 +180,7 @@ function escapeHtml(s){
   };
   return String(s||'').replace(/[&<>"'`=\/]/g, c => map[c]);
 }
+
 /* ---------- FIREBASE (safe) ---------- */
 let db = null;
 (function initDbSafely(){
@@ -166,6 +188,7 @@ let db = null;
     if (window.firebase && firebase.firestore){ db = firebase.firestore(); }
   }catch(e){ console.info('Firebase not loaded on this page (success/cancel ok).'); }
 })();
+
 /* ---------- UI bootstrap ---------- */
 document.addEventListener('DOMContentLoaded', () => {
   // Force Create button to use Stripe Checkout
@@ -179,6 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
   handleSubscriptionReturn();
+
   fillSelect('c-name-select', NAME_OPTIONS);
   fillSelect('c-event', EVENTS);
   fillSelect('c-skill', SKILLS);
@@ -186,6 +210,7 @@ document.addEventListener('DOMContentLoaded', () => {
   try{ fillStateAndCity(); }catch(_){}
   try{ toggleAddressForLocation(); $('#c-location-select').addEventListener('change', ()=>toggleAddressForLocation()); }catch(_){}
   fillSelect('j-skill', SKILLS);
+
   // Other toggles (create)
   toggleOther($('#c-name-select'), $('#c-name-other-wrap'));
   $('#c-name-select').addEventListener('change', ()=>toggleOther($('#c-name-select'), $('#c-name-other-wrap')));
@@ -198,14 +223,19 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#c-skill').addEventListener('change', ()=>toggleOther($('#c-skill'), $('#c-skill-other-wrap')));
   toggleOther($('#c-location-select'), $('#c-location-other-wrap'));
   $('#c-location-select').addEventListener('change', ()=>toggleOther($('#c-location-select'), $('#c-location-other-wrap')));
+
   if (db) attachActivePotsListener();
+
   $('#j-refresh').addEventListener('click', ()=>{ if (db) attachActivePotsListener(); onJoinPotChange(); });
   $('#j-pot-select').addEventListener('change', onJoinPotChange);
   $('#j-skill').addEventListener('change', evaluateJoinEligibility);
   $('#j-mtype').addEventListener('change', ()=>{ updateJoinCost(); evaluateJoinEligibility(); });
+
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
+
   $('#btn-create').addEventListener('click', onCreateClick);
 $('#btn-join').addEventListener('click', joinPot);
+
   const loadBtn = $('#btn-load');
   if (loadBtn) { loadBtn.disabled = false; loadBtn.addEventListener('click', onLoadPotClicked); }
   const potIdInput = $('#v-pot');
@@ -218,6 +248,7 @@ $('#btn-join').addEventListener('click', joinPot);
     const sel = $('#j-pot-select').value;
     if(sel && potIdInput){ potIdInput.value = sel; }
   });
+
   // Admin header buttons
   $('#site-admin-toggle').addEventListener('click', ()=>{
     const v = prompt('Admin password?');
@@ -227,6 +258,7 @@ $('#btn-join').addEventListener('click', joinPot);
   $('#site-admin-logout').addEventListener('click', ()=>{
     setSiteAdmin(false); refreshAdminUI(); alert('Admin mode disabled.');
   });
+
   // Admin buttons in Pot Detail
   $('#btn-admin-login')?.addEventListener('click', ()=>{
     const v = prompt('Admin password?');
@@ -241,6 +273,7 @@ $('#btn-join').addEventListener('click', joinPot);
   $('#btn-delete')?.addEventListener('click', deleteCurrentPot);
   $('#btn-admin-grant')?.addEventListener('click', grantThisDeviceAdmin);
   $('#btn-admin-revoke')?.addEventListener('click', revokeThisDeviceAdmin);
+
   // Per-entry actions delegated
   const tbody = document.querySelector('#adminTable tbody');
   if (tbody){
@@ -283,10 +316,12 @@ $('#btn-join').addEventListener('click', joinPot);
       if (act === 'resend'){ resendConfirmation(entryId); return; }
     });
   }
+
   refreshAdminUI();
   // NEW: show success banner if returning from Stripe
   checkStripeReturn();
 });
+
 /* ---------- Utility: payment methods map ---------- */
 function getPaymentMethods(p){
   const pm = p?.payment_methods || {};
@@ -298,6 +333,7 @@ function getPaymentMethods(p){
     onsite: has(pm.onsite) || (!!p?.pay_onsite)
   };
 }
+
 /* ---------- Create Pot ---------- */
 async function createPot(){
   // Route to Stripe checkout (draft first)
@@ -311,6 +347,8 @@ let JOIN_ENTRIES_UNSUB = null;
 let DETAIL_ENTRIES_UNSUB = null;
 let LAST_DETAIL_ENTRIES = [];
 let CURRENT_DETAIL_POT = null;
+
+
 // --- Active list filtering helpers ---
 function getActiveFilters(){
   return {
@@ -355,11 +393,13 @@ function renderJoinPotSelectFromCache(){
   if (potIdInput && sel.value) potIdInput.value = sel.value;
   if (typeof onJoinPotChange === 'function') onJoinPotChange();
 }
+
 function attachActivePotsListener(){
   const sel = $('#j-pot-select');
   if(JOIN_POTS_SUB){ try{JOIN_POTS_SUB();}catch(_){} JOIN_POTS_SUB=null; }
   sel.innerHTML = '';
   JOIN_POTS_CACHE = [];
+
   JOIN_POTS_SUB = db.collection('pots').where('status','==','open')
     .onSnapshot(snap=>{
       const now = Date.now();
@@ -375,7 +415,9 @@ function attachActivePotsListener(){
         const bs = b.start_at?.toMillis?.() ?? 0;
         return as-bs;
       });
+
       JOIN_POTS_CACHE = pots;
+
       if(!pots.length){
         sel.innerHTML = `<option value="">No open pots</option>`;
         $('#btn-join').disabled = true;
@@ -384,24 +426,31 @@ function attachActivePotsListener(){
         updateBigTotals(0,0);
         return;
       }
+
       renderJoinPotSelectFromCache();
 if(sel.selectedIndex < 0) sel.selectedIndex = 0;
+
       const firstId = sel.value;
       if (firstId) { const potIdInput = $('#v-pot'); if(potIdInput) potIdInput.value = firstId; }
+
       onJoinPotChange();
     }, err=>{
       console.error('pots watch error', err);
       sel.innerHTML = `<option value="">Error loading pots</option>`;
     });
 }
+
 function onJoinPotChange(){
   const sel = $('#j-pot-select');
   CURRENT_JOIN_POT = JOIN_POTS_CACHE.find(p=>p.id === sel.value) || null;
+
   const brief = $('#j-pot-summary-brief');
   const startedBadge = $('#j-started-badge');
   const btn = $('#btn-join');
+
   const potIdInput = $('#v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
+
   if(!CURRENT_JOIN_POT){
     brief.textContent = '—';
     startedBadge.style.display='none';
@@ -409,28 +458,35 @@ function onJoinPotChange(){
     watchPotTotals(null);
     return;
   }
+
   const p = CURRENT_JOIN_POT;
   brief.textContent = [p.name||'Unnamed', p.event||'—', p.skill||'Any'].join(' • ');
+
   const now = Date.now();
   const startMs = p.start_at?.toMillis ? p.start_at.toMillis() : null;
   const endMs   = p.end_at?.toMillis   ? p.end_at.toMillis()   : null;
   const started = startMs && startMs <= now;
   const ended   = endMs && endMs <= now;
+
   startedBadge.style.display = started && !ended ? '' : 'none';
   btn.disabled = ended;
+
   updateJoinCost();
   evaluateJoinEligibility();
   updatePaymentOptions();
   updatePaymentNotes();
   watchPotTotals(p.id);
+
   autoLoadDetailFromSelection();
 }
+
 function autoLoadDetailFromSelection(){
   const selId = $('#j-pot-select')?.value;
   if(!selId) return;
   if($('#v-pot')) $('#v-pot').value = selId;
   onLoadPotClicked();
 }
+
 /* ---------- Totals ---------- */
 function getPotSharePct(potId){
   const fromJoin = JOIN_POTS_CACHE.find(p=>p.id===potId);
@@ -438,13 +494,16 @@ function getPotSharePct(potId){
   if (CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.id===potId && typeof CURRENT_DETAIL_POT.pot_share_pct === 'number') return CURRENT_DETAIL_POT.pot_share_pct;
   return 50;
 }
+
 function watchPotTotals(potId){
   if(JOIN_ENTRIES_UNSUB){ try{JOIN_ENTRIES_UNSUB();}catch(_){} JOIN_ENTRIES_UNSUB=null; }
   const totalEl = $('#j-pot-total');
   if(!potId){ totalEl.style.display='none'; updateBigTotals(0,0); return; }
+
   JOIN_ENTRIES_UNSUB = db.collection('pots').doc(potId).collection('entries')
     .onSnapshot(snap=>{
       let totalAll=0, totalPaid=0, countAll=0, countPaid=0;
+
       snap.forEach(doc=>{
         const d = doc.data();
         const isActive = !d.status || d.status === 'active';
@@ -456,10 +515,12 @@ function watchPotTotals(potId){
           if (d.paid) { totalPaid += amt; countPaid++; }
         }
       });
+
       totalEl.innerHTML =
         `Total Pot (All): <b>${dollars(totalAll)}</b> (${countAll} entr${countAll===1?'y':'ies'}) • ` +
         `Paid: <b>${dollars(totalPaid)}</b> (${countPaid} paid)`;
       totalEl.style.display='';
+
       const pct = getPotSharePct(potId) / 100;
       updateBigTotals(totalPaid*pct, totalAll*pct);
     }, err=>{
@@ -473,6 +534,7 @@ function updateBigTotals(paidShare, totalShare){
   $('#j-big-paid-amt').textContent  = dollars(paidShare);
   $('#j-big-total-amt').textContent = dollars(totalShare);
 }
+
 /* ---------- Join helpers ---------- */
 function updateJoinCost(){
   const p = CURRENT_JOIN_POT; if(!p) return;
@@ -488,6 +550,7 @@ function evaluateJoinEligibility(){
   warn.style.display = allow ? 'none' : 'block';
   warn.textContent = allow ? '' : 'Higher skill level cannot play down';
 }
+
 /* Build payment options per event */
 function updatePaymentOptions(){
   const p = CURRENT_JOIN_POT; if(!p) return;
@@ -500,6 +563,7 @@ function updatePaymentOptions(){
   if (pm.onsite)  opts.push(`<option value="Onsite">Onsite</option>`);
   sel.innerHTML = opts.join('') || `<option value="">No payment methods available</option>`;
 }
+
 /* Notes under payment select */
 function updatePaymentNotes(){
   const p = CURRENT_JOIN_POT; const el = $('#j-pay-notes');
@@ -512,11 +576,13 @@ function updatePaymentNotes(){
   if(t==='Onsite')  lines.push(p.pay_onsite ? 'Onsite payment accepted at event check-in.' : 'Onsite payment is not enabled for this tournament.');
   el.innerHTML = lines.join('<br>'); el.style.display = lines.length ? '' : 'none';
 }
+
 /* ---------- Join (Stripe + others) ---------- */
 async function joinPot(){
-  const p = CURRENT_JOIN_POT;
+  const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
   const msg = $('#join-msg');
+
   function setBusy(on, text){
     if (!btn) return;
     btn.disabled = !!on;
@@ -527,36 +593,46 @@ async function joinPot(){
     msg.textContent = message || 'Something went wrong.';
     setBusy(false);
   }
+
   if(!p){ msg.textContent='Select a pot to join.'; return; }
+
   const now=Date.now(), endMs=p.end_at?.toMillis?.();
   if((endMs && endMs<=now) || p.status==='closed'){
     msg.textContent='Registration is closed for this tournament.'; return;
   }
+
   const fname=$('#j-fname').value.trim();
   const lname=$('#j-lname').value.trim();
   const email=$('#j-email').value.trim();
   const playerSkill=$('#j-skill').value;
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
+
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!pay_type){ msg.textContent='Choose a payment method.'; return; }
+
   const rank = s => ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] ?? 0);
   if(p.skill!=='Any' && rank(playerSkill) > rank(p.skill)){
-    msg.textContent='Selected skill is higher than pot skill — joining is not allowed.';
+    msg.textContent='Selected skill is higher than pot skill — joining is not allowed.'; 
     return;
   }
+
   const name=[fname,lname].filter(Boolean).join(' ').trim();
   const applied_buyin=(member_type==='Member'? (p.buyin_member??0) : (p.buyin_guest??0));
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
+
   try{
     setBusy(true, pay_type==='Stripe' ? 'Redirecting to Stripe…' : 'Joining…');
     msg.textContent = '';
+
     const entriesRef = db.collection('pots').doc(p.id).collection('entries');
+
     const dupEmail = emailLC ? await entriesRef.where('email_lc','==', emailLC).limit(1).get() : { empty:true };
     const dupName  = nameLC  ? await entriesRef.where('name_lc','==', nameLC).limit(1).get()  : { empty:true };
-    if(!dupEmail.empty || !dupName.empty){
+    if(!dupEmail.empty || !dupName.empty){ 
       return fail('Duplicate registration: this name or email already joined this event.');
     }
+
     const entry = {
       name, name_lc:nameLC, email, email_lc:emailLC,
       member_type, player_skill:playerSkill, pay_type,
@@ -566,31 +642,37 @@ async function joinPot(){
     const docRef = await entriesRef.add(entry);
     const entryId = docRef.id;
     console.log('[JOIN] Entry created', { potId: p.id, entryId });
+
     if (pay_type === 'Stripe'){
       const pm = getPaymentMethods(p);
       if (!pm.stripe){
         return fail('Stripe is disabled for this event.');
       }
+
       const amount_cents = Math.round(Number(applied_buyin || 0) * 100);
       if (!Number.isFinite(amount_cents) || amount_cents < 50){
         return fail('Stripe requires a fee of at least $0.50.');
       }
+
       // Use HTTPS origin if page was opened as file://
       const origin =
         window.location.protocol === 'file:'
           ? 'https://pickleballcompete.com'
           : window.location.origin;
+
       const payload = {
         pot_id: p.id,
         entry_id: entryId,
         amount_cents,
         player_name: name || 'Player',
         player_email: email || undefined,
-        success_url: originHost() + '/success.html',
+        success_url: origin + '/success.html?flow=join',
         cancel_url: origin + '/cancel.html?flow=join',
         method: 'stripe'
       };
+
       console.log('[JOIN] Creating checkout session…', payload);
+
       let res, data;
       try{
         res = await fetch(`${window.API_BASE}/create-checkout-session`, {
@@ -601,19 +683,24 @@ async function joinPot(){
       }catch(networkErr){
         return fail('Network error contacting payment server. Check your internet or CORS.');
       }
+
       try { data = await res.json(); }
       catch(parseErr){ return fail('Bad response from payment server.'); }
+
       if (!res.ok || !data?.url){
         const errMsg = data?.error || `Payment server error (${res.status}).`;
         return fail(errMsg);
       }
+
       // Keep IDs for success page UX
       sessionStorage.setItem('potId', p.id);
       sessionStorage.setItem('entryId', entryId);
+
       try { window.location.href = data.url; }
       catch { window.open(data.url, '_blank', 'noopener'); }
       return;
     }
+
     // Non-Stripe:
     setBusy(false);
     msg.textContent='Joined! Complete payment using the selected method.';
@@ -624,16 +711,21 @@ async function joinPot(){
     fail('Join failed (check Firebase rules and your network).');
   }
 }
+
 /* ---------- Pot Detail loader + registrations subscription ---------- */
 async function onLoadPotClicked(){
   let id = ($('#v-pot')?.value || '').trim();
   if(!id){ id = $('#j-pot-select')?.value || ''; }
   if(!id){ alert('Select an active tournament or enter a Pot ID.'); return; }
+
   const snap = await db.collection('pots').doc(id).get();
   if(!snap.exists){ alert('Pot not found'); return; }
+
   const pot = { id:snap.id, ...snap.data() };
   CURRENT_DETAIL_POT = pot;
+
   if($('#v-pot')) $('#v-pot').value = pot.id;
+
   $('#pot-info').style.display='';
   $('#pi-name').textContent = pot.name||'';
   $('#pi-event').textContent = pot.event||'';
@@ -645,15 +737,18 @@ async function onLoadPotClicked(){
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
   $('#pi-id').textContent = `ID: ${pot.id}`;
+
   subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);
 }
+
 /* ---------- Registrations table ---------- */
 function subscribeDetailEntries(potId){
   if(DETAIL_ENTRIES_UNSUB){ try{DETAIL_ENTRIES_UNSUB();}catch(_){} DETAIL_ENTRIES_UNSUB=null; }
   const tbody = document.querySelector('#adminTable tbody');
   if(!tbody){ return; }
   tbody.innerHTML = `<tr><td colspan="7" class="muted">Loading registrations…</td></tr>`;
+
   DETAIL_ENTRIES_UNSUB = db.collection('pots').doc(potId).collection('entries')
     .orderBy('created_at','asc')
     .onSnapshot(snap=>{
@@ -668,15 +763,18 @@ function subscribeDetailEntries(potId){
       tbody.innerHTML = `<tr><td colspan="7" class="warn">Failed to load registrations.</td></tr>`;
     });
 }
+
 function renderRegistrations(entries){
   const tbody = document.querySelector('#adminTable tbody');
   if(!tbody) return;
   const showEmail = isSiteAdmin();
   const canAdmin  = isSiteAdmin();
+
   if(!entries || !entries.length){
     tbody.innerHTML = `<tr><td colspan="7" class="muted">No registrations yet.</td></tr>`;
     return;
   }
+
   const html = entries.map(e=>{
     const name = e.name || '—';
     const email = showEmail ? (e.email || '—') : '';
@@ -686,6 +784,7 @@ function renderRegistrations(entries){
     const status = (e.status || 'active').toLowerCase();
     const next = status==='hold' ? 'active' : 'hold';
     const holdLabel = status==='hold' ? 'Resume' : 'Hold';
+
     const actions = canAdmin
       ? `
         <label style="display:inline-flex;align-items:center;gap:6px">
@@ -697,6 +796,7 @@ function renderRegistrations(entries){
         <button class="btn" data-act="remove" data-id="${e.id}" style="margin-left:6px">Remove</button>
       `
       : '—';
+
     return `
       <tr>
         <td>${escapeHtml(name)}</td>
@@ -708,8 +808,10 @@ function renderRegistrations(entries){
         <td>${actions}</td>
       </tr>`;
   }).join('');
+
   tbody.innerHTML = html;
 }
+
 /* ---------- Admin utilities ---------- */
 function requireAdmin(){
   const ok = isSiteAdmin() || isOrganizerOwnerWithSub();
@@ -717,6 +819,7 @@ function requireAdmin(){
   if(!CURRENT_DETAIL_POT){ alert('Load a pot first.'); return false; }
   return true;
 }
+
 function enterPotEditMode(){
   if(!requireAdmin()) return;
   fillSelect('f-name-select', NAME_OPTIONS);
@@ -726,6 +829,7 @@ function enterPotEditMode(){
   prefillEditForm(CURRENT_DETAIL_POT);
   $('#pot-edit-form').style.display = '';
 }
+
 function prefillEditForm(pot){
   if(!pot) return;
   setSelectOrOther($('#f-name-select'), $('#f-name-other-wrap'), $('#f-name-other'), pot.name||'', NAME_OPTIONS);
@@ -745,23 +849,28 @@ function prefillEditForm(pot){
   setSelectOrOther($('#f-skill'), $('#f-skill-other-wrap'), $('#f-skill-other'), pot.skill||'', SKILLS);
   $('#f-buyin-member').value = Number(pot.buyin_member||0);
   $('#f-buyin-guest').value  = Number(pot.buyin_guest||0);
+
   const pctVal = (typeof pot.pot_share_pct === 'number')
     ? pot.pot_share_pct
     : (typeof pot.potPercentage === 'number' ? pot.potPercentage : 100);
   const fPct = document.getElementById('f-pot-pct');
   if (fPct) fPct.value = pctVal;
+
   $('#f-date').value = pot.date || '';
   $('#f-time').value = pot.time || '';
   const endLocal = pot.end_at?.toDate?.();
   $('#f-end-time').value = endLocal ? endLocal.toTimeString().slice(0,5) : '';
   setSelectOrOther($('#f-location-select'), $('#f-location-other-wrap'), $('#f-location-other'), pot.location||'', LOCATIONS);
+
   const pm = getPaymentMethods(pot);
   $('#f-allow-stripe').value = pm.stripe ? 'yes' : 'no';
   $('#f-pay-zelle').value    = pot.pay_zelle || '';
   $('#f-pay-cashapp').value  = pot.pay_cashapp || '';
   $('#f-pay-onsite').value   = pm.onsite ? 'yes' : 'no';
+
   $('#f-status').value = pot.status || 'open';
 }
+
 async function savePotEdits(){
   if(!requireAdmin()) return;
   try{
@@ -772,15 +881,18 @@ async function savePotEdits(){
     const skill = getSelectValue($('#f-skill'), $('#f-skill-other')) || CURRENT_DETAIL_POT.skill;
     const buyin_member = Number($('#f-buyin-member').value || CURRENT_DETAIL_POT.buyin_member || 0);
     const buyin_guest  = Number($('#f-buyin-guest').value  || CURRENT_DETAIL_POT.buyin_guest  || 0);
+
     let pctRaw = Number(document.getElementById('f-pot-pct')?.value);
     if (!Number.isFinite(pctRaw)) {
       pctRaw = (CURRENT_DETAIL_POT.pot_share_pct ?? CURRENT_DETAIL_POT.potPercentage ?? 100);
     }
     const pot_share_pct = Math.max(0, Math.min(100, pctRaw));
+
     const date = $('#f-date').value || CURRENT_DETAIL_POT.date || '';
     const time = $('#f-time').value || CURRENT_DETAIL_POT.time || '';
     const endTime = $('#f-end-time').value || '';
     const location = getSelectValue($('#f-location-select'), $('#f-location-other')) || CURRENT_DETAIL_POT.location;
+
     let end_at = CURRENT_DETAIL_POT.end_at || null;
     if(date && (time || endTime)){
       const startLocal = time ? new Date(`${date}T${time}:00`) : (CURRENT_DETAIL_POT.start_at?.toDate?.() || null);
@@ -793,10 +905,12 @@ async function savePotEdits(){
       }
     }
     const status = $('#f-status').value || CURRENT_DETAIL_POT.status;
+
     const allowStripe = ($('#f-allow-stripe')?.value||'no') === 'yes';
     const zelleInfo   = $('#f-pay-zelle')?.value || '';
     const cashInfo    = $('#f-pay-cashapp')?.value || '';
     const onsiteYes   = ($('#f-pay-onsite')?.value||'yes') === 'yes';
+
     await ref.update({
       name, organizer, event, skill, buyin_member, buyin_guest,
       date, time, location, status, end_at, pot_share_pct,
@@ -815,6 +929,7 @@ async function savePotEdits(){
     onLoadPotClicked();
   }catch(e){ console.error(e); alert('Failed to save changes.'); }
 }
+
 async function updatePotStatus(newStatus){
   if(!requireAdmin()) return;
   try{
@@ -823,6 +938,7 @@ async function updatePotStatus(newStatus){
     onLoadPotClicked();
   }catch(e){ console.error(e); alert('Failed to update status.'); }
 }
+
 async function deleteCurrentPot(){
   if(!requireAdmin()) return;
   const go = confirm('This deletes the pot document. Continue?');
@@ -835,6 +951,7 @@ async function deleteCurrentPot(){
     if (db) attachActivePotsListener();
   }catch(e){ console.error(e); alert('Failed to delete pot.'); }
 }
+
 async function grantThisDeviceAdmin(){
   if(!requireAdmin()) return;
   try{
@@ -855,6 +972,7 @@ async function revokeThisDeviceAdmin(){
     alert('This device UID revoked.');
   }catch(e){ console.error(e); alert('Failed to revoke co-admin.'); }
 }
+
 /* ---------- Move & Resend (unchanged) ---------- */
 function openMoveDialog(entryId){
   const currentId = CURRENT_DETAIL_POT?.id;
@@ -883,12 +1001,15 @@ function openMoveDialog(entryId){
     $('#move-overlay')?.remove();
   };
 }
+
 async function moveEntry(entryId, toPotId){
   try{
     const fromPotId = CURRENT_DETAIL_POT.id;
     if(toPotId===fromPotId){ alert('Already in this tournament.'); return; }
+
     const entry = LAST_DETAIL_ENTRIES.find(e=>e.id===entryId);
     if(!entry){ alert('Entry not found.'); return; }
+
     const toRef = db.collection('pots').doc(toPotId).collection('entries');
     const emailLC = (entry.email||'').toLowerCase();
     const nameLC  = (entry.name||'').toLowerCase();
@@ -897,15 +1018,18 @@ async function moveEntry(entryId, toPotId){
     if(!dupEmail.empty || !dupName.empty){
       alert('Duplicate exists in the target tournament (same name or email).'); return;
     }
+
     const data = {...entry}; delete data.id;
     data.created_at = firebase.firestore.FieldValue.serverTimestamp();
     data.moved_from = fromPotId;
     data.moved_at   = firebase.firestore.FieldValue.serverTimestamp();
+
     await toRef.add(data);
     await db.collection('pots').doc(fromPotId).collection('entries').doc(entryId).delete();
     alert('Registration moved.');
   }catch(err){ console.error(err); alert('Failed to move registration.'); }
 }
+
 async function resendConfirmation(entryId){
   try{
     const entry = LAST_DETAIL_ENTRIES.find(e=>e.id===entryId);
@@ -915,14 +1039,18 @@ async function resendConfirmation(entryId){
     const subject = `Your registration for ${pot?.name||'PiCo Pickle Pot'}`;
     const text =
 `Hi ${entry.name||'player'},
+
 This is a confirmation for your registration in:
 ${pot?.name||''} • ${pot?.event||''} • ${pot?.skill||''}
 Date/Time: ${[pot?.date||'', pot?.time||''].filter(Boolean).join(' ')}
+
 Member Type: ${entry.member_type||'-'}
 Buy-in: ${dollars(entry.applied_buyin||0)}
 Paid: ${entry.paid ? 'Yes' : 'No'}
+
 Thanks for playing!
 PiCo Pickle Pot`;
+
     await db.collection('mail').add({
       to: [entry.email],
       message: { subject, text }
@@ -930,10 +1058,12 @@ PiCo Pickle Pot`;
     alert('Resend queued.');
   }catch(err){ console.error(err); alert('Failed to queue resend.'); }
 }
+
 /* ---------- Rotating Banners ---------- */
 (function(){
   const ROTATE_MS = 20000;
   const FADE_MS = 1200;
+
   const TOP_BANNERS = [
     { src: 'top_728x90_1.png', url: 'https://pickleballcompete.com' },
     { src: 'top_728x90_2.png', url: 'https://pickleballcompete.com/my-teams/' },
@@ -944,6 +1074,7 @@ PiCo Pickle Pot`;
     { src: '/bottom_300x250_2.png', url: '' },
     { src: '/sponsor_300x250.png', url: '' }
   ];
+
   function preload(banners){
     return Promise.all(
       banners.map(b => new Promise(resolve => {
@@ -954,6 +1085,7 @@ PiCo Pickle Pot`;
       }))
     ).then(list => list.filter(Boolean));
   }
+
   function createImgEl(){
     const img = document.createElement('img');
     img.alt = 'Sponsor';
@@ -963,21 +1095,26 @@ PiCo Pickle Pot`;
     img.style.transition = `opacity ${FADE_MS}ms ease-in-out`;
     return img;
   }
+
   function setupBanner(wrapperId, metaId){
     const wrap = document.getElementById(wrapperId);
     const meta = document.getElementById(metaId);
     if(!wrap) return null;
     wrap.style.display = '';
     if (meta) meta.style.display = '';
+
     const a = document.createElement('a');
     a.target = '_blank';
     a.rel = 'noopener';
+
     const img = createImgEl();
     a.appendChild(img);
     wrap.innerHTML = '';
     wrap.appendChild(a);
+
     return { img, link: a };
   }
+
   function startRotator(imgEl, linkEl, banners){
     if(!imgEl || !banners.length) return;
     let i = 0;
@@ -1002,6 +1139,7 @@ PiCo Pickle Pot`;
     swap();
     if (banners.length > 1) setInterval(swap, ROTATE_MS);
   }
+
   (async () => {
     const [topList, bottomList] = await Promise.all([preload(TOP_BANNERS), preload(BOTTOM_BANNERS)]);
     const top = setupBanner('ad-top', 'ad-top-meta');
@@ -1010,19 +1148,23 @@ PiCo Pickle Pot`;
     if (bottom) startRotator(bottom.img, bottom.link, bottomList);
   })();
 })();
+
 /* ---------- NEW: Stripe return success banner ---------- */
 function checkStripeReturn(){
   const params = new URLSearchParams(location.search);
   const sessionId = params.get('session_id'); // present after successful Checkout
   const banner = $('#pay-banner');
   if (!banner) return;
+
   if (sessionId){
     // Show a friendly banner immediately
     banner.style.display = '';
     banner.textContent = 'Payment successful! Finalizing your registration… ✅';
+
     // Try to confirm against Firestore using saved IDs
     const potId = sessionStorage.getItem('potId');
     const entryId = sessionStorage.getItem('entryId');
+
     if (potId && entryId && db){
       // Live-listen for paid:true flip (webhook)
       db.collection('pots').doc(potId).collection('entries').doc(entryId)
@@ -1040,6 +1182,7 @@ function checkStripeReturn(){
           banner.textContent = 'Payment completed. (If status doesn’t update, refresh in a few seconds.)';
         });
     }
+
     // Clean the session_id from the URL for a nicer look
     if (history.replaceState){
       const cleanUrl = location.pathname + location.hash;
@@ -1047,6 +1190,7 @@ function checkStripeReturn(){
     }
   }
 }
+
 /* ---------- Auth (Sign In/Out) + subscription watcher ---------- */
 try{
   document.getElementById('btn-signin')?.addEventListener('click', async ()=>{
@@ -1062,6 +1206,7 @@ try{
     await firebase.auth().signOut();
   });
 }catch(e){ console.warn('Auth button init error', e); }
+
 ((window.firebase && firebase.auth) ? firebase.auth() : { onAuthStateChanged: function(){} }).onAuthStateChanged(async (user)=>{
   try{
     const isReal = !!(user && !user.isAnonymous);
@@ -1079,14 +1224,17 @@ try{
       if (btnOut) btnOut.style.display = 'none';
     }
   }catch(_){}
+
   await loadOrganizerSubStatus();
   refreshOrganizerUI();
   refreshAdminUI();
 });
+
 /* ---------- Organizer Subscription flow ---------- */
 function originForReturn(){
   return window.location.protocol === 'file:' ? 'https://pickleballcompete.com' : window.location.origin;
 }
+
 async function onOrganizerSubscribe(){
   try{
     // Read selected plan -> explicit Stripe price_id
@@ -1094,9 +1242,10 @@ async function onOrganizerSubscribe(){
     const plan = planSel ? planSel.value : 'individual_monthly';
     const price_id = (PRICE_MAP || {})[plan];
     if (!price_id){
-      alert('Please choose a valid plan.');
+      alert('Please choose a valid plan.'); 
       return;
     }
+
     // Optional: prefill email (work even when not signed-in)
     const user = (firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
     let email = user?.email || '';
@@ -1109,12 +1258,14 @@ async function onOrganizerSubscribe(){
         return;
       }
     }
+
     // If you already have an active sub, short-circuit
     if (typeof hasOrganizerSub === 'function' && hasOrganizerSub()){
       const until = ORG_SUB?.until ? new Date(ORG_SUB.until).toLocaleDateString() : 'current period';
       alert('Your organizer subscription is already active.\nExpires: ' + until);
       return;
     }
+
     // Build payload for the backend
     const payload = {
       price_id,
@@ -1122,6 +1273,7 @@ async function onOrganizerSubscribe(){
       success_url: originForReturn() + '/?sub=success',
       cancel_url:  originForReturn() + '/?sub=cancel'
     };
+
     let res, data;
     try{
       res = await fetch(`${window.API_BASE}/create-organizer-subscription`, {
@@ -1135,7 +1287,7 @@ async function onOrganizerSubscribe(){
     }
     try{ data = await res.json(); }catch(_){ data = null; }
     if (!res.ok || !data?.url){
-      alert(data?.error || 'Subscription server error.');
+      alert(data?.error || 'Subscription server error.'); 
       return;
     }
     try{ window.location.href = data.url; }
@@ -1145,6 +1297,7 @@ async function onOrganizerSubscribe(){
     alert('Could not start subscription.');
   }
 }
+
 async function handleSubscriptionReturn(){
   try{
     const params = new URLSearchParams(window.location.search);
@@ -1176,9 +1329,12 @@ async function handleSubscriptionReturn(){
     }catch(_){}
   }catch(e){ console.warn('[Sub] handleSubscriptionReturn error', e); }
 }
+
+
 /* ====== ORGANIZER VISIBILITY FIX (non-breaking) ====== */
 (function(){
   const ACTIVE_STATUSES = ['active','trialing','past_due'];
+
   async function readOrganizerActive(uid, email){
     try{
       const emailLc = (email||'').toLowerCase();
@@ -1212,6 +1368,7 @@ async function handleSubscriptionReturn(){
     }catch(_){}
     return false;
   }
+
   async function ensureOrganizerFlag(){
     try{
       const u = (firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
@@ -1223,6 +1380,7 @@ async function handleSubscriptionReturn(){
       try{ if (typeof updateOrganizerSubscribeVisibility==='function') await updateOrganizerSubscribeVisibility(); }catch(_){}
     }catch(_){}
   }
+
   // Hook into auth state
   try{
     if (firebase && firebase.auth){
@@ -1231,25 +1389,34 @@ async function handleSubscriptionReturn(){
       });
     }
   }catch(_){}
+
   // Also run on DOM ready (covers reload after return)
   document.addEventListener('DOMContentLoaded', () => {
     ensureOrganizerFlag();
   });
+
   // Expose for debugging
   window.__debugCheckOrganizer = ensureOrganizerFlag;
 })();
+
+
 // ===== Organizer UI Fix (drop-in addon; safe to append at end of app.js) =====
 (function(){
   const ACTIVE = ['active','trialing','past_due'];
+
   // If API_BASE isn't defined in the page, set it here (adjust if yours differs)
   if (typeof API_BASE === 'undefined') {
     window.API_BASE = 'https://picklepot-stripe.onrender.com';
   }
+
   function $(s, el=document){ return el.querySelector(s); }
+
   function show(el, on){ if(el){ el.style.display = on ? '' : 'none'; } }
   function setText(el, txt){ if(el){ el.textContent = txt; el.style.display = ''; } }
+
   // Ensure Firebase auth persists across reloads
   try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(_){}
+
   async function getEmailActive(email){
     if (!email || !window.db) return false;
     try{
@@ -1259,6 +1426,7 @@ async function handleSubscriptionReturn(){
       return ACTIVE.includes(s);
     }catch(_){ return false; }
   }
+
   async function getUidActive(uid){
     if (!uid || !window.db) return false;
     try{
@@ -1268,6 +1436,7 @@ async function handleSubscriptionReturn(){
       return ACTIVE.includes(s);
     }catch(_){ return false; }
   }
+
   async function claim(uid, email){
     try{
       const res = await fetch(`${API_BASE}/activate-subscription-for-uid`, {
@@ -1278,29 +1447,36 @@ async function handleSubscriptionReturn(){
       return res.ok;
     }catch(_){ return false; }
   }
+
   async function refreshOrganizerUI(){
     const user = (firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
     const email = user?.email || '';
     const uid   = user?.uid   || '';
+
     const createCard = document.getElementById('create-card');
     const subscribeBtn = document.getElementById('btn-subscribe-organizer') || document.getElementById('organizer-subscribe') || document.querySelector('[data-role="subscribe-organizer"]');
     const banner = document.getElementById('pay-banner');
+
     // Signed out: hide create, show subscribe
     if (!user){
       show(createCard, false);
       if (subscribeBtn) subscribeBtn.style.display='';
       return;
     }
+
     // Check active via uid
     const activeUid = await getUidActive(uid);
+
     if (activeUid){
       show(createCard, true);
       if (subscribeBtn) subscribeBtn.style.display='none';
       if (banner) banner.style.display='none';
       return;
     }
+
     // Not active yet — see if email has paid (pre-claim state)
     const emailActive = await getEmailActive(email);
+
     if (emailActive){
       // Try to claim automatically
       setText(banner, 'Finishing your subscription… one moment.');
@@ -1331,18 +1507,25 @@ async function handleSubscriptionReturn(){
       if (subscribeBtn) subscribeBtn.style.display = nowActive ? 'none' : 'none'; // keep hidden if email paid
       return;
     }
+
     // No subscription yet
     show(createCard, false);
     if (subscribeBtn) subscribeBtn.style.display='';
   }
+
   // Run on load and on auth changes
   document.addEventListener('DOMContentLoaded', refreshOrganizerUI);
   try {
     ((window.firebase && firebase.auth) ? firebase.auth() : { onAuthStateChanged: function(){} }).onAuthStateChanged(refreshOrganizerUI);
   } catch(_){}
+
   // Expose for manual retry / debugging
   window.__refreshOrganizerUI = refreshOrganizerUI;
 })();
+
+
+
+
 /* ======================= Organizer & Auth Addon (non-breaking) =======================
    - Persists Firebase auth (LOCAL)
    - Subscription start with selected plan (PRICE_MAP)
@@ -1354,6 +1537,7 @@ async function handleSubscriptionReturn(){
 (function(){
   const ACTIVE = ['active','trialing','past_due'];
   const API_BASE = (typeof window.API_BASE !== 'undefined' && window.API_BASE) ? window.API_BASE : 'https://picklepot-stripe.onrender.com';
+
 // --- Warm the API (helps wake Render free dyno & avoid transient CORS/preflight hiccups)
 async function warmApi() {
   const url = `${API_BASE}/health`;
@@ -1369,12 +1553,16 @@ async function warmApi() {
     // console.debug('warmApi failed', e);
   }
 }
+
   const $  = (s,el=document)=>el.querySelector(s);
+
   // 1) Ensure auth persistence
   try{ firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); }catch(_){}
+
   // 2) Helpers
   function show(el, on){ if(el){ el.style.display = on ? '' : 'none'; } }
   function setText(el, t){ if(el){ el.textContent = t; el.style.display=''; } }
+
   // 3) Detect subscription state
   async function hasActiveUid(uid){
     try{
@@ -1393,23 +1581,27 @@ async function warmApi() {
       return ACTIVE.includes(String(s));
     }catch(_){ return false; }
   }
+
   // 4) Gate Create card & Subscribe strip
   async function gateUI(){
     const user = firebase.auth().currentUser;
     const createCard = document.getElementById('create-card');
     const subStrip   = document.getElementById('org-subscribe-strip');
     const subHint    = document.getElementById('org-subscribe-hint');
+
     if (!user){
       show(createCard, false);
       show(subStrip, true); show(subHint, true);
       return;
     }
+
     const byUid = await hasActiveUid(user.uid);
     if (byUid){
       show(createCard, true);
       show(subStrip, false); show(subHint, false);
       return;
     }
+
     const byEmail = await hasActiveEmail(user.email||'');
     if (byEmail){
       // Try auto-claim if we just returned from Stripe
@@ -1418,10 +1610,12 @@ async function warmApi() {
       if (claimEmailEl) claimEmailEl.textContent = user.email || '';
       return;
     }
+
     // No sub found
     show(createCard, false);
     show(subStrip, true); show(subHint, true);
   }
+
   // 5) Claim handler
   async function claimNow(){
     const user = firebase.auth().currentUser;
@@ -1435,6 +1629,7 @@ async function warmApi() {
       });
       const data = await res.json().catch(()=>null);
       if (!res.ok) throw new Error((data&&data.error)||'Claim failed');
+
       // Success → hide claim, show create, hide subscribe
       const banner = document.getElementById('claim-banner');
       if (banner) banner.style.display = 'none';
@@ -1446,6 +1641,7 @@ async function warmApi() {
       if (btn){ btn.disabled = false; btn.textContent = 'Claim subscription'; }
     }
   }
+
   // 6) Start subscription (reads plan + PRICE_MAP)
   async function onOrganizerSubscribe2(){ // avoid name clash with earlier function
     const btn = document.getElementById('btn-subscribe-organizer');
@@ -1454,6 +1650,7 @@ async function warmApi() {
     const planKey = planSel ? planSel.value : 'individual_monthly';
     const price_id = (window.PRICE_MAP||{})[planKey];
     if (!price_id){ alert('Pick a plan.'); return; }
+
     const user = firebase.auth().currentUser;
     const origin = window.location.origin;
     const payload = {
@@ -1476,6 +1673,7 @@ async function warmApi() {
       btn.disabled = false; btn.textContent = 'Organizer Subscription';
     }
   }
+
   // 7) Stripe return banner
   function handleStripeReturn(){
     try{
@@ -1488,6 +1686,7 @@ async function warmApi() {
       }
     }catch(_){}
   }
+
   // 8) Bind once DOM is ready
   document.addEventListener('DOMContentLoaded', () => {
     // Add PRICE_MAP if missing
@@ -1504,6 +1703,7 @@ async function warmApi() {
     if (subBtn && !subBtn._bound){ subBtn.addEventListener('click', onOrganizerSubscribe2); subBtn._bound = true; }
     const claimBtn = document.getElementById('btn-claim');
     if (claimBtn && !claimBtn._bound){ claimBtn.addEventListener('click', claimNow); claimBtn._bound = true; }
+
     // Auth UI
     const inBtn = document.getElementById('btn-signin');
     if (inBtn && !inBtn._bound){
@@ -1518,9 +1718,11 @@ async function warmApi() {
       outBtn.addEventListener('click', async ()=>{ try{ await firebase.auth().signOut(); }catch(_){} });
       outBtn._bound = true;
     }
+
     handleStripeReturn();
     gateUI();
   });
+
   // Update gate on auth state
   try{
     ((window.firebase && firebase.auth) ? firebase.auth() : { onAuthStateChanged: function(){} }).onAuthStateChanged(()=>{
@@ -1534,9 +1736,12 @@ async function warmApi() {
       gateUI();
     });
   }catch(_){}
+
   // Expose for debugging
   window.__gateUI = gateUI;
 })();
+
+
 /* ===== scrub any "(signed in)" badges from UI (near Join a Pot etc.) ===== */
 function scrubSignedInBadges(){
   try{
@@ -1561,6 +1766,9 @@ try{
     window.gateUI = async function(){ try{ await _origGate(); }catch(_){ } try{ scrubSignedInBadges(); }catch(_){ } }
   }
 }catch(_){}
+
+
+
 /* ===== TEMP: Disable Organizer Subscription button ===== */
 document.addEventListener('DOMContentLoaded', ()=>{
   const btn = document.getElementById('btn-subscribe-organizer');
@@ -1573,6 +1781,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     btn.style.opacity = '0.6';
     btn.title = 'Organizer Subscription is temporarily disabled';
   }catch(_){}
+
   // Hard block: if any code re-enables it, keep it disabled
   const observer = new MutationObserver(()=>{
     try{
@@ -1582,6 +1791,9 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
   try{ observer.observe(btn, { attributes: true, attributeFilter: ['disabled','style','class'] }); }catch(_){}
 });
+
+
+
 /* ===== Create A Pot CTA: open form for all users (keep editing admin-only) ===== */
 function _showCreatePotForm(){
   const section = document.getElementById('create-card');
@@ -1608,6 +1820,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, { capture: true });
 });
+
 /* === Admin-only Stripe visibility (kept) === */
 function _isAdmin(){
   try { return typeof isSiteAdmin === 'function' && isSiteAdmin(); } catch(_) { return false; }
@@ -1644,6 +1857,7 @@ function hideStripeForNonAdmin(){
 document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
 try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
 try{ const _oldGate = gateUI; window.gateUI = async function(){ try{ await _oldGate(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
+
 // If create flow exists, force allowed_stripe false for non-admins before posting
 (function(){
   try{
@@ -1661,6 +1875,8 @@ try{ const _oldGate = gateUI; window.gateUI = async function(){ try{ await _oldG
     }
   }catch(_){}
 })();
+
+
 /* === Admin-only Stripe visibility === */
 function _isAdmin(){ try { return typeof isSiteAdmin === 'function' && isSiteAdmin(); } catch(_) { return false; } }
 function hideStripeForNonAdmin(){
@@ -1690,8 +1906,16 @@ function hideStripeForNonAdmin(){
 }
 document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
 try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
+
+
 /* === Create Pot -> Stripe Checkout === */
+
+
 /* removed duplicate startCreatePotCheckout */
+
+
+
+
 /* === Ensure How To Use + Show Pot Details wiring (idempotent) === */
 (function ensureUXButtons(){
   function wireHowTo(){
@@ -1730,6 +1954,8 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
   var _uxObs = new MutationObserver(function(){ try{ wireHowTo(); wireShowDetail(); }catch(_){}});
   _uxObs.observe(document.documentElement || document.body, {childList:true, subtree:true});
 })();
+
+
 /* ====================== CREATE-POT CHECKOUT DRAFT FIX (append-only) ======================
    - Rebinds #btn-create to Stripe Checkout via /create-pot-session
    - Stores draft_id in sessionStorage ("createDraftId")
@@ -1751,6 +1977,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
   function originHost(){
     return (window.location.protocol === 'file:' ? 'https://pickleballcompete.com' : window.location.origin);
   }
+
   // Build a minimal draft from the existing Create form fields
   function collectCreateDraft(){
     try{
@@ -1761,17 +1988,22 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
       var event     = pick($id('c-event'), $id('c-event-other'));
       var skill     = pick($id('c-skill'), $id('c-skill-other'));
       var location  = pick($id('c-location-select'), $id('c-location-other'));
+
       var buyin_member = Number($id('c-buyin-m')?.value || 0);
       var buyin_guest  = Number($id('c-buyin-g')?.value || 0);
       var pot_share_pct = Math.max(0, Math.min(100, Number($id('c-pot-pct')?.value || 100)));
+
       var date      = $id('c-date')?.value || '';
       var time      = $id('c-time')?.value || '';
       var end_time  = $id('c-end-time')?.value || '';
+
       var pay_zelle   = $id('c-pay-zelle')?.value || '';
       var pay_cashapp = $id('c-pay-cashapp')?.value || '';
       var pay_onsite  = (($id('c-pay-onsite')?.value || 'yes') === 'yes');
+
       // Admin-only toggle for Stripe payments on the pot itself (not the organizer checkout)
       var allow_stripe = isAdmin() ? (( $id('c-allow-stripe')?.value || 'no') === 'yes') : false;
+
       return {
         name, organizer, event, skill, location,
         buyin_member, buyin_guest, pot_share_pct,
@@ -1785,7 +2017,11 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
       return null;
     }
   }
+
+  
 /* removed duplicate startCreatePotCheckout */
+
+
   // Ensure #btn-create uses ONLY checkout (replace any old listeners)
   function rebindCreateToCheckout(){
     var b = $id('btn-create');
@@ -1795,16 +2031,19 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     b.parentNode.replaceChild(clone, b);
     clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); startCreatePotCheckout(); });
   }
+
   // Handle returns specifically for Create-Pot flow
   async function handleCreateCheckoutReturn(){
     try{
       var params = new URLSearchParams(location.search);
       var flow = params.get('flow');
       if (flow !== 'create') return; // not our flow
+
       var onCancel = /cancel\.html$/i.test(location.pathname);
       var onSuccess = /success\.html$/i.test(location.pathname);
       var draftId = null;
       try{ draftId = sessionStorage.getItem('createDraftId'); }catch(_){}
+
       if (onCancel){
         // Best-effort: tell backend to discard draft; then clear marker
         try{
@@ -1827,6 +2066,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
         }
         return;
       }
+
       if (onSuccess){
         // Do NOT create pot on client; webhook will apply draft
         try{ sessionStorage.removeItem('createDraftId'); }catch(_){}
@@ -1847,16 +2087,20 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
       }
     }catch(e){ console.warn('[Create Checkout Return] error', e); }
   }
+
   document.addEventListener('DOMContentLoaded', function(){
     // Rebind after other scripts run, to override any createPot binding
     try{ rebindCreateToCheckout(); setTimeout(rebindCreateToCheckout, 0); setTimeout(rebindCreateToCheckout, 300); }catch(_){}
     handleCreateCheckoutReturn();
   });
+
   try{
     // If DOM is replaced, keep our binding intact
     new MutationObserver(function(){ rebindCreateToCheckout(); }).observe(document.documentElement||document.body, {childList:true, subtree:true});
   }catch(_){}
 })();
+
+
 // Ensure Create button triggers Stripe checkout (idempotent binding)
 document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
@@ -1865,6 +2109,7 @@ document.addEventListener('DOMContentLoaded', function(){
     btn.__stripeBound = true;
   }
 });
+
 function fillStateAndCity(){
   const stSel = document.getElementById('c-addr-state');
   if (stSel && stSel.options.length === 0){
@@ -1900,6 +2145,7 @@ function toggleAddressForLocation(){
   var show = (sel.value === 'Other');
   block.style.display = show ? '' : 'none';
 }
+
 function onCreateClick(e){
   try{
     e && e.preventDefault && e.preventDefault();
@@ -1910,6 +2156,9 @@ function onCreateClick(e){
     }
   }catch(err){ console.error('Create click failed', err); }
 }
+
+
+
 async function createPotDirect(){
   try{
     if(!db){ alert('Firebase is not initialized.'); return; }
@@ -1930,13 +2179,16 @@ async function createPotDirect(){
     const date = $('#c-date')?.value || '';
     const time = $('#c-time')?.value || '';
     const endTime = $('#c-end-time')?.value || '';
+
     const allowStripe = ($('#c-allow-stripe')?.value||'no') === 'yes';
     const zelleInfo   = $('#c-pay-zelle')?.value || '';
     const cashInfo    = $('#c-pay-cashapp')?.value || '';
     const onsiteYes   = ($('#c-pay-onsite')?.value||'yes') === 'yes';
+
     let pctRaw = Number(document.getElementById('c-pot-pct')?.value);
     if (!Number.isFinite(pctRaw)) pctRaw = 100;
     const pot_share_pct = Math.max(0, Math.min(100, pctRaw));
+
     // Build date/times
     let start_at = null, end_at = null;
     if(date && (time || endTime)){
@@ -1947,6 +2199,7 @@ async function createPotDirect(){
         end_at = firebase.firestore.Timestamp.fromDate(endLocal);
       }
     }
+
     // Compose address if "Other" location
     const addr_line1 = ($('#c-addr-line1')?.value||'').trim();
     const addr_state = ($('#c-addr-state')?.value||'').trim();
@@ -1954,6 +2207,7 @@ async function createPotDirect(){
     const addr_city = citySel ? (citySel.value==='Other' ? ($('#c-addr-city-other')?.value||'').trim() : citySel.value) : '';
     const addr_zip  = ($('#c-addr-zip')?.value||'').trim();
     const fullLocation = location || [addr_line1, [addr_city, addr_state].filter(Boolean).join(', '), addr_zip].filter(Boolean).join(' ');
+
     const pot = {
       name, organizer, event, skill,
       buyin_member, buyin_guest,
@@ -1969,6 +2223,7 @@ async function createPotDirect(){
       start_at, end_at,
       org_email: orgEmail
     };
+
     const ref = await db.collection('pots').add(pot);
     const resultEl = document.getElementById('create-result');
     if (resultEl) resultEl.textContent = `Created (ID: ${ref.id}).`;
@@ -1983,6 +2238,9 @@ async function createPotDirect(){
     alert('Failed to create pot.');
   }
 }
+
+
+
 /* Collapse Create-a-Pot section (arrows) */
 document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('btn-create-collapse');
@@ -1996,12 +2254,14 @@ document.addEventListener('DOMContentLoaded', () => {
     btn.__bound = true;
   }
 });
+
 /* =================== Global UI Init & Wiring (All-Fix v2) =================== */
 (function(){
   const $ = (s,el=document)=>el.querySelector(s);
   const byId = id => document.getElementById(id);
   const originHost = () => (location.protocol==='file:' ? 'https://pickleballcompete.com' : location.origin);
   const toCents = v => Math.round(Number(v||0)*100);
+
   function ensureOptions(id, values){
     const el = byId(id);
     if(!el) return;
@@ -2016,6 +2276,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const set = ()=>{ wrap.style.display = (/^other$/i.test(sel.value||'') ? '' : 'none'); };
     sel.addEventListener('change', set); set();
   }
+
   function populateCreate(){
     ensureOptions('c-name-select', ['Pickleball Compete Open','Club Night','Saturday Smash','Other']);
     ensureOptions('c-event', ['Singles','Doubles','Mixed Doubles','Round Robin','Other']);
@@ -2033,6 +2294,7 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleOther('c-skill','c-skill-other-wrap');
     toggleOther('c-organizer','c-org-other-wrap');
   }
+
   function collectCreateDraft(){
     const val = id => (byId(id)?.value || '').trim();
     const pickOther = (sel,other)=>{
@@ -2063,18 +2325,21 @@ document.addEventListener('DOMContentLoaded', () => {
     return draft;
   }
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
+
   async function startCreatePotCheckout(){
     const btn = byId('btn-create');
     const msg = byId('create-msg') || byId('create-result');
     const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
     const show=(t)=>{ if(msg){ msg.textContent=t; msg.style.display=''; } };
+
     try{
       const count = Math.max(1, parseInt(byId('c-count')?.value || '1', 10));
       const payload = {
         draft: collectCreateDraft(),
         count,
-        success_url: originHost() + '/success.html',
+        success_url: originHost() + '/success.html?flow=join',
 cancel_url: originHost() + '/cancel.html?flow=create',
+
       };
       setBusy(true, 'Redirecting…');
       const r = await fetch((window.API_BASE||'') + '/create-pot-session', {
@@ -2089,20 +2354,25 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     }finally{ setBusy(false, 'Create Pot'); }
   }
   if (typeof window.startCreatePotCheckout !== 'function') window.startCreatePotCheckout = startCreatePotCheckout;
+
   async function startJoinCheckout(){
     const potId = byId('v-pot')?.value?.trim() || '';
     const amountDollars = byId('j-cost')?.value || byId('j-amount')?.value || '10';
     const playerName = byId('j-name')?.value || byId('j-player')?.value || 'Player';
     const playerEmail= byId('j-email')?.value || '';
     const entryId = 'e_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
     if (!potId){ alert('Enter a Pot ID first.'); return; }
+
     const payload = {
       pot_id: potId,
       entry_id: entryId,
       amount_cents: toCents(amountDollars),
       player_name: playerName,
       player_email: playerEmail,
-     
+     success_url: originHost() + '/success.html?flow=join',
+  cancel_url: originHost() + '/cancel.html?flow=create'
+
     };
     try{
       const r = await fetch((window.API_BASE||'') + '/create-checkout-session', {
@@ -2117,6 +2387,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     }
   }
   if (typeof window.startJoinCheckout !== 'function') window.startJoinCheckout = startJoinCheckout;
+
   function wire(id, fn){
     const el = byId(id);
     if (el && !el.dataset.wired){
@@ -2124,8 +2395,10 @@ cancel_url: originHost() + '/cancel.html?flow=create',
       el.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
     }
   }
+
   function showCreateCard(){ const c = byId('create-card'); if(c){ c.style.display=''; c.scrollIntoView({behavior:'smooth', block:'start'});} }
   function hideCreateCard(){ const c = byId('create-card'); if(c){ c.style.display='none'; window.scrollTo({top:0, behavior:'smooth'});} }
+
   function loadPotFromInput(){
     const potId = (byId('v-pot')?.value||'').trim();
     const out = byId('pot-load-msg') || byId('join-msg');
@@ -2134,13 +2407,16 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     if(out){ out.textContent = 'Loaded Pot ' + potId + '. You can now Join.'; out.style.display=''; }
     const detail = byId('pot-detail-section'); if (detail) detail.style.display='';
   }
+
   function adminLogin(){
     const p = prompt('Admin password:');
     if (p === 'Jesus7'){ localStorage.setItem('site_admin','1'); alert('Admin enabled'); document.location.reload(); }
     else if (p!=null){ alert('Wrong password'); }
   }
   function adminLogout(){ localStorage.removeItem('site_admin'); alert('Admin disabled'); document.location.reload(); }
+
   function notImplemented(msg){ return ()=>alert(msg || 'Coming soon'); }
+
   function bindAll(){
     wire('btn-start-create', showCreateCard);
     wire('btn-create-collapse', hideCreateCard);
@@ -2163,11 +2439,13 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     if(signIn && !signIn.dataset.wired){ signIn.dataset.wired='1'; signIn.addEventListener('click', adminLogin); }
     if(signOut && !signOut.dataset.wired){ signOut.dataset.wired='1'; signOut.addEventListener('click', adminLogout); }
   }
+
   document.addEventListener('DOMContentLoaded', ()=>{
     populateCreate();
     bindAll();
     if (typeof checkStripeReturn==='function') try{ checkStripeReturn(); }catch(_){}
   });
+
   document.addEventListener('click', function(e){
     const el = e.target.closest('button, [role="button"], a.btn');
     if (!el || el.dataset.wired) return;
@@ -2198,6 +2476,8 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     }
   }, true);
 })();
+
+
 /* ===== Manage page helpers: auto-resolve pot by owner code ===== */
 async function resolvePotByOwnerCode(ownerCode) {
   try {
@@ -2211,14 +2491,17 @@ async function resolvePotByOwnerCode(ownerCode) {
     return await res.json(); // {pot_id, owner_link}
   } catch (e) { console.error('[MANAGE] resolve error', e); return null; }
 }
+
 function initManageAutoFill() {
   const potInput = document.querySelector('input[name="pot-id"], #pot-id, input[placeholder^="pot_"]');
   const codeInput = document.querySelector('input[name="owner-code"], #owner-code, input[placeholder*="code"], input[placeholder*="Code"]');
   if (!potInput || !codeInput) return;
+
   // from URL ?pot= & key= or ?owner=CODE
   const qs = new URLSearchParams(location.search);
   const pot = qs.get('pot');
   if (pot) potInput.value = pot;
+
   // When they type the owner code, auto-resolve pot id
   codeInput.addEventListener('change', async () => {
     const info = await resolvePotByOwnerCode(codeInput.value);
@@ -2228,10 +2511,13 @@ function initManageAutoFill() {
     }
   });
 }
+
 // Run on manage.html
 if (location.pathname.endsWith('/manage.html') || location.pathname.endsWith('manage.html')) {
   document.addEventListener('DOMContentLoaded', initManageAutoFill);
 }
+
+
 // --- Simple show/hide for Create/Join cards ---
 document.addEventListener('DOMContentLoaded', function(){
   var createCard = document.getElementById('create-card');
@@ -2240,8 +2526,10 @@ document.addEventListener('DOMContentLoaded', function(){
   var btnStartJoin   = document.getElementById('btn-start-join');
   var btnCreateCollapse = document.getElementById('btn-create-collapse');
   var btnJoinCollapse   = document.getElementById('btn-join-collapse');
+
   function show(el){ if(el){ el.style.display=''; el.scrollIntoView({behavior:'smooth', block:'start'});} }
   function hide(el){ if(el){ el.style.display='none'; } }
+
   if (btnStartCreate && createCard){
     btnStartCreate.addEventListener('click', function(){ show(createCard); hide(joinCard); });
   }
@@ -2254,6 +2542,7 @@ document.addEventListener('DOMContentLoaded', function(){
   if (btnJoinCollapse && joinCard){
     btnJoinCollapse.addEventListener('click', function(){ hide(joinCard); window.scrollTo({top:0, behavior:'smooth'}); });
   }
+
   // Safety: wire Create Pot button to actual checkout function
   var btnCreate = document.getElementById('btn-create');
   if (btnCreate){
@@ -2269,3 +2558,4 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
 });
+

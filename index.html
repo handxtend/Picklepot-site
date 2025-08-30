@@ -2,6 +2,18 @@
 
 <html lang="en">
 <head>
+
+<style>
+  /* Desktop listbox behavior for Active Tournaments */
+  @media (hover: hover) and (pointer: fine) {
+    #j-pot-select {
+      height: auto;
+      max-height: 480px;
+      overflow-y: auto;
+    }
+  }
+</style>
+
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>PiCo Pickle Pot</title>
@@ -234,7 +246,7 @@
 <div class="row">
 <div style="flex:1">
 <label style="display:none">Active Tournaments</label>
-<select id="j-pot-select"></select>
+<select id="j-pot-select" size="30"></select>
 <div class="muted" style="margin-top:6px">Summary: <span class="soft-blue-box" id="j-pot-summary-brief">—</span></div>
 <div class="badge warn" id="j-started-badge" style="display:none;margin-top:6px">Tournament Started</div>
 </div>
