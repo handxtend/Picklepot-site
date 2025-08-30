@@ -1,4 +1,4 @@
-const CACHE_NAME = 'picklepot-cache-v1';
+const CACHE_NAME = 'picklepot-cache-v2';
 const CORE_ASSETS = ['/', '/index.html', '/app.js', '/manifest.json', '/logo.png', '/favicon-16.png', '/favicon-32.png', '/favicon-48.png'];
 
 self.addEventListener('install', (event) => {
