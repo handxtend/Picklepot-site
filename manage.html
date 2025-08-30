@@ -22,28 +22,25 @@
     table{border-collapse:collapse;width:100%}
     th,td{border-bottom:1px solid #eee;padding:8px 6px;text-align:left}
   </style>
+  <!-- Firebase SDKs (compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
 
-<!-- Firebase SDKs (compat) -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-
-const firebaseConfig = window.firebaseConfig || {
-      apiKey: "AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
-      authDomain: "pickle-pot.firebaseapp.com",
-      projectId: "pickle-pot",
-      storageBucket: "pickle-pot.appspot.com",
-      messagingSenderId: "508555645160",
-      appId: "1:508555645160:web:82e09803feb83d5150395d"
-    };
-    try {
-      firebase.initializeApp(firebaseConfig);
-      firebase.auth().signInAnonymously().catch(console.error);
-      const missing = !firebaseConfig.apiKey || !firebaseConfig.projectId;
-      if (missing) document.getElementById('configWarning').style.display = '';
-    } catch (e) {
-      document.getElementById('configWarning').style.display = '';
-      console.error("Firebase init error:", e);
-    }
+  <script>
+  // firebase config (from index) with safe guards
+  const firebaseConfig = window.firebaseConfig || {
+    apiKey: "AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
+    authDomain: "pickle-pot.firebaseapp.com",
+    projectId: "pickle-pot",
+    storageBucket: "pickle-pot.appspot.com",
+    messagingSenderId: "508555645160",
+    appId: "1:508555645160:web:82e09803feb83d5150395d"
+  };
+  try {
+    if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+    if (firebase.auth) firebase.auth().signInAnonymously().catch(console.error);
+  } catch (e) { console.error("Firebase init error:", e); }
   </script>
 </head>
 <body>
@@ -83,14 +80,15 @@ const firebaseConfig = window.firebaseConfig || {
 
   <script>
     const API = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/, '');
-
-    function byId(id){ return document.getElementById(id); }
-    function msg(el, text, ok){ el.textContent = text; el.className = ok ? 'ok' : 'err'; }
+    const byId = (id)=>document.getElementById(id);
+    const msgEl = (text, ok)=>{ const el = byId('status'); el.textContent = text; el.className = ok?'ok':'err'; };
 
     // Autofill from ?pot=…&key=…
-    const params = new URLSearchParams(location.search);
-    if (params.get('pot')) byId('pot-id').value = params.get('pot');
-    if (params.get('key')) byId('owner-key').value = params.get('key');
+    try{
+      const params = new URLSearchParams(location.search);
+      if (params.get('pot')) byId('pot-id').value = params.get('pot');
+      if (params.get('key')) byId('owner-key').value = params.get('key');
+    }catch(_){};
 
     async function ownerAuth(pot_id, key, code){
       const r = await fetch(`${API}/pots/${encodeURIComponent(pot_id)}/owner/auth`, {
@@ -109,7 +107,6 @@ const firebaseConfig = window.firebaseConfig || {
       const data = await r.json();
       alert(data.new_code ? `New owner code: ${data.new_code}` : 'Rotated.');
     }
-
     async function rotateLink(pot_id){
       const r = await fetch(`${API}/pots/${encodeURIComponent(pot_id)}/owner/rotate-link`, {
         method:'POST', headers:{'Content-Type':'application/json'},
@@ -124,7 +121,6 @@ const firebaseConfig = window.firebaseConfig || {
       }
     }
 
-    async 
     async function loadEntries(pot_id){
       const box = document.getElementById('entries');
       try{
@@ -139,8 +135,8 @@ const firebaseConfig = window.firebaseConfig || {
           const show = !e.status || e.status === 'active';
           if (!show) return;
           rows.push(`<tr>
-            <td>${(e.player_name||'').replace(/[<>]/g,'')}</td>
-            <td>${(e.player_email||'').replace(/[<>]/g,'')}</td>
+            <td>${(e.name||e.player_name||'').replace(/[<>]/g,'')}</td>
+            <td>${(e.email||e.player_email||'').replace(/[<>]/g,'')}</td>
             <td>${e.member_type || 'Member'}</td>
             <td>${e.paid ? 'Yes' : 'No'}</td>
           </tr>`);
@@ -154,26 +150,24 @@ const firebaseConfig = window.firebaseConfig || {
         box.innerHTML = '<em>Error loading entries.</em>';
       }
     }
+
     byId('verify').onclick = async () => {
-      const pot_id = byId('pot-id').value.trim();
+      const pot = byId('pot-id').value.trim();
       const key = byId('owner-key').value.trim();
       const code = byId('owner-code').value.trim();
-      const s = byId('status');
-
-      if (!pot_id) { msg(s, 'Enter a Pot ID', false); return; }
-      if (!key && !code) { msg(s, 'Enter Owner Key or Owner Code', false); return; }
-
-      try {
-        await ownerAuth(pot_id, key || null, code || null);
-        msg(s, 'Access granted.', true);
+      if (!pot) return msgEl('Enter a Pot ID.', false);
+      msgEl('Verifying…', true);
+      try{
+        const data = await ownerAuth(pot, key||null, code||null);
+        msgEl('Access granted.', true);
         byId('tools').classList.remove('hidden');
-        byId('potline').textContent = `Pot ID: ${pot_id}`;
-        byId('rotate-code').onclick = () => rotateCode(pot_id);
-        byId('rotate-link').onclick = () => rotateLink(pot_id);
-        loadEntries(pot_id);
-      } catch (e) {
+        byId('potline').textContent = `Pot ID: ${pot}`;
+        await loadEntries(pot);
+        byId('rotate-code').onclick = () => rotateCode(pot);
+        byId('rotate-link').onclick = () => rotateLink(pot);
+      }catch(e){
         console.error(e);
-        msg(s, 'Access denied. Check your Owner Key or Code.', false);
+        msgEl('Access denied. Check Pot ID and Owner credentials.', false);
         byId('tools').classList.add('hidden');
       }
     };

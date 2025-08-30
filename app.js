@@ -372,6 +372,7 @@ function renderJoinPotSelectFromCache(){
   });
   if(!filtered.length){
     sel.innerHTML = `<option value="">No matches</option>`;
+    try{ sel.size = 1; }catch(_){}
   try { const rows = Math.max(1, Math.min(document.getElementById('j-pot-select').options.length, 12)); document.getElementById('j-pot-select').size = rows; } catch(_) {}
 
     const joinBtn = document.getElementById('btn-join');
@@ -389,7 +390,9 @@ function renderJoinPotSelectFromCache(){
     const label = [p.name||'Unnamed', p.event||'—', p.skill||'Any'].join(' • ');
     return `<option value="${p.id}">${label}</option>`;
   }).join('');
-  if (filtered.some(p=>p.id===prev)) sel.value = prev;
+  
+  try{ sel.size = Math.max(1, Math.min(filtered.length, 12)); }catch(e){}
+if (filtered.some(p=>p.id===prev)) sel.value = prev;
   if (sel.selectedIndex < 0) sel.selectedIndex = 0;
   const potIdInput = document.getElementById('v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
