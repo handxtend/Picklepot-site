@@ -1,4 +1,21 @@
 
+// ===== Bootstrap polyfills (safe) =====
+(function(){
+  // Lightweight DOM helpers if not already defined
+  if (typeof window.$ === 'undefined') {
+    window.$ = function(sel, root){ return (root||document).querySelector(sel); };
+  }
+  if (typeof window.$$ === 'undefined') {
+    window.$$ = function(sel, root){ return Array.from((root||document).querySelectorAll(sel)); };
+  }
+  // No-op logger/helper used in older code paths
+  if (typeof window.X === 'undefined') {
+    window.X = function(){ /* noop */ };
+  }
+})();
+// ======================================
+
+
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
 /* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
@@ -17,6 +34,7 @@ function isSiteAdmin(){ return localStorage.getItem('site_admin') === '1'; }
 function setSiteAdmin(on){ on?localStorage.setItem('site_admin','1'):localStorage.removeItem('site_admin'); }
 
 const $  = (s,el=document)=>el.querySelector(s);
+const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
 const dollars = n => '$' + Number(n||0).toFixed(2);
 
 /* --- session helpers --- */
@@ -404,6 +422,7 @@ function attachActivePotsListener(){
       const now = Date.now();
       const pots = [];
       snap.forEach(d=>{
+        const x = { id:d.id, ...d.data() };
         const endMs   = x.end_at?.toMillis ? x.end_at.toMillis() : null;
         if(endMs && endMs <= now) return;
         pots.push(x);
@@ -664,7 +683,7 @@ async function joinPot(){
         amount_cents,
         player_name: name || 'Player',
         player_email: email || undefined,
-        success_url: origin + '/success.html?flow=join',
+        success_url: origin + '/success.html',
         cancel_url: origin + '/cancel.html?flow=join',
         method: 'stripe'
       };
@@ -719,6 +738,7 @@ async function onLoadPotClicked(){
   const snap = await db.collection('pots').doc(id).get();
   if(!snap.exists){ alert('Pot not found'); return; }
 
+  const pot = { id:snap.id, ...snap.data() };
   CURRENT_DETAIL_POT = pot;
 
   if($('#v-pot')) $('#v-pot').value = pot.id;
@@ -752,6 +772,7 @@ function subscribeDetailEntries(potId){
       LAST_DETAIL_ENTRIES = [];
       snap.forEach(doc=>{
         const d = doc.data();
+        LAST_DETAIL_ENTRIES.push({ id: doc.id, ...d });
       });
       renderRegistrations(LAST_DETAIL_ENTRIES);
     }, err=>{
@@ -1015,6 +1036,7 @@ async function moveEntry(entryId, toPotId){
       alert('Duplicate exists in the target tournament (same name or email).'); return;
     }
 
+    const data = {...entry}; delete data.id;
     data.created_at = firebase.firestore.FieldValue.serverTimestamp();
     data.moved_from = fromPotId;
     data.moved_at   = firebase.firestore.FieldValue.serverTimestamp();
@@ -1850,6 +1872,9 @@ function hideStripeForNonAdmin(){
   }
 }
 document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
+try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
+try{ const _oldGate = gateUI; window.gateUI = async function(){ try{ await _oldGate(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
+
 // If create flow exists, force allowed_stripe false for non-admins before posting
 (function(){
   try{
@@ -1897,11 +1922,83 @@ function hideStripeForNonAdmin(){
   }
 }
 document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
+try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
+
+
 /* === Create Pot -> Stripe Checkout === */
 
+async function startCreatePotCheckout(){
+  const btn = document.getElementById('btn-create-pot');
+  const revert = btn ? btn.innerHTML : null;
+  const fail = (msg) => {
+    if (btn && revert) btn.innerHTML = revert;
+    if (btn) btn.disabled = false;
+    const el = document.getElementById('create-pot-error');
+    if (el){ el.textContent = msg; el.style.display = 'inline'; }
+  };
 
-/* removed duplicate startCreatePotCheckout */
+  // optimistic UI
+  if (btn){ btn.disabled = true; btn.innerHTML = 'Redirecting to checkout…'; }
+  const errEl = document.getElementById('create-pot-error');
+  if (errEl){ errEl.textContent = ''; errEl.style.display = 'none'; }
 
+  try{
+    // build 'draft' exactly as before
+    const draft = gatherCreatePotDraft();
+
+    // Admin-only: only admins can enable Stripe on the pot
+    draft.allow_stripe = (typeof isSiteAdmin==='function' && isSiteAdmin())
+      ? ((document.getElementById('c-allow-stripe')?.value||'no')==='yes')
+      : false;
+
+    const origin = (window.location.protocol === 'file:' ? 'https://pickleballcompete.com' : window.location.origin);
+    const payload = {
+      draft,
+      success_url: origin + '/success.html',
+      cancel_url: origin + '/cancel.html?flow=join'
+    };
+
+    if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
+
+    // Warm the API (Render free tier can take a moment to wake)
+    await warmApi();
+
+    // Call the backend with a solid timeout and CORS-friendly options
+    let res;
+    try {
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), 12000);
+      res = await fetch(`${window.API_BASE}/create-pot-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        mode: 'cors',
+        cache: 'no-store',
+        redirect: 'follow',
+        signal: ctrl.signal
+      });
+      clearTimeout(tid);
+    } catch (netErr){
+      console.error('[CREATE-POT] network error', netErr);
+      return fail('Could not reach payment server (network/CORS). Please try again in a few seconds.');
+    }
+
+    let data = null;
+    try{ data = await res.json(); }catch(_){}
+
+    if (!res.ok || !data || !data.url){
+      const msg = (data && data.error) ? data.error : `Payment server error (${res.status||'?'})`;
+      return fail(msg);
+    }
+
+    if (data.draft_id) sessionStorage.setItem('potDraftId', data.draft_id);
+    try { window.location.href = data.url; }
+    catch { window.open(data.url, '_blank', 'noopener'); }
+  }catch(err){
+    console.error('[CREATE-POT]', err);
+    fail('Failed to start checkout.');
+  }
+}
 
 
 
@@ -2007,9 +2104,48 @@ document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
     }
   }
 
-  
-/* removed duplicate startCreatePotCheckout */
+  async function startCreatePotCheckout(){
+    var btn = $id('btn-create');
+    var status = $id('create-result');
+    var setBusy = function(on, text){ if(btn){ btn.disabled=!!on; btn.textContent = on ? (text||'Working…') : 'Create Pot'; } };
+    var fail = function(m){ if(status) status.textContent = m || 'Failed.'; setBusy(false); };
 
+    try{
+      var draft = collectCreateDraft();
+      if (!draft){ return fail('Missing form fields.'); }
+      if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
+
+      // Mark this flow so success/cancel pages can tell it's a Create-Pot checkout
+      try{ sessionStorage.setItem('createFlow', '1'); }catch(_){}
+
+      setBusy(true, 'Redirecting to checkout…');
+      if (status) status.textContent = '';
+
+      var payload = {
+        draft: draft,
+        count: Math.max(1, parseInt(($id('c-count')?.value||'1'), 10) || 1),
+        success_url: originHost() + '/success.html',
+        cancel_url:  originHost() + '/cancel.html?flow=create'
+      };
+
+      var res = await fetch(String(window.API_BASE).replace(/\/+$/,'') + '/create-pot-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      var data = null; try{ data = await res.json(); }catch(_){}
+      if (!res.ok || !data || !data.url){
+        return fail((data && data.error) ? data.error : 'Payment server error.');
+      }
+
+      // Save draft_id so the cancel page can delete it if needed
+      try{ if (data.draft_id) sessionStorage.setItem('createDraftId', data.draft_id); }catch(_){}
+      try{ window.location.href = data.url; }catch(_){ window.open(data.url, '_blank', 'noopener'); }
+    }catch(err){
+      console.error('[CreatePot Checkout] failed', err);
+      fail('Failed to start checkout.');
+    }
+  }
 
   // Ensure #btn-create uses ONLY checkout (replace any old listeners)
   function rebindCreateToCheckout(){
@@ -2327,7 +2463,7 @@ document.addEventListener('DOMContentLoaded', () => {
         draft: collectCreateDraft(),
         count,
         success_url: originHost() + '/success.html?flow=join',
-cancel_url: originHost() + '/cancel.html?flow=create',
+cancel_url: originHost() + '/cancel.html?flow=join',
 
       };
       setBusy(true, 'Redirecting…');
@@ -2359,8 +2495,8 @@ cancel_url: originHost() + '/cancel.html?flow=create',
       amount_cents: toCents(amountDollars),
       player_name: playerName,
       player_email: playerEmail,
-     success_url: originHost() + '/success.html?flow=join',
-  cancel_url: originHost() + '/cancel.html?flow=create'
+     success_url: origin + '/success.html?flow=join',
+cancel_url:  origin + '/cancel.html?flow=join',
 
     };
     try{
@@ -2547,3 +2683,4 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
 });
+
