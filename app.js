@@ -392,6 +392,8 @@ function renderJoinPotSelectFromCache(){
   const potIdInput = document.getElementById('v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
   if (typeof onJoinPotChange === 'function') onJoinPotChange();
+  const rows = Math.max(1, Math.min((filtered || JOIN_POTS_CACHE).length, 12));
+  try { sel.size = rows; } catch(_) {}
 }
 
 function attachActivePotsListener(){
@@ -400,10 +402,19 @@ function attachActivePotsListener(){
   sel.innerHTML = '';
   JOIN_POTS_CACHE = [];
 
-  JOIN_POTS_SUB = db.collection('pots').where('status','==','open')
-    .onSnapshot(snap=>{
-      const now = Date.now();
-      const pots = [];
+  
+try {
+  JOIN_POTS_SUB = db.collection('pots')
+    .where('status','in',['open','active'])
+    .onSnapshot(handlePotsSnap, handlePotsErr);
+} catch (e) {
+  const unsubs = [];
+  const merge = snap => handlePotsSnap(snap, true);
+  unsubs.push(db.collection('pots').where('status','==','open').onSnapshot(merge, handlePotsErr));
+  unsubs.push(db.collection('pots').where('status','==','active').onSnapshot(merge, handlePotsErr));
+  JOIN_POTS_SUB = () => unsubs.forEach(u => { try{u();}catch(_){ } });
+}
+const pots = [];
       snap.forEach(d=>{
         const x = { id:d.id, ...d.data() };
         const endMs   = x.end_at?.toMillis ? x.end_at.toMillis() : null;
