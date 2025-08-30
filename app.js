@@ -2269,3 +2269,11 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
 });
+// Make the active tournaments select show more rows on desktop
+function setSelectSizeForDesktop(sel){
+  try{
+    if (!sel) return;
+    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isTouch) sel.size = Math.min(sel.options.length || 10, 15); // show up to 15 rows
+  }catch(_){}
+}
