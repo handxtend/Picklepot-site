@@ -372,6 +372,8 @@ function renderJoinPotSelectFromCache(){
   });
   if(!filtered.length){
     sel.innerHTML = `<option value="">No matches</option>`;
+  try { const rows = Math.max(1, Math.min(document.getElementById('j-pot-select').options.length, 12)); document.getElementById('j-pot-select').size = rows; } catch(_) {}
+
     const joinBtn = document.getElementById('btn-join');
     if (joinBtn) joinBtn.disabled = true;
     const brief = document.getElementById('j-pot-summary-brief');

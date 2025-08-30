@@ -27,9 +27,7 @@
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-<!-- Firebase config -->
-<script>
-    const firebaseConfig = window.firebaseConfig || {
+const firebaseConfig = window.firebaseConfig || {
       apiKey: "AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
       authDomain: "pickle-pot.firebaseapp.com",
       projectId: "pickle-pot",
@@ -128,24 +126,24 @@
 
     async 
     async function loadEntries(pot_id){
+      const box = document.getElementById('entries');
       try{
-        const box = document.getElementById('entries');
-        box.innerHTML = '<em>Loading…</em>';
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
+        box.innerHTML = '<em>Loading…</em>';
         const snap = await db.collection('pots').doc(pot_id).collection('entries').get();
         if (snap.empty){ box.innerHTML = '<em>No entries yet.</em>'; return; }
         const rows = [];
-        snap.forEach(doc => {
+        snap.forEach(doc=>{
           const e = doc.data() || {};
-          const ok = !e.status || e.status === 'active';
-          if (!ok) return;
+          const show = !e.status || e.status === 'active';
+          if (!show) return;
           rows.push(`<tr>
-              <td>${(e.player_name||'').replace(/[<>]/g,'')}</td>
-              <td>${(e.player_email||'').replace(/[<>]/g,'')}</td>
-              <td>${e.member_type||'Member'}</td>
-              <td>${e.paid ? 'Yes' : 'No'}</td>
-            </tr>`);
+            <td>${(e.player_name||'').replace(/[<>]/g,'')}</td>
+            <td>${(e.player_email||'').replace(/[<>]/g,'')}</td>
+            <td>${e.member_type || 'Member'}</td>
+            <td>${e.paid ? 'Yes' : 'No'}</td>
+          </tr>`);
         });
         box.innerHTML = `<table class="table">
           <thead><tr><th>Name</th><th>Email</th><th>Type</th><th>Paid</th></tr></thead>
@@ -153,7 +151,7 @@
         </table>`;
       }catch(err){
         console.error('loadEntries error', err);
-        document.getElementById('entries').innerHTML = '<em>Error loading entries.</em>';
+        box.innerHTML = '<em>Error loading entries.</em>';
       }
     }
     byId('verify').onclick = async () => {

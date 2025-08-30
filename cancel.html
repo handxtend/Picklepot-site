@@ -28,4 +28,21 @@
     }
   }catch(_){}
 </script>
+
+<script>
+(function(){
+  try {
+    const p = new URLSearchParams(location.search);
+    const sid = p.get('session_id');
+    const pot = p.get('pot_id');
+    const entry = p.get('entry_id');
+    const next = location.origin + '/';
+    if (sid && pot && entry) {
+      const base = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/, '');
+      // Fire-and-forget; server already deletes, this is just in case
+      fetch(`${base}/cancel-join?session_id=${encodeURIComponent(sid)}&pot_id=${encodeURIComponent(pot)}&entry_id=${encodeURIComponent(entry)}&next=${encodeURIComponent(next)}`, { mode:'no-cors' });
+    }
+  } catch(e){ console.warn('cancel cleanup skip', e); }
+})();
+</script>
 </body></html>
