@@ -587,7 +587,7 @@ async function joinPot(){
         player_name: name || 'Player',
         player_email: email || undefined,
         success_url: originHost() + '/success.html',
-        cancel_url: originHost() + '/cancel.html?flow=join',
+        cancel_url: origin + '/cancel.html?flow=join',
         method: 'stripe'
       };
       console.log('[JOIN] Creating checkout session…', payload);
@@ -2269,11 +2269,3 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
 });
-// Make the active tournaments select show more rows on desktop
-function setSelectSizeForDesktop(sel){
-  try{
-    if (!sel) return;
-    const isTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-    if (!isTouch) sel.size = Math.min(sel.options.length || 10, 15); // show up to 15 rows
-  }catch(_){}
-}
