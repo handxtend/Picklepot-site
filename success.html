@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Payment Successful — Pot Created</title>
+  <style>
+    :root { --bg:#f6f7fb; --card:#fff; --text:#1f2937; --muted:#6b7280; --brand:#2563eb; --ok:#16a34a; --border:#e5e7eb; }
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Helvetica Neue,Arial}
+    .card{background:var(--card);width:min(860px,92vw);border-radius:14px;box-shadow:0 10px 25px rgba(0,0,0,.07),0 2px 6px rgba(0,0,0,.06);border:1px solid var(--border);overflow:hidden}
+    header{padding:22px 26px;border-bottom:1px solid var(--border)}
+    header h1{margin:0 0 6px;font-size:28px}
+    header p{margin:0;color:var(--muted)}
+    .section{padding:24px 26px}
+    .progress{width:100%;height:10px;appearance:none}
+    .progress::-webkit-progress-bar{background:#eef2ff;border-radius:8px}
+    .progress::-webkit-progress-value{background:var(--brand);border-radius:8px}
+    .progress::-moz-progress-bar{background:var(--brand)}
+    .muted{color:var(--muted)}
+    .row{margin-top:14px}
+    .k{font-weight:600;display:inline-block;min-width:120px}
+    .v{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .actions{padding:18px 26px;background:#fafafa;border-top:1px solid var(--border);display:flex;gap:12px;flex-wrap:wrap}
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:10px;text-decoration:none;border:1px solid var(--border);background:#fff;color:#111827;font-weight:600}
+    .btn.primary{background:var(--brand);color:#fff;border-color:var(--brand)}
+    .ok{color:var(--ok);font-weight:600}
+    .hidden{display:none !important}
+    .inline{display:inline-flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .copy{border:1px solid var(--border);padding:4px 8px;border-radius:6px;cursor:pointer;font-size:12px;background:#fff;color:#111827}
+    .copy[disabled]{opacity:.5;cursor:not-allowed}
+  </style>
+</head>
+<body>
+  <article class="card" role="status" aria-live="polite">
+    <header>
+      <h1>Payment Successful</h1>
+      <p>Your tournament is being created. The organizer link and details will appear below once ready.</p>
+    </header>
+
+    <div class="section">
+      <progress id="bar" class="progress" value="8" max="100" aria-label="progress"></progress>
+      <p id="msg" class="muted row">Preparing results…</p>
+
+      <div id="details" class="row hidden">
+        <p class="ok">Ready! Your organizer tools are below.</p>
+
+        <p class="inline">
+          <span class="k">Pot ID:</span>
+          <span id="potId" class="v"></span>
+          <button class="copy" id="copyPot">Copy</button>
+        </p>
+
+        <p id="ownerRow" class="inline hidden">
+          <span class="k">Owner Code:</span>
+          <span id="ownerCode" class="v"></span>
+          <button class="copy" id="copyOwner">Copy</button>
+        </p>
+
+        <p class="inline">
+          <span class="k">Manage link:</span>
+          <a id="manageLink" class="v" href="#" target="_blank" rel="noopener">Open</a>
+          <button class="copy" id="copyManage">Copy</button>
+        </p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <a href="/" class="btn">Back to Home</a>
+      <a id="openManage" href="#" class="btn primary hidden" rel="noopener">Open Organizer Manage Page</a>
+      <a id="viewActive" href="/" class="btn hidden">View under Active Tournaments</a>
+    </div>
+  </article>
+
+  <script>
+  const BACKEND = (window.PP_BACKEND || "https://picklepot-stripe.onrender.com").replace(/\/$/, "");
+  const qs = new URLSearchParams(location.search);
+  const sessionId = qs.get("session_id");
+  const flow = qs.get("flow");
+
+  const bar = document.getElementById("bar");
+  const msg = document.getElementById("msg");
+  const details = document.getElementById("details");
+  const potIdEl = document.getElementById("potId");
+  const ownerRow = document.getElementById("ownerRow");
+  const ownerCodeEl = document.getElementById("ownerCode");
+  const manageLinkEl = document.getElementById("manageLink");
+  const openBtn = document.getElementById("openManage");
+  const viewActive = document.getElementById("viewActive");
+  const copyPot = document.getElementById("copyPot");
+  const copyOwner = document.getElementById("copyOwner");
+  const copyManage = document.getElementById("copyManage");
+
+  function setCopy(btn, text){
+    btn.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(text || "");
+        const old = btn.textContent;
+        btn.textContent = "Copied!";
+        setTimeout(() => btn.textContent = old, 900);
+      } catch {
+        alert("Copy failed. Please copy manually.");
+      }
+    };
+  }
+
+  if (flow === "join") {
+    if (bar) bar.value = 100;
+    if (msg) msg.textContent = "Registration successful. If payment takes a moment to confirm, your PAID status will appear shortly.";
+    if (ownerRow) ownerRow.classList.add("hidden");
+  } else {
+    async function step(){
+      try {
+        const r = await fetch(BACKEND + "/create-status?session_id=" + encodeURIComponent(sessionId));
+        if (r.status === 404) throw new Error("not-ready");
+        const data = await r.json();
+        if (data && data.ready && data.pots && data.pots.length > 0) {
+          if (bar) bar.value = 100;
+          msg.textContent = "Pot created successfully!";
+          details.style.display = "";
+          const first = data.pots[0] || {};
+          const potId = first.pot_id || "";
+          const manageUrl = first.manage_url || "#";
+          const ownerCode = first.owner_code || "";
+
+          potIdEl.textContent = potId;
+          setCopy(copyPot, potId);
+
+          manageLinkEl.href = manageUrl;
+          openBtn.href = manageUrl;
+          setCopy(copyManage, manageUrl);
+
+          if (ownerCode) {
+            ownerCodeEl.textContent = ownerCode;
+            ownerRow.classList.remove("hidden");
+            setCopy(copyOwner, ownerCode);
+          } else {
+            ownerRow.classList.add("hidden");
+          }
+
+          if (viewActive) viewActive.href = "./#active";
+          return;
+        }
+        throw new Error("not-ready");
+      } catch (e) {
+        const current = bar ? Number(bar.value || 0) : 0;
+        if (bar) bar.value = Math.min(98, current + 1);
+        msg.textContent = "Still preparing results… retrying…";
+        setTimeout(step, 2000);
+      }
+    }
+
+    if (sessionId) {
+      step();
+    } else {
+      msg.textContent = "Missing session information in the URL.";
+    }
+  }
+</script>
+</body>
+</html>
