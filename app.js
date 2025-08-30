@@ -666,7 +666,7 @@ async function joinPot(){
         amount_cents,
         player_name: name || 'Player',
         player_email: email || undefined,
-        success_url: origin + '/success.html',
+        success_url: origin + '/success.html?flow=join',
         cancel_url: origin + '/cancel.html?flow=join',
         method: 'stripe'
       };
@@ -1910,78 +1910,9 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
 /* === Create Pot -> Stripe Checkout === */
 
-async function startCreatePotCheckout(){
-  const btn = document.getElementById('btn-create-pot');
-  const revert = btn ? btn.innerHTML : null;
-  const fail = (msg) => {
-    if (btn && revert) btn.innerHTML = revert;
-    if (btn) btn.disabled = false;
-    const el = document.getElementById('create-pot-error');
-    if (el){ el.textContent = msg; el.style.display = 'inline'; }
-  };
 
-  // optimistic UI
-  if (btn){ btn.disabled = true; btn.innerHTML = 'Redirecting to checkout…'; }
-  const errEl = document.getElementById('create-pot-error');
-  if (errEl){ errEl.textContent = ''; errEl.style.display = 'none'; }
+/* removed duplicate startCreatePotCheckout */
 
-  try{
-    // build 'draft' exactly as before
-    const draft = gatherCreatePotDraft();
-
-    // Admin-only: only admins can enable Stripe on the pot
-    draft.allow_stripe = (typeof isSiteAdmin==='function' && isSiteAdmin())
-      ? ((document.getElementById('c-allow-stripe')?.value||'no')==='yes')
-      : false;
-
-    const origin = (window.location.protocol === 'file:' ? 'https://pickleballcompete.com' : window.location.origin);
-    const payload = {
-      draft,
-      success_url: origin + '/success.html',
-      cancel_url: origin + '/cancel.html?flow=join'
-    };
-
-    if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
-
-    // Warm the API (Render free tier can take a moment to wake)
-    await warmApi();
-
-    // Call the backend with a solid timeout and CORS-friendly options
-    let res;
-    try {
-      const ctrl = new AbortController();
-      const tid = setTimeout(() => ctrl.abort(), 12000);
-      res = await fetch(`${window.API_BASE}/create-pot-session`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        mode: 'cors',
-        cache: 'no-store',
-        redirect: 'follow',
-        signal: ctrl.signal
-      });
-      clearTimeout(tid);
-    } catch (netErr){
-      console.error('[CREATE-POT] network error', netErr);
-      return fail('Could not reach payment server (network/CORS). Please try again in a few seconds.');
-    }
-
-    let data = null;
-    try{ data = await res.json(); }catch(_){}
-
-    if (!res.ok || !data || !data.url){
-      const msg = (data && data.error) ? data.error : `Payment server error (${res.status||'?'})`;
-      return fail(msg);
-    }
-
-    if (data.draft_id) sessionStorage.setItem('potDraftId', data.draft_id);
-    try { window.location.href = data.url; }
-    catch { window.open(data.url, '_blank', 'noopener'); }
-  }catch(err){
-    console.error('[CREATE-POT]', err);
-    fail('Failed to start checkout.');
-  }
-}
 
 
 
@@ -2087,48 +2018,9 @@ async function startCreatePotCheckout(){
     }
   }
 
-  async function startCreatePotCheckout(){
-    var btn = $id('btn-create');
-    var status = $id('create-result');
-    var setBusy = function(on, text){ if(btn){ btn.disabled=!!on; btn.textContent = on ? (text||'Working…') : 'Create Pot'; } };
-    var fail = function(m){ if(status) status.textContent = m || 'Failed.'; setBusy(false); };
+  
+/* removed duplicate startCreatePotCheckout */
 
-    try{
-      var draft = collectCreateDraft();
-      if (!draft){ return fail('Missing form fields.'); }
-      if (!window.API_BASE){ return fail('Server not configured (API_BASE missing).'); }
-
-      // Mark this flow so success/cancel pages can tell it's a Create-Pot checkout
-      try{ sessionStorage.setItem('createFlow', '1'); }catch(_){}
-
-      setBusy(true, 'Redirecting to checkout…');
-      if (status) status.textContent = '';
-
-      var payload = {
-        draft: draft,
-        count: Math.max(1, parseInt(($id('c-count')?.value||'1'), 10) || 1),
-        success_url: originHost() + '/success.html',
-        cancel_url:  originHost() + '/cancel.html?flow=create'
-      };
-
-      var res = await fetch(String(window.API_BASE).replace(/\/+$/,'') + '/create-pot-session', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      var data = null; try{ data = await res.json(); }catch(_){}
-      if (!res.ok || !data || !data.url){
-        return fail((data && data.error) ? data.error : 'Payment server error.');
-      }
-
-      // Save draft_id so the cancel page can delete it if needed
-      try{ if (data.draft_id) sessionStorage.setItem('createDraftId', data.draft_id); }catch(_){}
-      try{ window.location.href = data.url; }catch(_){ window.open(data.url, '_blank', 'noopener'); }
-    }catch(err){
-      console.error('[CreatePot Checkout] failed', err);
-      fail('Failed to start checkout.');
-    }
-  }
 
   // Ensure #btn-create uses ONLY checkout (replace any old listeners)
   function rebindCreateToCheckout(){
@@ -2445,8 +2337,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = {
         draft: collectCreateDraft(),
         count,
-        success_url: originHost() + '/success.html',
-        cancel_url: originHost() + '/cancel.html?flow=create'
+        success_url: originHost() + '/success.html?flow=join',
+cancel_url: originHost() + '/cancel.html?flow=create',
+
       };
       setBusy(true, 'Redirecting…');
       const r = await fetch((window.API_BASE||'') + '/create-pot-session', {
@@ -2477,8 +2370,9 @@ document.addEventListener('DOMContentLoaded', () => {
       amount_cents: toCents(amountDollars),
       player_name: playerName,
       player_email: playerEmail,
-      success_url: originHost() + '/success.html',
-      cancel_url: originHost() + '/cancel.html?flow=create'
+     success_url: originHost() + '/success.html?flow=join',
+  cancel_url: originHost() + '/cancel.html?flow=create'
+
     };
     try{
       const r = await fetch((window.API_BASE||'') + '/create-checkout-session', {
