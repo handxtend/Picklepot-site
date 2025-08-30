@@ -3,13 +3,14 @@
 <html lang="en">
 <head>
 
+<!-- Desktop listbox behavior for Active Tournaments -->
 <style>
-  /* Desktop listbox behavior for Active Tournaments */
   @media (hover: hover) and (pointer: fine) {
     #j-pot-select {
-      height: auto;
-      max-height: 480px;
-      overflow-y: auto;
+      height: auto;          /* let content define height */
+      min-height: 13.5em;    /* ~12 rows visible */
+      max-height: 480px;     /* don’t grow forever */
+      overflow-y: auto;      /* scroll to see the rest */
     }
   }
 </style>
