@@ -2269,3 +2269,38 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
 });
+
+// ===== Active Tournaments (via backend API) =====
+(function(){
+  const API_BASE = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/, '');
+
+  function escapeHtml(s){ return String(s||'').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',\"'\":'&#39;'}[m])); }
+
+  async function loadActivePots() {
+    const list = document.getElementById('active-list');
+    if (!list) return;
+
+    try {
+      const r = await fetch(API_BASE + '/pots', { cache: 'no-store' });
+      const data = await r.json();
+      const pots = data.pots || [];
+
+      list.innerHTML = pots.length
+        ? pots.map(p => {
+            const name = escapeHtml(p.name || p.pot_id);
+            const member = (p.buyin_member != null) ? Number(p.buyin_member) : null;
+            const price = (member != null && !Number.isNaN(member)) ? ` — $${member.toFixed(2)}` : '';
+            return `<li data-id="${p.pot_id}">
+                      <a href="/pot.html?id=${encodeURIComponent(p.pot_id)}">${name}</a>${price}
+                    </li>`;
+          }).join('')
+        : '<li>No active tournaments yet.</li>';
+    } catch (e) {
+      console.error('Active list failed:', e);
+      list.innerHTML = '<li>Could not load tournaments.</li>';
+    }
+  }
+
+  // Auto-run if the active list exists on the page
+  document.addEventListener('DOMContentLoaded', loadActivePots);
+})();
