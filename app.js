@@ -392,90 +392,52 @@ function renderJoinPotSelectFromCache(){
   const potIdInput = document.getElementById('v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
   if (typeof onJoinPotChange === 'function') onJoinPotChange();
-  const rows = Math.max(1, Math.min((filtered || JOIN_POTS_CACHE).length, 12));
-  try { sel.size = rows; } catch(_) {}
 }
-
 
 function attachActivePotsListener(){
   const sel = $('#j-pot-select');
-  if (JOIN_POTS_SUB){ try{ JOIN_POTS_SUB(); }catch(_){ } JOIN_POTS_SUB = null; }
-  if (sel) sel.innerHTML = '';
+  if(JOIN_POTS_SUB){ try{JOIN_POTS_SUB();}catch(_){} JOIN_POTS_SUB=null; }
+  sel.innerHTML = '';
   JOIN_POTS_CACHE = [];
 
-  const onError = (err) => {
-    console.error('pots watch error', err);
-    if (sel) sel.innerHTML = `<option value="">Error loading pots</option>`;
-  };
-
-  const applySnapshot = (snap) => {
-    const now = Date.now();
-    const pots = [];
-    snap.forEach(d => {
-      const x = { id: d.id, ...d.data() };
-      const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
-      if (endMs && endMs <= now) return; // hide ended
-      pots.push(x);
-    });
-    pots.sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
-    JOIN_POTS_CACHE = pots;
-
-    if (!pots.length){
-      if (sel) sel.innerHTML = `<option value="">No open pots</option>`;
-      const btnJoin = $('#btn-join'); if (btnJoin) btnJoin.disabled = true;
-      const brief = $('#j-pot-summary-brief'); if (brief) brief.textContent = '—';
-      const startedBadge = $('#j-started-badge'); if (startedBadge) startedBadge.style.display='none';
-      if (typeof updateBigTotals === 'function') updateBigTotals(0,0);
-      return;
-    }
-
-    renderJoinPotSelectFromCache();
-    if (sel && sel.selectedIndex < 0) sel.selectedIndex = 0;
-
-    const firstId = sel ? sel.value : null;
-    if (firstId){ const potIdInput = $('#v-pot'); if (potIdInput) potIdInput.value = firstId; }
-
-    if (typeof onJoinPotChange === 'function') onJoinPotChange();
-  };
-
-  try {
-    // Single query that includes both 'open' and 'active'
-    JOIN_POTS_SUB = db.collection('pots')
-      .where('status','in',['open','active'])
-      .onSnapshot(applySnapshot, onError);
-  } catch (e) {
-    // Fallback: merge two listeners if 'in' not available/indexed
-    const unsubs = [];
-    const buffer = new Map();
-    const mergeApply = () => {
+  JOIN_POTS_SUB = db.collection('pots').where('status','==','open')
+    .onSnapshot(snap=>{
       const now = Date.now();
-      const pots = Array.from(buffer.values()).filter(x=>{
-        const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
-        return !(endMs && endMs <= now);
-      }).sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
+      const pots = [];
+      snap.forEach(d=>{
+        const x = { id:d.id, ...d.data() };
+        const endMs   = x.end_at?.toMillis ? x.end_at.toMillis() : null;
+        if(endMs && endMs <= now) return;
+        pots.push(x);
+      });
+      pots.sort((a,b)=>{
+        const as = a.start_at?.toMillis?.() ?? 0;
+        const bs = b.start_at?.toMillis?.() ?? 0;
+        return as-bs;
+      });
+
       JOIN_POTS_CACHE = pots;
-      if (!pots.length){
-        if (sel) sel.innerHTML = `<option value="">No open pots</option>`;
-        const btnJoin = $('#btn-join'); if (btnJoin) btnJoin.disabled = true;
-        const brief = $('#j-pot-summary-brief'); if (brief) brief.textContent = '—';
-        const startedBadge = $('#j-started-badge'); if (startedBadge) startedBadge.style.display='none';
-        if (typeof updateBigTotals === 'function') updateBigTotals(0,0);
+
+      if(!pots.length){
+        sel.innerHTML = `<option value="">No open pots</option>`;
+        $('#btn-join').disabled = true;
+        $('#j-pot-summary-brief').textContent = '—';
+        $('#j-started-badge').style.display='none';
+        updateBigTotals(0,0);
         return;
       }
+
       renderJoinPotSelectFromCache();
-      if (sel && sel.selectedIndex < 0) sel.selectedIndex = 0;
-      const firstId = sel ? sel.value : null;
-      if (firstId){ const potIdInput = $('#v-pot'); if (potIdInput) potIdInput.value = firstId; }
-      if (typeof onJoinPotChange === 'function') onJoinPotChange();
-    };
-    const onSnap = (snap) => {
-      snap.forEach(d=>{ buffer.set(d.id, { id:d.id, ...d.data() }); });
-      mergeApply();
-    };
-    unsubs.push(db.collection('pots').where('status','==','open').onSnapshot(onSnap, onError));
-    unsubs.push(db.collection('pots').where('status','==','active').onSnapshot(onSnap, onError));
-    JOIN_POTS_SUB = () => unsubs.forEach(u=>{ try{u();}catch(_){ } });
-  }
+if(sel.selectedIndex < 0) sel.selectedIndex = 0;
+
+      const firstId = sel.value;
+      if (firstId) { const potIdInput = $('#v-pot'); if(potIdInput) potIdInput.value = firstId; }
+
+      onJoinPotChange();
+    }, err=>{
+      console.error('pots watch error', err);
+      sel.innerHTML = `<option value="">Error loading pots</option>`;
+    });
 }
 
 function onJoinPotChange(){
@@ -2460,7 +2422,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     wire('btn-create-collapse', hideCreateCard);
     wire('btn-create', startCreatePotCheckout);
     wire('btn-load', loadPotFromInput);
-    wire('btn-join', startJoinCheckout);
+    wire('btn-join', joinPot);
     wire('btn-refresh', ()=>location.reload());
     wire('btn-show-details', ()=>{ const s=byId('pot-detail-section'); if(s){ s.style.display=''; s.scrollIntoView({behavior:'smooth'})}});
     wire('btn-admin-login', adminLogin);
