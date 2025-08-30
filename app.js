@@ -477,7 +477,6 @@ function attachActivePotsListener(){
     JOIN_POTS_SUB = () => unsubs.forEach(u=>{ try{u();}catch(_){ } });
   }
 }
-}
 
 function onJoinPotChange(){
   const sel = $('#j-pot-select');
