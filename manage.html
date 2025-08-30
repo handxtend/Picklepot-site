@@ -1,98 +1,134 @@
 <!doctype html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Organizer — Manage Pot</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
-    body { padding: 2rem; }
-    .card { max-width: 1000px; margin: 0 auto; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;background:#f7f7fb;color:#111}
+    .wrap{max-width:920px;margin:40px auto;padding:0 16px}
+    .panel{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.06);overflow:hidden}
+    header{padding:20px 22px;border-bottom:1px solid #eee}
+    header h1{margin:0;font-size:28px}
+    .sec{padding:20px 22px}
+    label{display:block;margin:10px 0 6px;color:#666}
+    input{width:100%;padding:10px;border-radius:10px;border:1px solid #d8dbe2}
+    .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+    .btn{padding:10px 14px;border-radius:10px;border:none;background:#0d6efd;color:#fff;cursor:pointer}
+    .btn.secondary{background:#111827}
+    .hidden{display:none}
+    .ok{color:#0a7a2e}
+    .err{color:#b00020}
+    table{border-collapse:collapse;width:100%}
+    th,td{border-bottom:1px solid #eee;padding:8px 6px;text-align:left}
   </style>
 </head>
 <body>
-  <article class="card">
-    <header>
-      <h2>Organizer — Manage Pot</h2>
-      <p class="mono">Use the Owner Link (from the success page) or Owner Code to unlock your pot.</p>
-    </header>
+  <div class="wrap">
+    <div class="panel">
+      <header>
+        <h1>Organizer — Manage Pot</h1>
+        <p>Use the Owner Link (from the success page) <em>or</em> Owner Code to unlock your pot.</p>
+      </header>
+      <div class="sec">
+        <label>Pot ID</label>
+        <input id="pot-id" placeholder="e.g., abc123" />
 
-    <section>
-      <label>Pot ID
-        <input id="potId" class="mono" placeholder="pot_abc123" />
-      </label>
-      <label>Owner Link Key (from manage URL)
-        <input id="ownerKey" class="mono" placeholder="paste &key=… from manage link" />
-      </label>
-      <label>Owner Code (alternative auth)
-        <input id="ownerCode" class="mono" placeholder="e.g., 9X7BP" />
-      </label>
-      <div>
-        <button id="btnVerify">Verify Access</button>
-        <span id="status" class="mono"></span>
+        <label>Owner Link Key (from manage URL)</label>
+        <input id="owner-key" placeholder="paste &key=… from manage link" />
+
+        <label>Owner Code (alternative auth)</label>
+        <input id="owner-code" placeholder="e.g., 9X7BP" />
+
+        <div class="row" style="margin-top:10px">
+          <button id="verify" class="btn">Verify Access</button>
+          <span id="status"></span>
+        </div>
       </div>
-    </section>
 
-    <section id="panel" hidden>
-      <h4>Pot is unlocked</h4>
-      <p class="mono">Pot ID: <span id="showPid"></span></p>
-      <p><em>Here you can render your management UI (entries table, actions, etc.).</em></p>
-    </section>
-  </article>
+      <div id="tools" class="sec hidden">
+        <h3>Pot is unlocked</h3>
+        <p id="potline" style="margin-top:-6px;color:#666"></p>
+        <div id="entries"></div>
+        <div class="row" style="margin-top:14px">
+          <button id="rotate-code" class="btn secondary">Rotate Owner Code</button>
+          <button id="rotate-link" class="btn secondary">Rotate Owner Link</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
-    const backend = (window.PP_BACKEND || "https://picklepot-stripe.onrender.com").replace(/\/$/,"");
-    const qs = new URLSearchParams(location.search);
-    const potId = document.getElementById("potId");
-    const ownerKey = document.getElementById("ownerKey");
-    const ownerCode = document.getElementById("ownerCode");
-    const statusEl = document.getElementById("status");
-    const panel = document.getElementById("panel");
-    const showPid = document.getElementById("showPid");
+    const API = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/, '');
 
-    // Autofill from URL
-    const urlPot = qs.get("pot");
-    const urlKey = qs.get("key");
-    if (urlPot) potId.value = urlPot;
-    if (urlKey) ownerKey.value = urlKey;
+    function byId(id){ return document.getElementById(id); }
+    function msg(el, text, ok){ el.textContent = text; el.className = ok ? 'ok' : 'err'; }
 
-    async function resolveIfNeeded() {
-      try {
-        // Prefer token ownerKey
-        if (!potId.value && ownerKey.value) {
-          const r = await fetch(`${backend}/resolve-owner-code?token=${encodeURIComponent(ownerKey.value)}`);
-          if (r.ok) {
-            const j = await r.json();
-            potId.value = j.pot_id;
-          }
-        }
-        // Or by short code
-        if (!potId.value && ownerCode.value) {
-          const r = await fetch(`${backend}/resolve-owner-code?code=${encodeURIComponent(ownerCode.value)}`);
-          if (r.ok) {
-            const j = await r.json();
-            potId.value = j.pot_id;
-          }
-        }
-      } catch(e){ console.warn("resolve error", e); }
+    // Autofill from ?pot=…&key=…
+    const params = new URLSearchParams(location.search);
+    if (params.get('pot')) byId('pot-id').value = params.get('pot');
+    if (params.get('key')) byId('owner-key').value = params.get('key');
+
+    async function ownerAuth(pot_id, key, code){
+      const r = await fetch(`${API}/pots/${encodeURIComponent(pot_id)}/owner/auth`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({key, code})
+      });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
     }
 
-    document.getElementById("btnVerify").addEventListener("click", async () => {
-      statusEl.textContent = "Verifying…";
-      await resolveIfNeeded();
-      if (!potId.value) {
-        statusEl.textContent = "Could not resolve Pot ID. Provide the owner code or link key.";
-        return;
-      }
-      // At this point you'd call your secured backend with potId + auth.
-      statusEl.textContent = "Access granted.";
-      panel.hidden = false;
-      showPid.textContent = potId.value;
-    });
+    async function rotateCode(pot_id){
+      const r = await fetch(`${API}/pots/${encodeURIComponent(pot_id)}/owner/rotate-code`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ code: byId('owner-code').value || null, key: byId('owner-key').value || null })
+      });
+      const data = await r.json();
+      alert(data.new_code ? `New owner code: ${data.new_code}` : 'Rotated.');
+    }
 
-    // Try resolve immediately if link has ?key
-    if (ownerKey.value) resolveIfNeeded();
+    async function rotateLink(pot_id){
+      const r = await fetch(`${API}/pots/${encodeURIComponent(pot_id)}/owner/rotate-link`, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ code: byId('owner-code').value || null, key: byId('owner-key').value || null })
+      });
+      const data = await r.json();
+      if (data.manage_url) {
+        navigator.clipboard.writeText(data.manage_url).catch(()=>{});
+        alert('New manage link copied to clipboard.');
+      } else {
+        alert('Rotated.');
+      }
+    }
+
+    async function loadEntries(pot_id){
+      // placeholder; wire to your real entries API if needed
+      byId('entries').innerHTML = '<em>No entries yet.</em>';
+    }
+
+    byId('verify').onclick = async () => {
+      const pot_id = byId('pot-id').value.trim();
+      const key = byId('owner-key').value.trim();
+      const code = byId('owner-code').value.trim();
+      const s = byId('status');
+
+      if (!pot_id) { msg(s, 'Enter a Pot ID', false); return; }
+      if (!key && !code) { msg(s, 'Enter Owner Key or Owner Code', false); return; }
+
+      try {
+        await ownerAuth(pot_id, key || null, code || null);
+        msg(s, 'Access granted.', true);
+        byId('tools').classList.remove('hidden');
+        byId('potline').textContent = `Pot ID: ${pot_id}`;
+        byId('rotate-code').onclick = () => rotateCode(pot_id);
+        byId('rotate-link').onclick = () => rotateLink(pot_id);
+        loadEntries(pot_id);
+      } catch (e) {
+        console.error(e);
+        msg(s, 'Access denied. Check your Owner Key or Code.', false);
+        byId('tools').classList.add('hidden');
+      }
+    };
   </script>
 </body>
 </html>
