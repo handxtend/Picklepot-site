@@ -587,7 +587,7 @@ async function joinPot(){
         player_name: name || 'Player',
         player_email: email || undefined,
         success_url: originHost() + '/success.html',
-        cancel_url: origin + '/cancel.html?flow=join',
+        cancel_url: originHost() + '/cancel.html?flow=join',
         method: 'stripe'
       };
       console.log('[JOIN] Creating checkout session…', payload);
