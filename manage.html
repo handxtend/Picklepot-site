@@ -7,294 +7,92 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
   <style>
     body { padding: 2rem; }
-    .card { max-width: 1100px; margin: 0 auto; }
+    .card { max-width: 1000px; margin: 0 auto; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
-    .muted { color: #6b7280; }
-    .row { display: grid; grid-template-columns: 1fr 2fr; gap: 12px; align-items: center; }
-    .row input[type="text"], .row input[type="number"], .row select { width: 100%; }
-    .pill { display:inline-block; padding:.25rem .6rem; border:1px solid #e5e7eb; border-radius:999px; font-size:.8rem; }
-    .paid { background:#e7f7ee; }
-    .unpaid { background:#fff4f4; }
-    table { width:100%; border-collapse: collapse; }
-    th, td { padding:.5rem; border-bottom:1px solid #e5e7eb; }
-    .right { text-align:right; }
   </style>
 </head>
 <body>
   <article class="card">
     <header>
-      <h2>Organizer Manage</h2>
-      <p class="muted">Edit only the pots you created. You can also manage directly on the Pot Detail page in the main app.</p>
-      <p><a href="./" role="button" class="secondary">Back to App Home</a></p>
+      <h2>Organizer — Manage Pot</h2>
+      <p class="mono">Use the Owner Link (from the success page) or Owner Code to unlock your pot.</p>
     </header>
 
     <section>
-      <form id="gateForm">
-        <div class="grid">
-          <div>
-            <label>Pot ID
-              <input id="pot-id" name="pot-id" placeholder="pot_..." />
-            </label>
-          </div>
-          <div>
-            <label>Owner link key (optional)
-              <input id="owner-key" name="owner-key" placeholder="key from your Manage link" />
-            </label>
-          </div>
-        </div>
-        <div class="grid">
-          <div>
-            <button id="btnResolve" type="button">Open</button>
-          </div>
-          <div class="right">
-            <button id="btnSignIn" type="button" class="secondary">Sign In</button>
-            <button id="btnSignOut" type="button" class="secondary">Sign Out</button>
-          </div>
-        </div>
-        <small id="status" class="muted"></small>
-      </form>
+      <label>Pot ID
+        <input id="potId" class="mono" placeholder="pot_abc123" />
+      </label>
+      <label>Owner Link Key (from manage URL)
+        <input id="ownerKey" class="mono" placeholder="paste &key=… from manage link" />
+      </label>
+      <label>Owner Code (alternative auth)
+        <input id="ownerCode" class="mono" placeholder="e.g., 9X7BP" />
+      </label>
+      <div>
+        <button id="btnVerify">Verify Access</button>
+        <span id="status" class="mono"></span>
+      </div>
     </section>
 
     <section id="panel" hidden>
-      <h3>Pot Details <span class="mono" id="showPid"></span></h3>
-      <div id="potMeta" class="muted"></div>
-      <form id="editForm">
-        <div class="row">
-          <label for="name">Name</label>
-          <input id="name" type="text" />
-        </div>
-        <div class="row">
-          <label for="pct">Pot % to Winners</label>
-          <input id="pct" type="number" min="0" max="100" />
-        </div>
-        <div class="row">
-          <label for="buyM">Member Buy-in ($)</label>
-          <input id="buyM" type="number" min="0" step="1" />
-        </div>
-        <div class="row">
-          <label for="buyG">Guest Buy-in ($)</label>
-          <input id="buyG" type="number" min="0" step="1" />
-        </div>
-        <div class="row">
-          <label for="statusSel">Status</label>
-          <select id="statusSel">
-            <option value="active">active</option>
-            <option value="closed">closed</option>
-          </select>
-        </div>
-        <fieldset>
-          <legend>Payments</legend>
-          <div class="grid">
-            <label><input type="checkbox" id="allowStripe"> Allow Stripe checkout</label>
-            <label>Zelle: <input type="text" id="payZelle" placeholder="e.g. zelle@yourclub.com"></label>
-            <label>CashApp: <input type="text" id="payCash" placeholder="$yourcashapp"></label>
-            <label><input type="checkbox" id="onsite"> Accept Onsite</label>
-          </div>
-        </fieldset>
-        <div class="grid">
-          <button id="btnSave" type="button">Save Changes</button>
-          <a id="openDetail" href="#" role="button" class="secondary">Open Pot Detail Page</a>
-        </div>
-        <small id="saveMsg" class="muted"></small>
-      </form>
-    </section>
-
-    <section id="entriesSec" hidden>
-      <h3>Registrations</h3>
-      <div id="entriesWrap">
-        <table id="entriesTable">
-          <thead><tr><th>Name</th><th>Email</th><th>Status</th><th class="right">Action</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
+      <h4>Pot is unlocked</h4>
+      <p class="mono">Pot ID: <span id="showPid"></span></p>
+      <p><em>Here you can render your management UI (entries table, actions, etc.).</em></p>
     </section>
   </article>
 
-  <!-- Firebase (compat) -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script>
-    // Config mirrors index.html
-    const firebaseConfig = window.firebaseConfig || {
-      apiKey: "AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
-      authDomain: "pickle-pot.firebaseapp.com",
-      projectId: "pickle-pot",
-      storageBucket: "pickle-pot.appspot.com",
-      messagingSenderId: "508555645160",
-      appId: "1:508555645160:web:82e09803feb83d5150395d"
-    };
-    firebase.initializeApp(firebaseConfig);
-  </script>
+    const backend = (window.PP_BACKEND || "https://picklepot-stripe.onrender.com").replace(/\/$/,"");
+    const qs = new URLSearchParams(location.search);
+    const potId = document.getElementById("potId");
+    const ownerKey = document.getElementById("ownerKey");
+    const ownerCode = document.getElementById("ownerCode");
+    const statusEl = document.getElementById("status");
+    const panel = document.getElementById("panel");
+    const showPid = document.getElementById("showPid");
 
-  <script>
-    let db = firebase.firestore();
-    const byId = (id) => document.getElementById(id);
+    // Autofill from URL
+    const urlPot = qs.get("pot");
+    const urlKey = qs.get("key");
+    if (urlPot) potId.value = urlPot;
+    if (urlKey) ownerKey.value = urlKey;
 
-    const potId = byId('pot-id');
-    const ownerKey = byId('owner-key');
-    const statusEl = byId('status');
-    const panel = byId('panel');
-    const showPid = byId('showPid');
-    const btnResolve = byId('btnResolve');
-    const btnSignIn = byId('btnSignIn');
-    const btnSignOut = byId('btnSignOut');
-    const openDetail = byId('openDetail');
-
-    function getQuery() {
-      const u = new URL(window.location.href);
-      return Object.fromEntries(u.searchParams.entries());
+    async function resolveIfNeeded() {
+      try {
+        // Prefer token ownerKey
+        if (!potId.value && ownerKey.value) {
+          const r = await fetch(`${backend}/resolve-owner-code?token=${encodeURIComponent(ownerKey.value)}`);
+          if (r.ok) {
+            const j = await r.json();
+            potId.value = j.pot_id;
+          }
+        }
+        // Or by short code
+        if (!potId.value && ownerCode.value) {
+          const r = await fetch(`${backend}/resolve-owner-code?code=${encodeURIComponent(ownerCode.value)}`);
+          if (r.ok) {
+            const j = await r.json();
+            potId.value = j.pot_id;
+          }
+        }
+      } catch(e){ console.warn("resolve error", e); }
     }
 
-    function setStatus(msg) { statusEl.textContent = msg || ''; }
-
-    function fillEditor(p) {
-      byId('name').value = p.name || '';
-      byId('pct').value = (typeof p.pot_share_pct === 'number') ? p.pot_share_pct :
-                          (typeof p.potPercentage === 'number' ? p.potPercentage : 100);
-      byId('buyM').value = Number(p.buyin_member || 0);
-      byId('buyG').value = Number(p.buyin_guest || 0);
-      byId('statusSel').value = p.status || 'active';
-      byId('allowStripe').checked = !!(p.payment_methods && p.payment_methods.stripe);
-      byId('payZelle').value = p.pay_zelle || '';
-      byId('payCash').value = p.pay_cashapp || '';
-      byId('onsite').checked = !!p.pay_onsite;
-    }
-
-    function renderEntries(pot) {
-      const tbody = document.querySelector('#entriesTable tbody');
-      tbody.innerHTML = '';
-      db.collection('pots').doc(pot.id).collection('entries').orderBy('createdAt', 'desc').get().then(snap => {
-        snap.forEach(doc => {
-          const e = doc.data() || {};
-          const tr = document.createElement('tr');
-          const name = (e.player_name || '').trim();
-          const email = (e.player_email || '').trim();
-          const paid = !!e.paid;
-          tr.innerHTML = \`
-            <td>\${name}</td>
-            <td>\${email}</td>
-            <td><span class="pill \${paid?'paid':'unpaid'}">\${paid?'PAID':'UNPAID'}</span></td>
-            <td class="right">
-              <button data-id="\${doc.id}" data-paid="\${paid?'1':'0'}">\${paid?'Mark Unpaid':'Mark Paid'}</button>
-            </td>\`;
-          tbody.appendChild(tr);
-        });
-        tbody.addEventListener('click', async (ev) => {
-          const btn = ev.target.closest('button');
-          if (!btn) return;
-          const id = btn.getAttribute('data-id');
-          const paidNow = btn.getAttribute('data-paid') === '1';
-          try{
-            await db.collection('pots').doc(pot.id).collection('entries').doc(id).update({
-              paid: !paidNow,
-              paid_at: !paidNow ? firebase.firestore.FieldValue.serverTimestamp() : null
-            });
-            renderEntries(pot); // refresh
-          }catch(e){ alert('Failed to update.'); console.error(e); }
-        }, { once: true });
-      });
-    }
-
-    async function hasOrganizerSub(uid) {
-      try{
-        const d = await db.collection('organizer_subs').doc(uid).get();
-        if (!d.exists) return false;
-        const data = d.data() || {};
-        const untilMs = data.current_period_end?.toMillis ? data.current_period_end.toMillis() :
-                        (typeof data.current_period_end === 'number' ? data.current_period_end : null);
-        const now = Date.now();
-        return (data.status === 'active') && (!!untilMs ? untilMs > now : true);
-      }catch(e){ console.error(e); return false; }
-    }
-
-    async function requireOwner(pot) {
-      const uid = firebase.auth().currentUser && firebase.auth().currentUser.uid;
-      if (!uid) { setStatus('Please sign in.'); return false; }
-      if (pot.ownerUid && pot.ownerUid === uid) {
-        const ok = await hasOrganizerSub(uid);
-        if (!ok) { setStatus('Organizer subscription is not active.'); return false; }
-        return true;
+    document.getElementById("btnVerify").addEventListener("click", async () => {
+      statusEl.textContent = "Verifying…";
+      await resolveIfNeeded();
+      if (!potId.value) {
+        statusEl.textContent = "Could not resolve Pot ID. Provide the owner code or link key.";
+        return;
       }
-      setStatus('This account is not the organizer of this pot.');
-      return false;
-    }
-
-    async function loadPotAndShow() {
-      const id = (potId.value || '').trim();
-      if (!id) { setStatus('Enter a Pot ID'); return; }
-      const snap = await db.collection('pots').doc(id).get();
-      if (!snap.exists) { setStatus('Pot not found'); return; }
-      const pot = { id: snap.id, ...snap.data() };
-      const ok = await requireOwner(pot);
-      if (!ok) return;
+      // At this point you'd call your secured backend with potId + auth.
+      statusEl.textContent = "Access granted.";
       panel.hidden = false;
-      byId('entriesSec').hidden = false;
-      showPid.textContent = pot.id;
-      fillEditor(pot);
-      renderEntries(pot);
-
-      openDetail.href = './#detail?pot=' + encodeURIComponent(pot.id);
-    }
-
-    btnResolve.addEventListener('click', loadPotAndShow);
-
-    // Simple email/password auth prompts
-    btnSignIn.addEventListener('click', async () => {
-      const email = prompt('Email:');
-      if (!email) return;
-      const pass = prompt('Password:');
-      if (!pass) return;
-      try{
-        await firebase.auth().signInWithEmailAndPassword(email, pass);
-        setStatus('Signed in.');
-      }catch(e){ alert('Sign-in failed'); console.error(e); }
-    });
-    btnSignOut.addEventListener('click', async () => {
-      try{ await firebase.auth().signOut(); setStatus('Signed out.'); }catch(_){}
+      showPid.textContent = potId.value;
     });
 
-    // Save
-    byId('btnSave').addEventListener('click', async () => {
-      const id = (potId.value || '').trim();
-      if (!id) return;
-      const snap = await db.collection('pots').doc(id).get();
-      if (!snap.exists) return;
-      const pot = { id: snap.id, ...snap.data() };
-      if (!(await requireOwner(pot))) return;
-
-      const pct = Math.max(0, Math.min(100, parseInt(byId('pct').value || '100', 10) || 100));
-      const payload = {
-        name: byId('name').value || pot.name,
-        status: byId('statusSel').value || pot.status,
-        pot_share_pct: pct,
-        buyin_member: Number(byId('buyM').value || 0),
-        buyin_guest: Number(byId('buyG').value || 0),
-        payment_methods: {
-          stripe: !!byId('allowStripe').checked,
-          zelle: !!(byId('payZelle').value || '').trim(),
-          cashapp: !!(byId('payCash').value || '').trim(),
-          onsite: !!byId('onsite').checked
-        },
-        pay_zelle: (byId('payZelle').value || '').trim(),
-        pay_cashapp: (byId('payCash').value || '').trim(),
-        pay_onsite: !!byId('onsite').checked,
-        updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-      };
-      try{
-        await db.collection('pots').doc(id).update(payload);
-        byId('saveMsg').textContent = 'Saved.';
-        setTimeout(()=> byId('saveMsg').textContent = '', 2000);
-      }catch(e){ alert('Save failed'); console.error(e); }
-    });
-
-    // Pre-fill from query
-    (function initFromQuery(){
-      const q = getQuery();
-      if (q.pot) potId.value = q.pot;
-      if (q.key) ownerKey.value = q.key; // not used client-side; kept for future
-      if (potId.value) loadPotAndShow();
-    })();
+    // Try resolve immediately if link has ?key
+    if (ownerKey.value) resolveIfNeeded();
   </script>
 </body>
 </html>
