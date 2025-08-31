@@ -1,111 +1,48 @@
 <!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Checkout cancelled</title>
-  <style>
-    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;background:#f7f7fb;color:#111}
-    .wrap{max-width:760px;margin:48px auto;padding:0 16px}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.06);padding:22px}
-    .muted{color:#6b7280}
-    .ok{color:#0a7a2e}
-    .err{color:#b00020}
-  </style>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <script>
-    const fallbackConfig = {
-      apiKey:"AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
-      authDomain:"pickle-pot.firebaseapp.com",
-      projectId:"pickle-pot",
-      storageBucket:"pickle-pot.appspot.com",
-      messagingSenderId:"508555645160",
-      appId:"1:508555645160:web:82e09803feb83d5150395d"
-    };
-    try{
-      if(!window.firebaseConfig) window.firebaseConfig = fallbackConfig;
-      if(!firebase.apps.length) firebase.initializeApp(window.firebaseConfig);
-    }catch(e){ console.warn('Firebase init problem:', e); }
-  </script>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Checkout Canceled</title>
+<style>
+  body{font-family:system-ui,Segoe UI,Roboto,Arial;background:#f3f4f6;margin:0;color:#111827}
+  .wrap{display:flex;min-height:100vh;align-items:center;justify-content:center}
+  .card{background:#fff;padding:24px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.08);width:min(680px,92vw);border:1px solid #e5e7eb}
+  h1{margin:0 0 10px}
+  p{margin:0 0 16px}
+  a.btn{display:inline-block;padding:10px 16px;border-radius:10px;background:#111827;color:#fff;text-decoration:none}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card">
-      <h2>Payment cancelled</h2>
-      <p class="muted">No charge has been made. We’ll tidy up any temporary registration.</p>
-      <p id="status" class="muted">Cleaning up draft…</p>
-    </div>
-  </div>
+<div class="wrap"><div class="card">
+  <h1>Checkout canceled</h1>
+  <p id="msg">No charge was made.</p>
+  <a class="btn" href="./">Back to Home</a>
+</div></div>
+<script>
+  try{
+    const u = new URL(window.location.href);
+    const flow = u.searchParams.get('flow');
+    const msg = document.getElementById('msg');
+    if (flow === 'join') {
+      msg.textContent = 'Your spot was not reserved. You can try joining again when ready.';
+    } else if (flow === 'create') {
+      msg.textContent = 'No pot was created. You can try creating the pot again when ready.';
+    }
+  }catch(_){}
+</script>
 
 <script>
-(async function(){
-  const db = firebase.firestore();
-  const $ = id => document.getElementById(id);
-  const qs = new URLSearchParams(location.search);
-  const potParam   = qs.get('pot');
-  const entryParam = qs.get('entry');
-  let stored = null;
-  try{ stored = JSON.parse(localStorage.getItem('pp_last_draft')||'null'); }catch(_){}
-
-  const potId   = potParam || (stored && stored.potId) || null;
-  const entryId = entryParam || (stored && stored.entryId) || null;
-
-  async function deleteById(pot, entry){
-    const ref = db.collection('pots').doc(pot).collection('entries').doc(entry);
-    const snap = await ref.get();
-    if(!snap.exists) return 'gone';
-    const d = snap.data()||{};
-    const status = String(d.status || 'draft').toLowerCase();
-    const paid = !!d.paid;
-    if(status === 'draft' || (!paid && status !== 'active')){
-      await ref.delete();
-      return 'deleted';
+(function(){
+  try {
+    const p = new URLSearchParams(location.search);
+    const sid = p.get('session_id');
+    const pot = p.get('pot_id');
+    const entry = p.get('entry_id');
+    const next = location.origin + '/';
+    if (sid && pot && entry) {
+      const base = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/, '');
+      // Fire-and-forget; server already deletes, this is just in case
+      fetch(`${base}/cancel-join?session_id=${encodeURIComponent(sid)}&pot_id=${encodeURIComponent(pot)}&entry_id=${encodeURIComponent(entry)}&next=${encodeURIComponent(next)}`, { mode:'no-cors' });
     }
-    return 'kept';
-  }
-
-  async function sweepRecentDrafts(pot){
-    const cut = new Date(Date.now() - 2*60*60*1000);
-    const col = db.collection('pots').doc(pot).collection('entries');
-    let snaps = [];
-    try{
-      snaps = (await col.where('status','==','draft').limit(10).get()).docs;
-    }catch(_){ }
-    let deleted = 0;
-    for(const doc of snaps){
-      const d = doc.data()||{};
-      const hasCreated = d.created_at && d.created_at.toDate;
-      if(!hasCreated || d.created_at.toDate() > cut){
-        await col.doc(doc.id).delete().catch(()=>{});
-        deleted++;
-      }
-    }
-    return deleted;
-  }
-
-  try{
-    if(potId && entryId){
-      const res = await deleteById(potId, entryId);
-      if(res === 'deleted'){ $('status').textContent = 'Draft registration removed.'; $('status').className = 'ok'; }
-      else if(res === 'gone'){ $('status').textContent = 'Nothing to clean up.'; $('status').className = 'muted'; }
-      else { $('status').textContent = 'Registration was already finalized; left unchanged.'; $('status').className = 'muted'; }
-    }else if(potId){
-      const n = await sweepRecentDrafts(potId);
-      $('status').textContent = n ? `Removed ${n} draft registration${n>1?'s':''}.` : 'No drafts found.';
-      $('status').className = n ? 'ok' : 'muted';
-    }else{
-      $('status').textContent = 'Missing context — nothing to clean.';
-      $('status').className = 'muted';
-    }
-  }catch(e){
-    console.error(e);
-    $('status').textContent = 'Could not clean the draft (safe to ignore).';
-    $('status').className = 'err';
-  }finally{
-    try{ localStorage.removeItem('pp_last_draft'); }catch(_){}
-  }
+  } catch(e){ console.warn('cancel cleanup skip', e); }
 })();
 </script>
-</body>
-</html>
+</body></html>
