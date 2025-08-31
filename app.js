@@ -372,6 +372,9 @@ function renderJoinPotSelectFromCache(){
   });
   if(!filtered.length){
     sel.innerHTML = `<option value="">No matches</option>`;
+    try{ sel.size = 1; }catch(_){}
+  try { const rows = Math.max(1, Math.min(document.getElementById('j-pot-select').options.length, 12)); document.getElementById('j-pot-select').size = rows; } catch(_) {}
+
     const joinBtn = document.getElementById('btn-join');
     if (joinBtn) joinBtn.disabled = true;
     const brief = document.getElementById('j-pot-summary-brief');
@@ -387,7 +390,9 @@ function renderJoinPotSelectFromCache(){
     const label = [p.name||'Unnamed', p.event||'—', p.skill||'Any'].join(' • ');
     return `<option value="${p.id}">${label}</option>`;
   }).join('');
-  if (filtered.some(p=>p.id===prev)) sel.value = prev;
+  
+  try{ sel.size = Math.max(1, Math.min(filtered.length, 12)); }catch(e){}
+if (filtered.some(p=>p.id===prev)) sel.value = prev;
   if (sel.selectedIndex < 0) sel.selectedIndex = 0;
   const potIdInput = document.getElementById('v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
@@ -578,11 +583,6 @@ function updatePaymentNotes(){
 }
 
 /* ---------- Join (Stripe + others) ---------- */
-// --- JOIN: stash draft so cancel page can delete it ---
-function __ppRememberDraft(potId, entryId){
-  try{ localStorage.setItem('pp_last_draft', JSON.stringify({potId, entryId, ts: Date.now()})); }catch(_){}
-}
-
 async function joinPot(){
   const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
@@ -641,13 +641,11 @@ async function joinPot(){
     const entry = {
       name, name_lc:nameLC, email, email_lc:emailLC,
       member_type, player_skill:playerSkill, pay_type,
-      applied_buyin, paid:false, status:(pay_type==='Stripe' ? 'draft' : 'active'),
+      applied_buyin, paid:false, status:'active',
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
     const docRef = await entriesRef.add(entry);
     const entryId = docRef.id;
-    if (pay_type==='Stripe'){ try{ __ppRememberDraft(p.id, entryId); }catch(_){}}
-
     console.log('[JOIN] Entry created', { potId: p.id, entryId });
 
     if (pay_type === 'Stripe'){
@@ -674,7 +672,7 @@ async function joinPot(){
         player_name: name || 'Player',
         player_email: email || undefined,
         success_url: origin + '/success.html?flow=join',
-        cancel_url: origin + '/cancel.html?flow=join&pot=' + encodeURIComponent(p.id) + '&entry=' + encodeURIComponent(entryId),
+        cancel_url: origin + '/cancel.html?flow=join',
         method: 'stripe'
       };
 
@@ -2429,7 +2427,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     wire('btn-create-collapse', hideCreateCard);
     wire('btn-create', startCreatePotCheckout);
     wire('btn-load', loadPotFromInput);
-    wire('btn-join', startJoinCheckout);
+    wire('btn-join', joinPot);
     wire('btn-refresh', ()=>location.reload());
     wire('btn-show-details', ()=>{ const s=byId('pot-detail-section'); if(s){ s.style.display=''; s.scrollIntoView({behavior:'smooth'})}});
     wire('btn-admin-login', adminLogin);
