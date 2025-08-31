@@ -112,7 +112,15 @@ function refreshAdminUI(){
   if (btnLogout) btnLogout.style.display = on ? '' : 'none';
   if (status) status.textContent = on ? '01' : '00';
 
-  if (CURRENT_DETAIL_POT) renderRegistrations(LAST_DETAIL_ENTRIES);
+  if (CURRENT_DETAIL_POT) LAST_DETAIL_ENTRIES.sort((a,b)=>{
+      const at = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
+      const bt = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
+      if (at !== bt) return at - bt;
+      const an = (a.name||'').toLowerCase();
+      const bn = (b.name||'').toLowerCase();
+      return an < bn ? -1 : an > bn ? 1 : 0;
+    });
+    renderRegistrations(LAST_DETAIL_ENTRIES);
 }
 
 /* ---------- SELECT OPTIONS ---------- */
@@ -840,7 +848,6 @@ async function onLoadPotClicked(){
 }
 
 /* ---------- Registrations table ---------- */
-
 function subscribeDetailEntries(potId){
   if(DETAIL_ENTRIES_UNSUB){ try{DETAIL_ENTRIES_UNSUB();}catch(_){} DETAIL_ENTRIES_UNSUB=null; }
   const tbody = document.querySelector('#adminTable tbody');
@@ -854,20 +861,179 @@ function subscribeDetailEntries(potId){
         const d = doc.data();
         LAST_DETAIL_ENTRIES.push({ id: doc.id, ...d });
       });
-      LAST_DETAIL_ENTRIES.sort((a,b)=>{
-        const at = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
-        const bt = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
-        if (at !== bt) return at - bt;
-        const an = (a.name||'').toLowerCase();
-        const bn = (b.name||'').toLowerCase();
-        return an < bn ? -1 : an > bn ? 1 : 0;
-      });
       renderRegistrations(LAST_DETAIL_ENTRIES);
     }, err=>{
       console.error('registrations watch error', err);
       tbody.innerHTML = `<tr><td colspan="7" class="warn">Failed to load registrations.</td></tr>`;
     });
 }
+
+function renderRegistrations(entries){
+  const tbody = document.querySelector('#adminTable tbody');
+  if(!tbody) return;
+  const showEmail = isSiteAdmin();
+  const canAdmin  = isSiteAdmin();
+
+  if(!entries || !entries.length){
+    tbody.innerHTML = `<tr><td colspan="7" class="muted">No registrations yet.</td></tr>`;
+    return;
+  }
+
+  const html = entries.map(e=>{
+    const name = e.name || '—';
+    const email = showEmail ? (e.email || '—') : '';
+    const type = e.member_type || '—';
+    const buyin = dollars(e.applied_buyin || 0);
+    const paidChecked = e.paid ? 'checked' : '';
+    const status = (e.status || 'active').toLowerCase();
+    const next = status==='hold' ? 'active' : 'hold';
+    const holdLabel = status==='hold' ? 'Resume' : 'Hold';
+
+    const actions = canAdmin
+      ? `
+        <label style="display:inline-flex;align-items:center;gap:6px">
+          <input type="checkbox" data-act="paid" data-id="${e.id}" ${paidChecked}/> Paid
+        </label>
+        <button class="btn" data-act="hold" data-id="${e.id}" data-next="${next}" style="margin-left:6px">${holdLabel}</button>
+        <button class="btn" data-act="move" data-id="${e.id}" style="margin-left:6px">Move</button>
+        <button class="btn" data-act="resend" data-id="${e.id}" style="margin-left:6px">Resend</button>
+        <button class="btn" data-act="remove" data-id="${e.id}" style="margin-left:6px">Remove</button>
+      `
+      : '—';
+
+    return `
+      <tr>
+        <td>${escapeHtml(name)}</td>
+        <td>${escapeHtml(email)}</td>
+        <td>${escapeHtml(type)}</td>
+        <td>${buyin}</td>
+        <td>${e.paid ? 'Yes' : 'No'}</td>
+        <td>${escapeHtml(status)}</td>
+        <td>${actions}</td>
+      </tr>`;
+  }).join('');
+
+  tbody.innerHTML = html;
+}
+
+/* ---------- Admin utilities ---------- */
+function requireAdmin(){
+  const ok = isSiteAdmin() || isOrganizerOwnerWithSub();
+  if(!ok){ alert('Admin/Organizer only. Use Admin Login or subscribe as Organizer.'); return false; }
+  if(!CURRENT_DETAIL_POT){ alert('Load a pot first.'); return false; }
+  return true;
+}
+
+function enterPotEditMode(){
+  if(!requireAdmin()) return;
+  fillSelect('f-name-select', NAME_OPTIONS);
+  fillSelect('f-event', EVENTS);
+  fillSelect('f-skill', SKILLS);
+  fillSelect('f-location-select', LOCATIONS);
+  prefillEditForm(CURRENT_DETAIL_POT);
+  $('#pot-edit-form').style.display = '';
+}
+
+function prefillEditForm(pot){
+  if(!pot) return;
+  setSelectOrOther($('#f-name-select'), $('#f-name-other-wrap'), $('#f-name-other'), pot.name||'', NAME_OPTIONS);
+  const orgSel = $('#f-organizer');
+  if (orgSel){
+    if (['Pickleball Compete','Other'].includes(pot.organizer)) {
+      orgSel.value = pot.organizer;
+      $('#wrap-organizer-other').style.display = (pot.organizer==='Other')? '' : 'none';
+      if (pot.organizer==='Other') $('#f-organizer-other').value = '';
+    } else {
+      orgSel.value = 'Other';
+      $('#wrap-organizer-other').style.display = '';
+      $('#f-organizer-other').value = pot.organizer || '';
+    }
+  }
+  setSelectOrOther($('#f-event'), $('#f-event-other-wrap'), $('#f-event-other'), pot.event||'', EVENTS);
+  setSelectOrOther($('#f-skill'), $('#f-skill-other-wrap'), $('#f-skill-other'), pot.skill||'', SKILLS);
+  $('#f-buyin-member').value = Number(pot.buyin_member||0);
+  $('#f-buyin-guest').value  = Number(pot.buyin_guest||0);
+
+  const pctVal = (typeof pot.pot_share_pct === 'number')
+    ? pot.pot_share_pct
+    : (typeof pot.potPercentage === 'number' ? pot.potPercentage : 100);
+  const fPct = document.getElementById('f-pot-pct');
+  if (fPct) fPct.value = pctVal;
+
+  $('#f-date').value = pot.date || '';
+  $('#f-time').value = pot.time || '';
+  const endLocal = pot.end_at?.toDate?.();
+  $('#f-end-time').value = endLocal ? endLocal.toTimeString().slice(0,5) : '';
+  setSelectOrOther($('#f-location-select'), $('#f-location-other-wrap'), $('#f-location-other'), pot.location||'', LOCATIONS);
+
+  const pm = getPaymentMethods(pot);
+  $('#f-allow-stripe').value = pm.stripe ? 'yes' : 'no';
+  $('#f-pay-zelle').value    = pot.pay_zelle || '';
+  $('#f-pay-cashapp').value  = pot.pay_cashapp || '';
+  $('#f-pay-onsite').value   = pm.onsite ? 'yes' : 'no';
+
+  $('#f-status').value = pot.status || 'open';
+}
+
+async function savePotEdits(){
+  if(!requireAdmin()) return;
+  try{
+    const ref = db.collection('pots').doc(CURRENT_DETAIL_POT.id);
+    const name = getSelectValue($('#f-name-select'), $('#f-name-other')) || CURRENT_DETAIL_POT.name;
+    const organizer = ($('#f-organizer').value==='Other') ? ($('#f-organizer-other').value.trim()||'Other') : $('#f-organizer').value;
+    const event = getSelectValue($('#f-event'), $('#f-event-other')) || CURRENT_DETAIL_POT.event;
+    const skill = getSelectValue($('#f-skill'), $('#f-skill-other')) || CURRENT_DETAIL_POT.skill;
+    const buyin_member = Number($('#f-buyin-member').value || CURRENT_DETAIL_POT.buyin_member || 0);
+    const buyin_guest  = Number($('#f-buyin-guest').value  || CURRENT_DETAIL_POT.buyin_guest  || 0);
+
+    let pctRaw = Number(document.getElementById('f-pot-pct')?.value);
+    if (!Number.isFinite(pctRaw)) {
+      pctRaw = (CURRENT_DETAIL_POT.pot_share_pct ?? CURRENT_DETAIL_POT.potPercentage ?? 100);
+    }
+    const pot_share_pct = Math.max(0, Math.min(100, pctRaw));
+
+    const date = $('#f-date').value || CURRENT_DETAIL_POT.date || '';
+    const time = $('#f-time').value || CURRENT_DETAIL_POT.time || '';
+    const endTime = $('#f-end-time').value || '';
+    const location = getSelectValue($('#f-location-select'), $('#f-location-other')) || CURRENT_DETAIL_POT.location;
+
+    let end_at = CURRENT_DETAIL_POT.end_at || null;
+    if(date && (time || endTime)){
+      const startLocal = time ? new Date(`${date}T${time}:00`) : (CURRENT_DETAIL_POT.start_at?.toDate?.() || null);
+      if(endTime){
+        let endLocal = new Date(`${date}T${endTime}:00`);
+        if(startLocal && endLocal < startLocal){ endLocal = new Date(startLocal.getTime() + 2*60*60*1000); }
+        end_at = firebase.firestore.Timestamp.fromDate(endLocal);
+      }else{
+        end_at = null;
+      }
+    }
+    const status = $('#f-status').value || CURRENT_DETAIL_POT.status;
+
+    const allowStripe = ($('#f-allow-stripe')?.value||'no') === 'yes';
+    const zelleInfo   = $('#f-pay-zelle')?.value || '';
+    const cashInfo    = $('#f-pay-cashapp')?.value || '';
+    const onsiteYes   = ($('#f-pay-onsite')?.value||'yes') === 'yes';
+
+    await ref.update({
+      name, organizer, event, skill, buyin_member, buyin_guest,
+      date, time, location, status, end_at, pot_share_pct,
+      pay_zelle: zelleInfo,
+      pay_cashapp: cashInfo,
+      pay_onsite: onsiteYes,
+      payment_methods: {
+        stripe: allowStripe,
+        zelle: !!zelleInfo,
+        cashapp: !!cashInfo,
+        onsite: onsiteYes
+      }
+    });
+    $('#pot-edit-form').style.display = 'none';
+    alert('Saved.');
+    onLoadPotClicked();
+  }catch(e){ console.error(e); alert('Failed to save changes.'); }
+}
+
 async function updatePotStatus(newStatus){
   if(!requireAdmin()) return;
   try{
@@ -2559,4 +2725,33 @@ function startJoinCheckout(){
   } catch(_) {}
   return startJoinCheckout_orig.apply(this, arguments);
 }
+
+
+
+// Ensure startJoinCheckout only runs for Stripe
+(function(){
+  try{
+    if (typeof window.startJoinCheckout === 'function') {
+      const __orig_startJoinCheckout = window.startJoinCheckout;
+      window.startJoinCheckout = function(){
+        try{
+          var sel = document.getElementById('j-paytype');
+          var v = sel ? sel.value : '';
+          if (!isStripe(v)) {
+            console.warn('[JOIN] Blocked Stripe checkout because selected method is not Stripe:', v);
+            return;
+          }
+        }catch(_){}
+        return __orig_startJoinCheckout.apply(this, arguments);
+      };
+    }
+  }catch(e){ console.warn('guard startJoinCheckout error', e); }
+})();
+
+
+try{
+  if (typeof renderRegistrations === 'function') window.renderRegistrations = renderRegistrations;
+  if (typeof enterPotEditMode === 'function') window.enterPotEditMode = enterPotEditMode;
+  if (typeof subscribeDetailEntries === 'function') window.subscribeDetailEntries = subscribeDetailEntries;
+}catch(_){}
 
