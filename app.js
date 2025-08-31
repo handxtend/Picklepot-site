@@ -2597,3 +2597,67 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 });
 
+
+
+
+/* === Hard-bind Join button to joinPot and block legacy Stripe-only handlers === */
+(function(){
+  try{
+    var jb = document.getElementById('btn-join');
+    if (!jb) return;
+    // Remove inline onclick if any
+    try{ jb.onclick = null; }catch(_){}
+    // Prevent previously-attached listeners (stopImmediatePropagation)
+    function onlyJoin(e){
+      try{ e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); }catch(_){}
+      try{ if (typeof joinPot === 'function') joinPot(); }catch(err){ console.error('joinPot failed', err); }
+      return false;
+    }
+    // Capture-phase blocker to neuter earlier listeners
+    jb.addEventListener('click', function(e){
+      try{ e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); }catch(_){}
+    }, true);
+    // Our handler (bubble)
+    jb.addEventListener('click', onlyJoin, false);
+  }catch(err){ console.error('join hard-bind error', err); }
+})();
+
+
+
+/* === Cancel page cleanup: delete join draft or pot draft === */
+(function(){
+  try{
+    var isCancel = /\/cancel\.html(\?|$)/.test(location.pathname);
+    if(!isCancel) return;
+    function param(n){ try{ return new URL(location.href).searchParams.get(n) || ''; }catch(_){ return ''; } }
+    var flow = param('flow') || '';
+    // Common headers
+    var hdrs = { 'Content-Type': 'application/json' };
+    // JOIN: delete the last created draft entry if we have it
+    if (flow === 'join') {
+      try{
+        var raw = sessionStorage.getItem('last_join_entry') || '';
+        if (raw){
+          var info = JSON.parse(raw);
+          if (info && info.potId && info.entryId){
+            fetch('https://picklepot-stripe.onrender.com/cancel-join', {
+              method:'POST', headers: hdrs,
+              body: JSON.stringify({ potId: info.potId, entryId: info.entryId })
+            }).catch(function(e){ console.warn('cancel-join failed', e); });
+          }
+        }
+      }catch(e){ console.warn('join cancel cleanup error', e); }
+    }
+    // CREATE: ask backend to cancel draft pot/session
+    if (flow === 'create') {
+      try{
+        var draftId = param('draft') || sessionStorage.getItem('last_draft_id') || '';
+        if (draftId){
+          fetch('https://picklepot-stripe.onrender.com/cancel-pot-session', {
+            method:'POST', headers: hdrs, body: JSON.stringify({ draftId: draftId })
+          }).catch(function(e){ console.warn('cancel-pot-session failed', e); });
+        }
+      }catch(e){ console.warn('create cancel cleanup error', e); }
+    }
+  }catch(err){ console.error('cancel page script error', err); }
+})();
