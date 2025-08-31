@@ -626,6 +626,7 @@ function updatePaymentNotes(){
 }
 
 /* ---------- Join (Stripe + others) ---------- */
+function isStripe(v){ return String(v||'').toLowerCase()==='stripe'; }
 async function joinPot(){
   const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
@@ -657,7 +658,7 @@ async function joinPot(){
   const pay_type=$('#j-paytype').value;
 
 // --- Non-Stripe path: register immediately and return (no Stripe calls) ---
-if (pay_type !== 'Stripe') {
+if (!isStripe(pay_type)) {
   try {
     const p = window.CURRENT_JOIN_POT || {};
     const entriesRef = db.collection('pots').doc(p.id).collection('entries');
@@ -732,7 +733,7 @@ if (pay_type !== 'Stripe') {
     const entryId = docRef.id;
     console.log('[JOIN] Entry created', { potId: p.id, entryId });
 
-    if (pay_type === 'Stripe'){
+    if (isStripe(pay_type)){
       const pm = getPaymentMethods(p);
       if (!pm.stripe){
         return fail('Stripe is disabled for this event.');
@@ -764,7 +765,7 @@ if (pay_type !== 'Stripe') {
 
       let res, data;
       try{
-        res = await fetch(`${window.API_BASE}/create-checkout-session`, {
+        res = await /* PROTECTED: only reachable in Stripe branch */ fetch(`${window.API_BASE}/create-checkout-session`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -2444,7 +2445,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
   }
   if (typeof window.startCreatePotCheckout !== 'function') window.startCreatePotCheckout = startCreatePotCheckout;
 
-  async function startJoinCheckout(){
+  async function startJoinCheckout_orig(){
     const potId = byId('v-pot')?.value?.trim() || '';
     const amountDollars = byId('j-cost')?.value || byId('j-amount')?.value || '10';
     const playerName = byId('j-name')?.value || byId('j-player')?.value || 'Player';
@@ -2696,3 +2697,18 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(_){}
   }catch(err){ console.error('join binder bootstrap error', err); }
 })();
+
+
+// Guarded proxy to prevent accidental Stripe calls when non-Stripe is selected
+function startJoinCheckout(){
+  try {
+    var sel = document.getElementById('j-paytype');
+    var v = sel ? sel.value : '';
+    if (!isStripe(v)) {
+      console.warn('[JOIN] Blocked Stripe checkout because selected method is not Stripe:', v);
+      return;
+    }
+  } catch(_) {}
+  return startJoinCheckout_orig.apply(this, arguments);
+}
+
