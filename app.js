@@ -234,7 +234,17 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
   $('#btn-create').addEventListener('click', onCreateClick);
-$('#btn-join').addEventListener('click', joinPot);
+(function(){ 
+  const old = document.getElementById('btn-join');
+  if (old){
+    const fresh = old.cloneNode(false);
+    fresh.id = 'btn-join';
+    fresh.textContent = old.textContent || 'Join';
+    fresh.className = old.className;
+    old.parentNode.replaceChild(fresh, old);
+    fresh.addEventListener('click', joinPot);
+  }
+})();
 
   const loadBtn = $('#btn-load');
   if (loadBtn) { loadBtn.disabled = false; loadBtn.addEventListener('click', onLoadPotClicked); }
@@ -674,7 +684,7 @@ async function joinPot(){
     const entry = {
       name, name_lc:nameLC, email, email_lc:emailLC,
       member_type, player_skill:playerSkill, pay_type,
-      applied_buyin, paid:false, status:'active',
+      applied_buyin, paid:false, status: (pay_type==='Stripe' ? 'draft' : 'active'),
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
     const docRef = await entriesRef.add(entry);
@@ -704,8 +714,8 @@ async function joinPot(){
         amount_cents,
         player_name: name || 'Player',
         player_email: email || undefined,
-        success_url: origin + '/success.html?flow=join',
-        cancel_url: origin + '/cancel.html?flow=join',
+        success_url: origin + '/success.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
+        cancel_url: origin + '/cancel.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
         method: 'stripe'
       };
 
