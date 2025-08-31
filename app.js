@@ -583,6 +583,11 @@ function updatePaymentNotes(){
 }
 
 /* ---------- Join (Stripe + others) ---------- */
+// --- JOIN: stash draft so cancel page can delete it ---
+function __ppRememberDraft(potId, entryId){
+  try{ localStorage.setItem('pp_last_draft', JSON.stringify({potId, entryId, ts: Date.now()})); }catch(_){}
+}
+
 async function joinPot(){
   const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
@@ -641,12 +646,10 @@ async function joinPot(){
     const entry = {
       name, name_lc:nameLC, email, email_lc:emailLC,
       member_type, player_skill:playerSkill, pay_type,
-      applied_buyin, paid:false, status:'active',
+      applied_buyin, paid:false, status: (pay_type==='Stripe' ? 'draft' : 'active'),
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
-    const docRef = await entriesRef.add(entry);
-    const entryId = docRef.id;
-    console.log('[JOIN] Entry created', { potId: p.id, entryId });
+    \1if (pay_type==='Stripe'){ try{ __ppRememberDraft(p.id, entryId); }catch(_){}}console.log('[JOIN] Entry created', { potId: p.id, entryId });
 
     if (pay_type === 'Stripe'){
       const pm = getPaymentMethods(p);
@@ -672,7 +675,7 @@ async function joinPot(){
         player_name: name || 'Player',
         player_email: email || undefined,
         success_url: origin + '/success.html?flow=join',
-        cancel_url: origin + '/cancel.html?flow=join',
+        cancel_url: origin + '/cancel.html?flow=join&pot=' + encodeURIComponent(p.id) + '&entry=' + encodeURIComponent(entryId),
         method: 'stripe'
       };
 
