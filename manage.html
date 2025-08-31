@@ -6,12 +6,12 @@
   <title>Organizer — Manage Pot</title>
   <style>
     body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;background:#f7f7fb;color:#111}
-    .wrap{max-width:960px;margin:40px auto;padding:0 16px}
+    .wrap{max-width:1000px;margin:40px auto;padding:0 16px}
     .panel{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.06);overflow:hidden}
     header{padding:20px 22px;border-bottom:1px solid #eee}
     header h1{margin:0;font-size:28px}
     .sec{padding:20px 22px}
-    label{display:block;margin:10px 0 6px;color:#666}
+    label{display:block;margin:10px 0 6px;color:#555}
     input,select,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #d8dbe2;font:inherit}
     .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     .btn{padding:10px 14px;border-radius:10px;border:none;background:#0d6efd;color:#fff;cursor:pointer}
@@ -26,7 +26,8 @@
     .muted{color:#6b7280}
     .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef2ff;color:#334155;margin:4px 6px 0 0;font-size:12px}
     .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-    @media (max-width:720px){ .grid{grid-template-columns:1fr;} }
+    @media (max-width:860px){ .grid{grid-template-columns:1fr;} }
+    .help{font-size:12px;color:#6b7280;margin-top:4px}
   </style>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -49,8 +50,9 @@
   <div class="panel">
     <header>
       <h1>Organizer — Manage Pot</h1>
-      <p class="muted">Use the Owner Link (from the success page) or Owner Code to unlock your pot.</p>
+      <p class="muted">Unlock with the Owner Link or Owner Code. You can update pot fields and manage entries below.</p>
     </header>
+
     <div class="sec">
       <label>Pot ID</label>
       <input id="pot-id" placeholder="e.g., abc123">
@@ -63,6 +65,7 @@
         <span id="status"></span>
       </div>
     </div>
+
     <div id="tools" class="sec hidden">
       <div class="row" style="justify-content:space-between;align-items:center">
         <div>
@@ -90,6 +93,15 @@
               <option value="active">active</option>
               <option value="closed">closed</option>
             </select>
+            <div class="help">New pots show in “Active Tournaments” when status is <b>open</b>.</div>
+          </div>
+          <div>
+            <label>Date (YYYY-MM-DD)</label>
+            <input id="f_date" placeholder="2025-09-28">
+          </div>
+          <div>
+            <label>End Time (e.g., 11:59 PM)</label>
+            <input id="f_end_at" placeholder="11:59 PM">
           </div>
           <div>
             <label>Location</label>
@@ -99,9 +111,34 @@
             <label>Organizer</label>
             <input id="f_organizer" placeholder="e.g., Pickleball Compete">
           </div>
+          <div>
+            <label>Buy-in (Member)</label>
+            <input id="f_buyin_member" type="number" step="0.01" placeholder="10.00">
+          </div>
+          <div>
+            <label>Buy-in (Guest)</label>
+            <input id="f_buyin_guest" type="number" step="0.01" placeholder="10.00">
+          </div>
+          <div>
+            <label>Pot Share %</label>
+            <input id="f_pot_share_pct" type="number" step="1" min="0" max="100" placeholder="100">
+          </div>
+          <div>
+            <label>Default Payment Method (label)</label>
+            <input id="f_payment_method" placeholder="e.g., Stripe (card)">
+          </div>
         </div>
+
+        <div class="row" style="margin-top:12px">
+          <label><input type="checkbox" id="f_pay_cashapp"> Allow Cash App</label>
+          <label><input type="checkbox" id="f_pay_zelle"> Allow Zelle</label>
+          <label><input type="checkbox" id="f_pay_onsite"> Allow Onsite</label>
+          <label><input type="checkbox" id="f_pay_stripe"> Allow Stripe</label>
+        </div>
+
         <div class="row" style="margin-top:12px">
           <button id="savePot" class="btn">Save Changes</button>
+          <button id="quickOpen" class="btn ghost">Set Status: open</button>
           <span id="saveStatus" class="muted"></span>
         </div>
       </div>
@@ -153,14 +190,13 @@
   }
 
   function renderMeta(d){
-    const meta=$('potMeta');
-    meta.innerHTML='';
+    const meta=$('potMeta'); meta.innerHTML='';
     const pills = [];
     if(d.event) pills.push(`<span class="pill">${(d.event+'').replace(/[<>]/g,'')}</span>`);
     if(d.location) pills.push(`<span class="pill">${(d.location+'').replace(/[<>]/g,'')}</span>`);
     if(d.skill) pills.push(`<span class="pill">Skill: ${(d.skill+'').replace(/[<>]/g,'')}</span>`);
     if(d.status) pills.push(`<span class="pill">Status: ${(d.status+'').replace(/[<>]/g,'')}</span>`);
-    if(d.org) pills.push(`<span class="pill">Org: ${(d.org+'').replace(/[<>]/g,'')}</span>`);
+    if(d.date) pills.push(`<span class="pill">Date: ${(d.date+'').replace(/[<>]/g,'')}</span>`);
     meta.innerHTML = pills.join('');
   }
 
@@ -170,11 +206,22 @@
       if(!snap.exists) return;
       const d = snap.data()||{};
       renderMeta(d);
-      // Fill edit form
       $('f_event').value = d.event || '';
       $('f_status').value = (d.status||'open').toLowerCase();
       $('f_location').value = d.location || '';
       $('f_organizer').value = d.organizer || d.org || '';
+      $('f_date').value = d.date || '';
+      $('f_end_at').value = d.end_at || '';
+      $('f_buyin_member').value = (d.buyin_member!=null? d.buyin_member: (d.buyin_member||''));
+      $('f_buyin_guest').value = (d.buyin_guest!=null? d.buyin_guest: (d.buyin_guest||''));
+      $('f_pot_share_pct').value = (d.pot_share_pct!=null? d.pot_share_pct: (d.pot_share_pct||''));
+      $('f_payment_method').value = d.payment_method || '';
+
+      const pm = d.payment_methods || {};
+      $('f_pay_cashapp').checked = !!(d.pay_cashapp ?? pm.cashapp);
+      $('f_pay_zelle').checked   = !!(d.pay_zelle   ?? pm.zelle);
+      $('f_pay_onsite').checked  = !!(d.pay_onsite  ?? pm.onsite);
+      $('f_pay_stripe').checked  = !!(pm.stripe ?? (d.pay_stripe||false));
     });
   }
 
@@ -191,7 +238,10 @@
           <td>${(e.name||e.player_name||'').replace(/[<>]/g,'')}</td>
           <td>${(e.email||e.player_email||'').replace(/[<>]/g,'')}</td>
           <td>${e.member_type||'Member'}</td>
-          <td>${e.paid?'Yes':'No'}</td>
+          <td>
+            <span class="pill" style="background:${e.paid?'#dcfce7':'#fee2e2'};color:${e.paid?'#166534':'#7f1d1d'}">${e.paid?'Yes':'No'}</span>
+            <button class="btn ghost btn-paid" data-id="${d.id}" data-paid="${!!e.paid}">${e.paid?'Mark Unpaid':'Mark Paid'}</button>
+          </td>
           <td><button class="btn danger btn-remove" data-id="${d.id}">Remove</button></td>
         </tr>`);
       });
@@ -207,6 +257,15 @@
           try{
             await db.collection('pots').doc(potId).collection('entries').doc(id).delete();
           }catch(e){ alert('Remove failed'); console.error(e); }
+        };
+      });
+      box.querySelectorAll('.btn-paid').forEach(btn=>{
+        btn.onclick = async (ev)=>{
+          const id = ev.currentTarget.getAttribute('data-id');
+          const paidNow = ev.currentTarget.getAttribute('data-paid') === 'true';
+          try{
+            await db.collection('pots').doc(potId).collection('entries').doc(id).update({ paid: !paidNow });
+          }catch(e){ alert('Update failed'); console.error(e); }
         };
       });
     }, err=>{ console.error(err); box.innerHTML='<em>Error loading entries.</em>'; });
@@ -244,19 +303,40 @@
   $('savePot').onclick = async ()=>{
     if(!currentPot) return;
     $('saveStatus').textContent = 'Saving…';
+    const updates = {
+      event: $('f_event').value.trim(),
+      status: $('f_status').value.trim().toLowerCase(),
+      location: $('f_location').value.trim(),
+      organizer: $('f_organizer').value.trim(),
+      date: $('f_date').value.trim(),
+      end_at: $('f_end_at').value.trim(),
+      buyin_member: parseFloat($('f_buyin_member').value) || 0,
+      buyin_guest: parseFloat($('f_buyin_guest').value) || 0,
+      pot_share_pct: parseFloat($('f_pot_share_pct').value) || 0,
+      payment_method: $('f_payment_method').value.trim(),
+      pay_cashapp: $('f_pay_cashapp').checked,
+      pay_zelle: $('f_pay_zelle').checked,
+      pay_onsite: $('f_pay_onsite').checked,
+      payment_methods: {
+        cashapp: $('f_pay_cashapp').checked,
+        zelle: $('f_pay_zelle').checked,
+        onsite: $('f_pay_onsite').checked,
+        stripe: $('f_pay_stripe').checked
+      }
+    };
     try{
-      await db.collection('pots').doc(currentPot).update({
-        event: $('f_event').value.trim(),
-        status: $('f_status').value.trim().toLowerCase(),
-        location: $('f_location').value.trim(),
-        organizer: $('f_organizer').value.trim()
-      });
+      await db.collection('pots').doc(currentPot).update(updates);
       $('saveStatus').textContent = 'Saved.';
       setTimeout(()=>$('saveStatus').textContent='', 2000);
     }catch(e){
       console.error(e);
       $('saveStatus').textContent = 'Save failed.';
     }
+  };
+
+  $('quickOpen').onclick = async ()=>{
+    if(!currentPot) return;
+    try{ await db.collection('pots').doc(currentPot).update({ status:'open' }); }catch(e){}
   };
 
   // Restore from URL/localStorage
