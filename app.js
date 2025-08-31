@@ -1,3 +1,4 @@
+let __JOIN_IN_FLIGHT = false;
 
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
@@ -372,9 +373,6 @@ function renderJoinPotSelectFromCache(){
   });
   if(!filtered.length){
     sel.innerHTML = `<option value="">No matches</option>`;
-    try{ sel.size = 1; }catch(_){}
-  try { const rows = Math.max(1, Math.min(document.getElementById('j-pot-select').options.length, 12)); document.getElementById('j-pot-select').size = rows; } catch(_) {}
-
     const joinBtn = document.getElementById('btn-join');
     if (joinBtn) joinBtn.disabled = true;
     const brief = document.getElementById('j-pot-summary-brief');
@@ -390,9 +388,7 @@ function renderJoinPotSelectFromCache(){
     const label = [p.name||'Unnamed', p.event||'—', p.skill||'Any'].join(' • ');
     return `<option value="${p.id}">${label}</option>`;
   }).join('');
-  
-  try{ sel.size = Math.max(1, Math.min(filtered.length, 12)); }catch(e){}
-if (filtered.some(p=>p.id===prev)) sel.value = prev;
+  if (filtered.some(p=>p.id===prev)) sel.value = prev;
   if (sel.selectedIndex < 0) sel.selectedIndex = 0;
   const potIdInput = document.getElementById('v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
@@ -597,9 +593,10 @@ async function joinPot(){
     console.error('[JOIN] Error:', message);
     msg.textContent = message || 'Something went wrong.';
     setBusy(false);
+    __JOIN_IN_FLIGHT = false;
   }
 
-  if(!p){ msg.textContent='Select a pot to join.'; return; }
+  if(!p){ msg.textContent='Select a pot to join.'; __JOIN_IN_FLIGHT=false; return; }
 
   const now=Date.now(), endMs=p.end_at?.toMillis?.();
   if((endMs && endMs<=now) || p.status==='closed'){
@@ -613,13 +610,13 @@ async function joinPot(){
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
 
-  if(!fname){ msg.textContent='First name is required.'; return; }
-  if(!pay_type){ msg.textContent='Choose a payment method.'; return; }
+  if(!fname){ msg.textContent='First name is required.'; __JOIN_IN_FLIGHT=false; return; }
+  if(!pay_type){ msg.textContent='Choose a payment method.'; __JOIN_IN_FLIGHT=false; return; }
 
   const rank = s => ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] ?? 0);
   if(p.skill!=='Any' && rank(playerSkill) > rank(p.skill)){
     msg.textContent='Selected skill is higher than pot skill — joining is not allowed.'; 
-    return;
+    __JOIN_IN_FLIGHT=false; return;
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
@@ -708,13 +705,14 @@ async function joinPot(){
 
     // Non-Stripe:
     setBusy(false);
+    __JOIN_IN_FLIGHT = false;
     msg.textContent='Joined! Complete payment using the selected method.';
     updatePaymentNotes();
     try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
   }catch(e){
     console.error('[JOIN] Unexpected failure:', e);
     fail('Join failed (check Firebase rules and your network).');
-  }
+  } finally { __JOIN_IN_FLIGHT = false; }
 }
 
 /* ---------- Pot Detail loader + registrations subscription ---------- */
@@ -2427,7 +2425,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     wire('btn-create-collapse', hideCreateCard);
     wire('btn-create', startCreatePotCheckout);
     wire('btn-load', loadPotFromInput);
-    wire('btn-join', joinPot);
+    wire('btn-join', startJoinCheckout);
     wire('btn-refresh', ()=>location.reload());
     wire('btn-show-details', ()=>{ const s=byId('pot-detail-section'); if(s){ s.style.display=''; s.scrollIntoView({behavior:'smooth'})}});
     wire('btn-admin-login', adminLogin);
