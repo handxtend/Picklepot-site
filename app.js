@@ -372,9 +372,6 @@ function renderJoinPotSelectFromCache(){
   });
   if(!filtered.length){
     sel.innerHTML = `<option value="">No matches</option>`;
-    try{ sel.size = 1; }catch(_){}
-  try { const rows = Math.max(1, Math.min(document.getElementById('j-pot-select').options.length, 12)); document.getElementById('j-pot-select').size = rows; } catch(_) {}
-
     const joinBtn = document.getElementById('btn-join');
     if (joinBtn) joinBtn.disabled = true;
     const brief = document.getElementById('j-pot-summary-brief');
@@ -390,9 +387,7 @@ function renderJoinPotSelectFromCache(){
     const label = [p.name||'Unnamed', p.event||'—', p.skill||'Any'].join(' • ');
     return `<option value="${p.id}">${label}</option>`;
   }).join('');
-  
-  try{ sel.size = Math.max(1, Math.min(filtered.length, 12)); }catch(e){}
-if (filtered.some(p=>p.id===prev)) sel.value = prev;
+  if (filtered.some(p=>p.id===prev)) sel.value = prev;
   if (sel.selectedIndex < 0) sel.selectedIndex = 0;
   const potIdInput = document.getElementById('v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
@@ -646,10 +641,14 @@ async function joinPot(){
     const entry = {
       name, name_lc:nameLC, email, email_lc:emailLC,
       member_type, player_skill:playerSkill, pay_type,
-      applied_buyin, paid:false, status: (pay_type==='Stripe' ? 'draft' : 'active'),
+      applied_buyin, paid:false, status:(pay_type==='Stripe' ? 'draft' : 'active'),
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
-    \1if (pay_type==='Stripe'){ try{ __ppRememberDraft(p.id, entryId); }catch(_){}}console.log('[JOIN] Entry created', { potId: p.id, entryId });
+    const docRef = await entriesRef.add(entry);
+    const entryId = docRef.id;
+    if (pay_type==='Stripe'){ try{ __ppRememberDraft(p.id, entryId); }catch(_){}}
+
+    console.log('[JOIN] Entry created', { potId: p.id, entryId });
 
     if (pay_type === 'Stripe'){
       const pm = getPaymentMethods(p);
@@ -2430,7 +2429,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     wire('btn-create-collapse', hideCreateCard);
     wire('btn-create', startCreatePotCheckout);
     wire('btn-load', loadPotFromInput);
-    wire('btn-join', joinPot);
+    wire('btn-join', startJoinCheckout);
     wire('btn-refresh', ()=>location.reload());
     wire('btn-show-details', ()=>{ const s=byId('pot-detail-section'); if(s){ s.style.display=''; s.scrollIntoView({behavior:'smooth'})}});
     wire('btn-admin-login', adminLogin);
