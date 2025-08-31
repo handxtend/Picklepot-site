@@ -1,4 +1,3 @@
-let JOIN_INFLIGHT=false;
 
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
@@ -373,7 +372,6 @@ function renderJoinPotSelectFromCache(){
   });
   if(!filtered.length){
     sel.innerHTML = `<option value="">No matches</option>`;
-    try{ sel.size = 1; }catch(_){ }
     const joinBtn = document.getElementById('btn-join');
     if (joinBtn) joinBtn.disabled = true;
     const brief = document.getElementById('j-pot-summary-brief');
@@ -389,9 +387,7 @@ function renderJoinPotSelectFromCache(){
     const label = [p.name||'Unnamed', p.event||'—', p.skill||'Any'].join(' • ');
     return `<option value="${p.id}">${label}</option>`;
   }).join('');
-  
-  try{ sel.size=Math.max(1,Math.min(filtered.length,12)); }catch(e){}
-if (filtered.some(p=>p.id===prev)) sel.value = prev;
+  if (filtered.some(p=>p.id===prev)) sel.value = prev;
   if (sel.selectedIndex < 0) sel.selectedIndex = 0;
   const potIdInput = document.getElementById('v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
@@ -583,8 +579,7 @@ function updatePaymentNotes(){
 
 /* ---------- Join (Stripe + others) ---------- */
 async function joinPot(){
-  if (JOIN_INFLIGHT) return; JOIN_INFLIGHT=true; try{const b=document.getElementById('btn-join'); if(b) b.disabled=true;}catch(_){ };
-const p = CURRENT_JOIN_POT; 
+  const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
   const msg = $('#join-msg');
 
@@ -632,9 +627,11 @@ const p = CURRENT_JOIN_POT;
 
     const entriesRef = db.collection('pots').doc(p.id).collection('entries');
 
-    const dupEmail = emailLC ? await entriesRef.where('email_lc','==', emailLC).limit(1).get() : { empty:true };
-    const dupName  = nameLC  ? await entriesRef.where('name_lc','==', nameLC).limit(1).get()  : { empty:true };
-    if(!dupEmail.empty || !dupName.empty){ 
+    const dupEmailSnap = emailLC ? await entriesRef.where('email_lc','==', emailLC).limit(5).get() : { empty:true, docs:[] };
+    const dupNameSnap  = nameLC  ? await entriesRef.where('name_lc','==', nameLC).limit(5).get()  : { empty:true, docs:[] };
+    const emailActive = dupEmailSnap.empty ? false : dupEmailSnap.docs.some(d => ((d.data()||{}).status || 'active') === 'active');
+    const nameActive  = dupNameSnap.empty  ? false : dupNameSnap.docs.some(d => ((d.data()||{}).status  || 'active') === 'active');
+    if(emailActive || nameActive){
       return fail('Duplicate registration: this name or email already joined this event.');
     }
 
@@ -1447,7 +1444,7 @@ async function handleSubscriptionReturn(){
       const res = await fetch(`${API_BASE}/activate-subscription-for-uid`, {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ entry_id:(function(){try{const s=`${CURRENT_JOIN_POT?.id||''}|${($('#j-email')?.value||'').trim().toLowerCase()}|${($('#j-first')?.value||'').trim()}|${($('#j-last')?.value||'').trim()}|${($('#j-member-type')?.value||'Member')}`;return btoa(unescape(encodeURIComponent(s))).replace(/[^a-z0-9]/gi,'').slice(0,24);}catch(e){return null;}})(), idempotency_key:(crypto?.randomUUID?crypto.randomUUID():(Date.now().toString(36)+Math.random().toString(36).slice(2))),  uid, email })
+        body: JSON.stringify({ uid, email })
       });
       return res.ok;
     }catch(_){ return false; }
@@ -2427,7 +2424,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
     wire('btn-create-collapse', hideCreateCard);
     wire('btn-create', startCreatePotCheckout);
     wire('btn-load', loadPotFromInput);
-    wire('btn-join', joinPot);
+    wire('btn-join', startJoinCheckout);
     wire('btn-refresh', ()=>location.reload());
     wire('btn-show-details', ()=>{ const s=byId('pot-detail-section'); if(s){ s.style.display=''; s.scrollIntoView({behavior:'smooth'})}});
     wire('btn-admin-login', adminLogin);
@@ -2447,6 +2444,22 @@ cancel_url: originHost() + '/cancel.html?flow=create',
 
   document.addEventListener('DOMContentLoaded', ()=>{
     populateCreate();
+
+    // Clear duplicate/validation messages when the user edits join fields
+    ['j-fname','j-lname','j-email','j-mtype','j-paytype','j-skill'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && !el.dataset._clearJoinMsg){
+        el.dataset._clearJoinMsg = '1';
+        el.addEventListener('input', function(){
+          var m = document.getElementById('join-msg');
+          if (m) m.textContent = '';
+        });
+        el.addEventListener('change', function(){
+          var m = document.getElementById('join-msg');
+          if (m) m.textContent = '';
+        });
+      }
+    });
     bindAll();
     if (typeof checkStripeReturn==='function') try{ checkStripeReturn(); }catch(_){}
   });
