@@ -1267,9 +1267,8 @@ async function onOrganizerSubscribe(){
     // If you already have an active sub, short-circuit
     if (typeof hasOrganizerSub === 'function' && hasOrganizerSub()){
       const until = ORG_SUB?.until ? new Date(ORG_SUB.until).toLocaleDateString() : 'current period';
-      alert('Your organizer subscription is already active.
-Expires: ' + until);
-return;
+      alert('Your organizer subscription is already active.\nExpires: ' + until);
+      return;
     }
 
     // Build payload for the backend
