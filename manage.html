@@ -22,6 +22,25 @@
     table{border-collapse:collapse;width:100%}
     th,td{border-bottom:1px solid #eee;padding:8px 6px;text-align:left}
   </style>
+
+  <!-- Firebase SDKs (compat) for live updates -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <script>
+    // Use global config if present (index sets window.firebaseConfig)
+    const firebaseConfig = window.firebaseConfig || {
+      apiKey: "AIzaSyA9QcJizDv1ibAPI7FV_NY8cMhkCjokzXE",
+      authDomain: "pickle-pot.firebaseapp.com",
+      projectId: "pickle-pot",
+      storageBucket: "pickle-pot.appspot.com",
+      messagingSenderId: "508555645160",
+      appId: "1:508555645160:web:82e09803feb83d5150395d"
+    };
+    try { if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      firebase.auth().signInAnonymously().catch(()=>{});
+    } catch (e) { console.warn("Firebase init error", e); }
+  </script>
 </head>
 <body>
   <div class="wrap">
@@ -58,154 +77,111 @@
     </div>
   </div>
 
-  <script>
-    const API = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/, '');
-
-    function byId(id){ return document.getElementById(id); }
-    function msg(el, text, ok){ el.textContent = text; el.className = ok ? 'ok' : 'err'; }
-
-    // Autofill from ?pot=…&key=…
-    const params = new URLSearchParams(location.search);
-    if (params.get('pot')) byId('pot-id').value = params.get('pot');
-    if (params.get('key')) byId('owner-key').value = params.get('key');
-
-    async function ownerAuth(pot_id, key, code){
-      const r = await fetch(`${API}/pots/${encodeURIComponent(pot_id)}/owner/auth`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({key, code})
-      });
-      if (!r.ok) throw new Error(await r.text());
-      return r.json();
-    }
-
-    async function rotateCode(pot_id){
-      const r = await fetch(`${API}/pots/${encodeURIComponent(pot_id)}/owner/rotate-code`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ code: byId('owner-code').value || null, key: byId('owner-key').value || null })
-      });
-      const data = await r.json();
-      alert(data.new_code ? `New owner code: ${data.new_code}` : 'Rotated.');
-    }
-
-    async function rotateLink(pot_id){
-      const r = await fetch(`${API}/pots/${encodeURIComponent(pot_id)}/owner/rotate-link`, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ code: byId('owner-code').value || null, key: byId('owner-key').value || null })
-      });
-      const data = await r.json();
-      if (data.manage_url) {
-        navigator.clipboard.writeText(data.manage_url).catch(()=>{});
-        alert('New manage link copied to clipboard.');
-      } else {
-        alert('Rotated.');
-      }
-    }
-
-    async function loadEntries(pot_id){
-      // placeholder; wire to your real entries API if needed
-      byId('entries').innerHTML = '<em>No entries yet.</em>';
-    }
-
-    byId('verify').onclick = async () => {
-      const pot_id = byId('pot-id').value.trim();
-      const key = byId('owner-key').value.trim();
-      const code = byId('owner-code').value.trim();
-      const s = byId('status');
-
-      if (!pot_id) { msg(s, 'Enter a Pot ID', false); return; }
-      if (!key && !code) { msg(s, 'Enter Owner Key or Owner Code', false); return; }
-
-      try {
-        await ownerAuth(pot_id, key || null, code || null);
-        msg(s, 'Access granted.', true);
-        byId('tools').classList.remove('hidden');
-        byId('potline').textContent = `Pot ID: ${pot_id}`;
-        byId('rotate-code').onclick = () => rotateCode(pot_id);
-        byId('rotate-link').onclick = () => rotateLink(pot_id);
-        loadEntries(pot_id);
-      } catch (e) {
-        console.error(e);
-        msg(s, 'Access denied. Check your Owner Key or Code.', false);
-        byId('tools').classList.add('hidden');
-      }
-    };
-  </script>
-
 <script>
 (function(){
   const API = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/, '');
-  const byId = (id)=>document.getElementById(id);
-  try{
-    const saved = JSON.parse(localStorage.getItem('mgr_auth')||'null');
-    if (saved && saved.pot && (saved.key || saved.code)) {
-      byId('pot-id') && (byId('pot-id').value=saved.pot);
-      byId('owner-key') && (byId('owner-key').value=saved.key||'');
-      byId('owner-code') && (byId('owner-code').value=saved.code||'');
-      setTimeout(()=>byId('verify')?.click(), 50);
-    }
-  }catch(_){}
+  const $ = (id)=>document.getElementById(id);
+  const setMsg = (text, ok)=>{ const el=$('status'); el.textContent=text; el.className= ok?'ok':'err'; };
+
+  // helper: accept either a raw token OR a full manage link and extract &key=…
+  function parseOwnerKey(val){
+    if (!val) return null;
+    val = String(val).trim();
+    const m = val.match(/[?&]key=([^&#]+)/i);
+    return m ? decodeURIComponent(m[1]) : val;
+  }
+
   async function ownerAuth(pot, key, code){
-    const r = await fetch(`${API}/pots/${encodeURIComponent(pot)}/owner/auth`, {
+    const r = await fetch(\`\${API}/pots/\${encodeURIComponent(pot)}/owner/auth\`, {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({key, code})
+      body: JSON.stringify({ key: key || null, code: code || null })
     });
     if (!r.ok) throw new Error(await r.text());
     return r.json();
   }
+
+  // live entries + paid toggle
   let unsubscribe = null;
-  async function startLive(pot){
-    if (!firebase?.apps?.length && window.firebaseConfig) { firebase.initializeApp(firebaseConfig); }
+  function startLive(pot){
+    try{
+      if (!firebase?.apps?.length) firebase.initializeApp(firebaseConfig);
+    }catch(_){};
     const db = firebase.firestore();
-    const box = document.getElementById('entries');
+    const box = $('entries');
+    if (unsubscribe) { try{unsubscribe();}catch(_){ } unsubscribe=null; }
     box.innerHTML = '<em>Loading…</em>';
-    if (unsubscribe) { try{unsubscribe()}catch(_){ } unsubscribe = null; }
     unsubscribe = db.collection('pots').doc(pot).collection('entries').onSnapshot(snap => {
       const rows = [];
       snap.forEach(d => {
         const e = d.data() || {};
         if (e.status && e.status !== 'active') return;
-        rows.push(`<tr>
-          <td>${(e.name||e.player_name||'').replace(/[<>]/g,'')}</td>
-          <td>${(e.email||e.player_email||'').replace(/[<>]/g,'')}</td>
-          <td>${e.member_type||'Member'}</td>
-          <td><button class="paid-toggle" data-id="${d.id}">${e.paid?'Yes':'No'}</button></td>
-        </tr>`);
+        rows.push(\`<tr data-id="\${d.id}">
+          <td>\${(e.name||e.player_name||'').replace(/[<>]/g,'')}</td>
+          <td>\${(e.email||e.player_email||'').replace(/[<>]/g,'')}</td>
+          <td>\${e.member_type||'Member'}</td>
+          <td><button class="paid-toggle" data-id="\${d.id}">\${e.paid?'Yes':'No'}</button></td>
+        </tr>\`);
       });
-      box.innerHTML = `<table class="table">
+      box.innerHTML = \`<table class="table">
         <thead><tr><th>Name</th><th>Email</th><th>Type</th><th>Paid</th></tr></thead>
-        <tbody>${rows.join('')}</tbody>
-      </table>`;
+        <tbody>\${rows.join('')}</tbody>
+      </table>\`;
       box.querySelectorAll('.paid-toggle').forEach(btn => {
         btn.onclick = async (ev)=>{
           const entryId = ev.currentTarget.getAttribute('data-id');
-          const pot = byId('pot-id')?.value?.trim();
-          const key = byId('owner-key')?.value?.trim()||null;
-          const code = byId('owner-code')?.value?.trim()||null;
           try{
-            await fetch(`${API}/pots/${encodeURIComponent(pot)}/owner/entries/${encodeURIComponent(entryId)}/toggle-paid`, {
-              method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key,code})
+            const key = parseOwnerKey($('owner-key')?.value);
+            const code = ($('owner-code')?.value||'').trim()||null;
+            await fetch(\`\${API}/pots/\${encodeURIComponent(pot)}/owner/entries/\${encodeURIComponent(entryId)}/toggle-paid\`, {
+              method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key, code})
             });
           }catch(e){ console.error(e); alert('Toggle failed'); }
         };
       });
     }, err => {
-      console.error(err);
+      console.error('snapshot error', err);
       box.innerHTML = '<em>Error loading entries.</em>';
     });
   }
-  const verify = byId('verify');
-  if (verify) verify.onclick = async () => {
-    const pot = byId('pot-id')?.value?.trim();
-    const key = byId('owner-key')?.value?.trim()||null;
-    const code = byId('owner-code')?.value?.trim()||null;
-    if (!pot) return alert('Enter a Pot ID');
+
+  // Verify click
+  $('verify').onclick = async () => {
+    const pot = ($('pot-id')?.value||'').trim();
+    const key = parseOwnerKey($('owner-key')?.value);
+    const code = (($('owner-code')?.value||'').trim()||'').toUpperCase() || null;
+    if (!pot){ setMsg('Enter a Pot ID', false); return; }
+    if (!key && !code){ setMsg('Enter Owner Key or Owner Code', false); return; }
     try{
       await ownerAuth(pot, key, code);
+      setMsg('Access granted.', true);
+      $('tools').classList.remove('hidden');
+      $('potline').textContent = \`Pot ID: \${pot}\`;
       localStorage.setItem('mgr_auth', JSON.stringify({pot, key, code}));
-      document.getElementById('tools')?.classList.remove('hidden');
       startLive(pot);
-    }catch(e){ alert('Access denied'); }
+    }catch(e){
+      alert('Access denied');
+      setMsg('Access denied. Check your Owner Key or Code.', false);
+      $('tools').classList.add('hidden');
+    }
   };
+
+  // Autofill from URL
+  try{
+    const q = new URLSearchParams(location.search);
+    if (q.get('pot')) $('pot-id').value = q.get('pot');
+    if (q.get('key')) $('owner-key').value = q.get('key');
+  }catch(_){}
+
+  // Auto-restore on refresh
+  try{
+    const saved = JSON.parse(localStorage.getItem('mgr_auth')||'null');
+    if (saved && saved.pot && (saved.key || saved.code)){
+      $('pot-id').value = saved.pot;
+      $('owner-key').value = saved.key || '';
+      $('owner-code').value = saved.code || '';
+      setTimeout(()=> $('verify').click(), 50);
+    }
+  }catch(_){}
 })();
 </script>
 
