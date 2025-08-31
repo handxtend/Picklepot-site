@@ -622,6 +622,9 @@ async function joinPot(){
   const playerSkill=$('#j-skill').value;
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
+  // HARD GUARD: if not Stripe, do NOT redirect — just create Firestore entry and return
+  const __selectedPayType = pay_type; // snapshot to avoid races
+
 
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!pay_type){ msg.textContent='Choose a payment method.'; return; }
@@ -658,7 +661,16 @@ async function joinPot(){
     await entriesRef.doc(entryId).set(entry, { merge: false });
     console.log('[JOIN] Entry created', { potId: p.id, entryId });
 
-    if (pay_type === 'Stripe'){
+    
+// If the player chose a non-Stripe method, end the flow here.
+if (__selectedPayType !== 'Stripe') {
+  setBusy(false);
+  msg.textContent='Joined! Complete payment using the selected method.';
+  updatePaymentNotes();
+  try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
+  return;
+}
+if (__selectedPayType === 'Stripe'){
       const pm = getPaymentMethods(p);
       if (!pm.stripe){
         return fail('Stripe is disabled for this event.');
