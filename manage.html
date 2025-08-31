@@ -28,6 +28,7 @@
     .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
     @media (max-width:860px){ .grid{grid-template-columns:1fr;} }
     .help{font-size:12px;color:#6b7280;margin-top:4px}
+    .note{font-size:12px;color:#9ca3af;margin-left:6px}
   </style>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -50,7 +51,7 @@
   <div class="panel">
     <header>
       <h1>Organizer — Manage Pot</h1>
-      <p class="muted">Unlock with the Owner Link or Owner Code. You can update pot fields and manage entries below.</p>
+      <p class="muted">Unlock with the Owner Link or Owner Code. Update pot fields and manage entries below.</p>
     </header>
 
     <div class="sec">
@@ -100,8 +101,8 @@
             <input id="f_date" placeholder="2025-09-28">
           </div>
           <div>
-            <label>End Time (e.g., 11:59 PM)</label>
-            <input id="f_end_at" placeholder="11:59 PM">
+            <label>Skill</label>
+            <input id="f_skill" placeholder="e.g., 3.0 - 3.5">
           </div>
           <div>
             <label>Location</label>
@@ -125,7 +126,7 @@
           </div>
           <div>
             <label>Default Payment Method (label)</label>
-            <input id="f_payment_method" placeholder="e.g., Stripe (card)">
+            <input id="f_payment_method" placeholder="e.g., Onsite / Cash App / Zelle">
           </div>
         </div>
 
@@ -133,7 +134,8 @@
           <label><input type="checkbox" id="f_pay_cashapp"> Allow Cash App</label>
           <label><input type="checkbox" id="f_pay_zelle"> Allow Zelle</label>
           <label><input type="checkbox" id="f_pay_onsite"> Allow Onsite</label>
-          <label><input type="checkbox" id="f_pay_stripe"> Allow Stripe</label>
+          <label class="muted"><input type="checkbox" id="f_pay_stripe" disabled> Stripe (disabled)</label>
+          <span class="note">Stripe is disabled here as requested.</span>
         </div>
 
         <div class="row" style="margin-top:12px">
@@ -209,19 +211,19 @@
       $('f_event').value = d.event || '';
       $('f_status').value = (d.status||'open').toLowerCase();
       $('f_location').value = d.location || '';
+      $('f_skill').value = d.skill || '';
       $('f_organizer').value = d.organizer || d.org || '';
       $('f_date').value = d.date || '';
-      $('f_end_at').value = d.end_at || '';
-      $('f_buyin_member').value = (d.buyin_member!=null? d.buyin_member: (d.buyin_member||''));
-      $('f_buyin_guest').value = (d.buyin_guest!=null? d.buyin_guest: (d.buyin_guest||''));
-      $('f_pot_share_pct').value = (d.pot_share_pct!=null? d.pot_share_pct: (d.pot_share_pct||''));
+      $('f_buyin_member').value = d.buyin_member ?? '';
+      $('f_buyin_guest').value = d.buyin_guest ?? '';
+      $('f_pot_share_pct').value = d.pot_share_pct ?? '';
       $('f_payment_method').value = d.payment_method || '';
 
       const pm = d.payment_methods || {};
       $('f_pay_cashapp').checked = !!(d.pay_cashapp ?? pm.cashapp);
       $('f_pay_zelle').checked   = !!(d.pay_zelle   ?? pm.zelle);
       $('f_pay_onsite').checked  = !!(d.pay_onsite  ?? pm.onsite);
-      $('f_pay_stripe').checked  = !!(pm.stripe ?? (d.pay_stripe||false));
+      $('f_pay_stripe').checked  = false; // disabled
     });
   }
 
@@ -309,7 +311,7 @@
       location: $('f_location').value.trim(),
       organizer: $('f_organizer').value.trim(),
       date: $('f_date').value.trim(),
-      end_at: $('f_end_at').value.trim(),
+      skill: $('f_skill').value.trim(),
       buyin_member: parseFloat($('f_buyin_member').value) || 0,
       buyin_guest: parseFloat($('f_buyin_guest').value) || 0,
       pot_share_pct: parseFloat($('f_pot_share_pct').value) || 0,
@@ -321,7 +323,7 @@
         cashapp: $('f_pay_cashapp').checked,
         zelle: $('f_pay_zelle').checked,
         onsite: $('f_pay_onsite').checked,
-        stripe: $('f_pay_stripe').checked
+        stripe: false
       }
     };
     try{
