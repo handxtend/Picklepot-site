@@ -404,6 +404,7 @@ function renderJoinPotSelectFromCache(){
   }).join('');
   if (filtered.some(p=>p.id===prev)) sel.value = prev;
   if (sel.selectedIndex < 0) sel.selectedIndex = 0;
+  try { sel.size = Math.min(12, Math.max(1, filtered.length)); } catch(_){ }
   const potIdInput = document.getElementById('v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
   if (typeof onJoinPotChange === 'function') onJoinPotChange();
