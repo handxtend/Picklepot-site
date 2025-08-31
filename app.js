@@ -234,7 +234,14 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
   $('#btn-create').addEventListener('click', onCreateClick);
-$('#btn-join').addEventListener('click', joinPot);
+(function(){
+  const jbtn = document.getElementById('btn-join');
+  if (jbtn){
+    const clone = jbtn.cloneNode(true);
+    jbtn.parentNode.replaceChild(clone, jbtn);
+    clone.addEventListener('click', joinPot, { passive: false });
+  }
+})();
 
   const loadBtn = $('#btn-load');
   if (loadBtn) { loadBtn.disabled = false; loadBtn.addEventListener('click', onLoadPotClicked); }
@@ -583,6 +590,8 @@ function updatePaymentNotes(){
 }
 
 /* ---------- Join (Stripe + others) ---------- */
+let JOIN_IN_FLIGHT = false;
+let JOIN_REDIRECTING = false;
 async function joinPot(){
   const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
