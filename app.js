@@ -577,6 +577,10 @@ function updatePaymentOptions(){
   if (pm.cashapp) opts.push(`<option value="CashApp">CashApp</option>`);
   if (pm.onsite)  opts.push(`<option value="Onsite">Onsite</option>`);
   sel.innerHTML = opts.join('') || `<option value="">No payment methods available</option>`;
+  // Prefer a non-Stripe option by default if available
+  let prefer = pm.onsite ? 'Onsite' : (pm.zelle ? 'Zelle' : (pm.cashapp ? 'CashApp' : (pm.stripe ? 'Stripe' : '')));
+  try { sel.value = prefer || (sel.options[0]?.value || ''); } catch(_){ }
+  try { updatePaymentNotes(); } catch(_){ }
 }
 
 /* Notes under payment select */
