@@ -626,50 +626,8 @@ function updatePaymentNotes(){
 }
 
 /* ---------- Join (Stripe + others) ---------- */
-
-// Lightweight form validation for Join
-function validateJoinForm(){
-  const p = window.CURRENT_JOIN_POT || null;
-  const fname = $('#j-fname')?.value?.trim() || '';
-  const lname = $('#j-lname')?.value?.trim() || '';
-  const email = $('#j-email')?.value?.trim() || '';
-  const member_type = $('#j-mtype')?.value || '';
-  const player_skill = $('#j-skill')?.value || '';
-  const pay_type = $('#j-paytype')?.value || '';
-  const msg = $('#join-msg');
-
-  // reset visuals
-  ['#j-fname','#j-email','#j-mtype','#j-skill','#j-paytype'].forEach(sel=>{
-    try{ const el=$(sel); el?.setAttribute('aria-invalid','false'); el?.style && (el.style.borderColor=''); }catch(_){}
-  });
-
-  function invalid(sel, text){
-    try{ const el=$(sel); el?.setAttribute('aria-invalid','true'); if (el && el.style) el.style.borderColor = '#ef4444'; }catch(_){}
-    if (msg) msg.textContent = text;
-  }
-
-  if (!p || !p.id) { invalid('#j-pot-select','Select a tournament first.'); return { ok:false }; }
-  if (!fname)      { invalid('#j-fname','First name is required.'); return { ok:false }; }
-  // Email required (used as unique key and admin contact)
-  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { invalid('#j-email','A valid email is required.'); return { ok:false }; }
-  if (!member_type){ invalid('#j-mtype','Select Member / Guest.'); return { ok:false }; }
-  if (!player_skill){ invalid('#j-skill','Select a skill level.'); return { ok:false }; }
-  if (!pay_type)   { invalid('#j-paytype','Choose a payment method.'); return { ok:false }; }
-
-  return { ok:true, p, fname, lname, email, member_type, player_skill, pay_type };
-}
-
 function isStripe(v){ return String(v||'').toLowerCase()==='stripe'; }
 async function joinPot(){
-  const __vf = validateJoinForm();
-  const msg = $('#join-msg');
-  if (!__vf || !__vf.ok) { try{ document.getElementById('btn-join').disabled = false; }catch(_){} return; }
-  const { p, fname, lname, email, member_type, player_skill, pay_type } = __vf;
-  const name = [fname, lname].filter(Boolean).join(' ').trim();
-  const name_lc = name.toLowerCase();
-  const email_lc = (email || '').toLowerCase();
-  const applied_buyin = (member_type === 'Member' ? (p.buyin_member || 0) : (p.buyin_guest || 0));
-
   const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
   const msg = $('#join-msg');
@@ -702,8 +660,8 @@ async function joinPot(){
 // --- Non-Stripe path: register immediately and return (no Stripe calls) ---
 if (!isStripe(pay_type)) {
   try {
-    const p = window.CURRENT_JOIN_POT || {};
-    const entriesRef = db.collection('pots').doc(p.id).collection('entries');
+    const pot = window.CURRENT_JOIN_POT || {};
+    const entriesRef = db.collection('pots').doc(pot.id).collection('entries');
     const fname = $('#j-fname').value.trim();
     const lname = $('#j-lname').value.trim();
     const email = $('#j-email').value.trim();
@@ -712,7 +670,7 @@ if (!isStripe(pay_type)) {
     const name = [fname, lname].filter(Boolean).join(' ').trim();
     const name_lc = name.toLowerCase();
     const email_lc = (email || '').toLowerCase();
-    const applied_buyin = (member_type === 'Member' ? (p.buyin_member || 0) : (p.buyin_guest || 0));
+    const applied_buyin = (member_type === 'Member' ? (pot.buyin_member || 0) : (pot.buyin_guest || 0));
 
     // duplicate check
     const dupEmail = email_lc ? await entriesRef.where('email_lc','==', email_lc).limit(1).get() : { empty:true };
@@ -750,14 +708,14 @@ if (!isStripe(pay_type)) {
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin=(member_type==='Member'? (p.buyin_member??0) : (p.buyin_guest??0));
+  const applied_buyin=(member_type==='Member'? (pot.buyin_member??0) : (pot.buyin_guest??0));
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
     setBusy(true, pay_type==='Stripe' ? 'Redirecting to Stripe…' : 'Joining…');
     msg.textContent = '';
 
-    const entriesRef = db.collection('pots').doc(p.id).collection('entries');
+    const entriesRef = db.collection('pots').doc(pot.id).collection('entries');
 
     const dupEmail = emailLC ? await entriesRef.where('email_lc','==', emailLC).limit(1).get() : { empty:true };
     const dupName  = nameLC  ? await entriesRef.where('name_lc','==', nameLC).limit(1).get()  : { empty:true };
@@ -773,7 +731,7 @@ if (!isStripe(pay_type)) {
     };
     const docRef = await entriesRef.add(entry);
     const entryId = docRef.id;
-    console.log('[JOIN] Entry created', { potId: p.id, entryId });
+    console.log('[JOIN] Entry created', { potId: pot.id, entryId });
 
     if (isStripe(pay_type)){
       const pm = getPaymentMethods(p);
@@ -2753,13 +2711,3 @@ function startJoinCheckout(){
   } catch(_) {}
   return startJoinCheckout_orig.apply(this, arguments);
 }
-
-
-
-try{
-  if (typeof renderRegistrations === 'function') window.renderRegistrations = renderRegistrations;
-  if (typeof enterPotEditMode === 'function') window.enterPotEditMode = enterPotEditMode;
-  if (typeof subscribeDetailEntries === 'function') window.subscribeDetailEntries = subscribeDetailEntries;
-  if (typeof joinPot === 'function') window.joinPot = joinPot;
-}catch(_){}
-
