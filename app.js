@@ -2600,7 +2600,7 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 
-/* === Hard-bind Join button to joinPot and block legacy Stripe-only handlers === */
+/* === Bind Join button safely (no capture blocking) === */
 (function(){
   try{
     var jb = document.getElementById('btn-join');
@@ -2660,4 +2660,29 @@ document.addEventListener('DOMContentLoaded', function(){
       }catch(e){ console.warn('create cancel cleanup error', e); }
     }
   }catch(err){ console.error('cancel page script error', err); }
+})();
+
+
+
+/* === Gentle Join binder: finds Join button by several selectors and text === */
+(function(){
+  try{
+    function bind(){
+      var sels = ['#btn-join','#joinBtn','#btnJoin','#join','button[data-action="join"]','button[data-join]','button[name="join"]'];
+      var jb=null;
+      for(var i=0;i<sels.length;i++){ var el=document.querySelector(sels[i]); if(el){ jb=el; break; } }
+      if(!jb){
+        var candidates = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]'));
+        jb = candidates.find(function(el){
+          var t = (el.textContent||'').trim() || (el.value||'').trim();
+          return /^join$/i.test(t);
+        });
+      }
+      if(!jb) return;
+      var handler = function(e){ try{ e.preventDefault(); }catch(_){ } try{ if(typeof joinPot==='function') joinPot(); }catch(err){ console.error('joinPot failed',err);} return false; };
+      jb.addEventListener('click', handler, false);
+      jb.onclick = handler;
+    }
+    if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', bind); } else { bind(); }
+  }catch(err){ console.error('gentle join binder error', err); }
 })();
