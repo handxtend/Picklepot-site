@@ -607,6 +607,8 @@ async function joinPot(){
   const playerSkill=$('#j-skill').value;
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
+  const pay_norm=(pay_type||'').toString().trim().toLowerCase();
+  const isStripe = pay_norm.startsWith('stripe');
 
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!pay_type){ msg.textContent='Choose a payment method.'; return; }
@@ -622,7 +624,7 @@ async function joinPot(){
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
-    setBusy(true, pay_type==='Stripe' ? 'Redirecting to Stripe…' : 'Joining…');
+    setBusy(true, isStripe ? 'Redirecting to Stripe…' : 'Joining…');
     msg.textContent = '';
 
     const entriesRef = db.collection('pots').doc(p.id).collection('entries');
@@ -639,6 +641,7 @@ async function joinPot(){
       name, name_lc:nameLC, email, email_lc:emailLC,
       member_type, player_skill:playerSkill, pay_type,
       applied_buyin, paid:false, status:'active',
+      payment_type: pay_type,
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
     const docRef = await entriesRef.add(entry);
