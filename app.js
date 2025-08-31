@@ -1,19 +1,4 @@
 
-// ---- Idempotent join helpers (deterministic entryId) ----
-function __hashPairId(potId, emailLC, nameLC){
-  const s = String(potId||'') + '|' + String(emailLC||'') + '|' + String(nameLC||'');
-  let h1 = 2166136261>>>0; // FNV-1a
-  let h2 = 0>>>0;
-  for (let i = 0; i < s.length; i++){
-    const c = s.charCodeAt(i);
-    h1 ^= c; h1 = (h1 * 16777619) >>> 0;
-    h2 = ((h2 * 131) + c) >>> 0;
-  }
-  const hex = (h1.toString(16) + h2.toString(16)).padStart(24, '0').slice(0,24);
-  return 'e_' + hex;
-}
-
-
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
 /* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
@@ -404,56 +389,93 @@ function renderJoinPotSelectFromCache(){
   }).join('');
   if (filtered.some(p=>p.id===prev)) sel.value = prev;
   if (sel.selectedIndex < 0) sel.selectedIndex = 0;
-  try { sel.size = Math.min(12, Math.max(1, filtered.length)); } catch(_){ }
   const potIdInput = document.getElementById('v-pot');
   if (potIdInput && sel.value) potIdInput.value = sel.value;
   if (typeof onJoinPotChange === 'function') onJoinPotChange();
+  const rows = Math.max(1, Math.min((filtered || JOIN_POTS_CACHE).length, 12));
+  try { sel.size = rows; } catch(_) {}
 }
+
 
 function attachActivePotsListener(){
   const sel = $('#j-pot-select');
-  if(JOIN_POTS_SUB){ try{JOIN_POTS_SUB();}catch(_){} JOIN_POTS_SUB=null; }
-  sel.innerHTML = '';
+  if (JOIN_POTS_SUB){ try{ JOIN_POTS_SUB(); }catch(_){ } JOIN_POTS_SUB = null; }
+  if (sel) sel.innerHTML = '';
   JOIN_POTS_CACHE = [];
 
-  JOIN_POTS_SUB = db.collection('pots').where('status','==','open')
-    .onSnapshot(snap=>{
+  const onError = (err) => {
+    console.error('pots watch error', err);
+    if (sel) sel.innerHTML = `<option value="">Error loading pots</option>`;
+  };
+
+  const applySnapshot = (snap) => {
+    const now = Date.now();
+    const pots = [];
+    snap.forEach(d => {
+      const x = { id: d.id, ...d.data() };
+      const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
+      if (endMs && endMs <= now) return; // hide ended
+      pots.push(x);
+    });
+    pots.sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
+    JOIN_POTS_CACHE = pots;
+
+    if (!pots.length){
+      if (sel) sel.innerHTML = `<option value="">No open pots</option>`;
+      const btnJoin = $('#btn-join'); if (btnJoin) btnJoin.disabled = true;
+      const brief = $('#j-pot-summary-brief'); if (brief) brief.textContent = '—';
+      const startedBadge = $('#j-started-badge'); if (startedBadge) startedBadge.style.display='none';
+      if (typeof updateBigTotals === 'function') updateBigTotals(0,0);
+      return;
+    }
+
+    renderJoinPotSelectFromCache();
+    if (sel && sel.selectedIndex < 0) sel.selectedIndex = 0;
+
+    const firstId = sel ? sel.value : null;
+    if (firstId){ const potIdInput = $('#v-pot'); if (potIdInput) potIdInput.value = firstId; }
+
+    if (typeof onJoinPotChange === 'function') onJoinPotChange();
+  };
+
+  try {
+    // Single query that includes both 'open' and 'active'
+    JOIN_POTS_SUB = db.collection('pots')
+      .where('status','in',['open','active'])
+      .onSnapshot(applySnapshot, onError);
+  } catch (e) {
+    // Fallback: merge two listeners if 'in' not available/indexed
+    const unsubs = [];
+    const buffer = new Map();
+    const mergeApply = () => {
       const now = Date.now();
-      const pots = [];
-      snap.forEach(d=>{
-        const x = { id:d.id, ...d.data() };
-        const endMs   = x.end_at?.toMillis ? x.end_at.toMillis() : null;
-        if(endMs && endMs <= now) return;
-        pots.push(x);
-      });
-      pots.sort((a,b)=>{
-        const as = a.start_at?.toMillis?.() ?? 0;
-        const bs = b.start_at?.toMillis?.() ?? 0;
-        return as-bs;
-      });
-
+      const pots = Array.from(buffer.values()).filter(x=>{
+        const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
+        return !(endMs && endMs <= now);
+      }).sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
       JOIN_POTS_CACHE = pots;
-
-      if(!pots.length){
-        sel.innerHTML = `<option value="">No open pots</option>`;
-        $('#btn-join').disabled = true;
-        $('#j-pot-summary-brief').textContent = '—';
-        $('#j-started-badge').style.display='none';
-        updateBigTotals(0,0);
+      if (!pots.length){
+        if (sel) sel.innerHTML = `<option value="">No open pots</option>`;
+        const btnJoin = $('#btn-join'); if (btnJoin) btnJoin.disabled = true;
+        const brief = $('#j-pot-summary-brief'); if (brief) brief.textContent = '—';
+        const startedBadge = $('#j-started-badge'); if (startedBadge) startedBadge.style.display='none';
+        if (typeof updateBigTotals === 'function') updateBigTotals(0,0);
         return;
       }
-
       renderJoinPotSelectFromCache();
-if(sel.selectedIndex < 0) sel.selectedIndex = 0;
-
-      const firstId = sel.value;
-      if (firstId) { const potIdInput = $('#v-pot'); if(potIdInput) potIdInput.value = firstId; }
-
-      onJoinPotChange();
-    }, err=>{
-      console.error('pots watch error', err);
-      sel.innerHTML = `<option value="">Error loading pots</option>`;
-    });
+      if (sel && sel.selectedIndex < 0) sel.selectedIndex = 0;
+      const firstId = sel ? sel.value : null;
+      if (firstId){ const potIdInput = $('#v-pot'); if (potIdInput) potIdInput.value = firstId; }
+      if (typeof onJoinPotChange === 'function') onJoinPotChange();
+    };
+    const onSnap = (snap) => {
+      snap.forEach(d=>{ buffer.set(d.id, { id:d.id, ...d.data() }); });
+      mergeApply();
+    };
+    unsubs.push(db.collection('pots').where('status','==','open').onSnapshot(onSnap, onError));
+    unsubs.push(db.collection('pots').where('status','==','active').onSnapshot(onSnap, onError));
+    JOIN_POTS_SUB = () => unsubs.forEach(u=>{ try{u();}catch(_){ } });
+  }
 }
 
 function onJoinPotChange(){
@@ -578,10 +600,6 @@ function updatePaymentOptions(){
   if (pm.cashapp) opts.push(`<option value="CashApp">CashApp</option>`);
   if (pm.onsite)  opts.push(`<option value="Onsite">Onsite</option>`);
   sel.innerHTML = opts.join('') || `<option value="">No payment methods available</option>`;
-  // Prefer a non-Stripe option by default if available
-  let prefer = pm.onsite ? 'Onsite' : (pm.zelle ? 'Zelle' : (pm.cashapp ? 'CashApp' : (pm.stripe ? 'Stripe' : '')));
-  try { sel.value = prefer || (sel.options[0]?.value || ''); } catch(_){ }
-  try { updatePaymentNotes(); } catch(_){ }
 }
 
 /* Notes under payment select */
@@ -627,9 +645,6 @@ async function joinPot(){
   const playerSkill=$('#j-skill').value;
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
-  // HARD GUARD: if not Stripe, do NOT redirect — just create Firestore entry and return
-  const __selectedPayType = pay_type; // snapshot to avoid races
-
 
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!pay_type){ msg.textContent='Choose a payment method.'; return; }
@@ -662,20 +677,11 @@ async function joinPot(){
       applied_buyin, paid:false, status:'active',
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
-    const entryId = __hashPairId(p.id, emailLC, nameLC);
-    await entriesRef.doc(entryId).set(entry, { merge: false });
+    const docRef = await entriesRef.add(entry);
+    const entryId = docRef.id;
     console.log('[JOIN] Entry created', { potId: p.id, entryId });
 
-    
-// If the player chose a non-Stripe method, end the flow here.
-if (__selectedPayType !== 'Stripe') {
-  setBusy(false);
-  msg.textContent='Joined! Complete payment using the selected method.';
-  updatePaymentNotes();
-  try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
-  return;
-}
-if (__selectedPayType === 'Stripe'){
+    if (pay_type === 'Stripe'){
       const pm = getPaymentMethods(p);
       if (!pm.stripe){
         return fail('Stripe is disabled for this event.');
@@ -2590,3 +2596,4 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
 });
+
