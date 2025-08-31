@@ -6,22 +6,27 @@
   <title>Organizer — Manage Pot</title>
   <style>
     body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:0;background:#f7f7fb;color:#111}
-    .wrap{max-width:920px;margin:40px auto;padding:0 16px}
+    .wrap{max-width:960px;margin:40px auto;padding:0 16px}
     .panel{background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.06);overflow:hidden}
     header{padding:20px 22px;border-bottom:1px solid #eee}
     header h1{margin:0;font-size:28px}
     .sec{padding:20px 22px}
     label{display:block;margin:10px 0 6px;color:#666}
-    input{width:100%;padding:10px;border-radius:10px;border:1px solid #d8dbe2}
+    input,select,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #d8dbe2;font:inherit}
     .row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
     .btn{padding:10px 14px;border-radius:10px;border:none;background:#0d6efd;color:#fff;cursor:pointer}
     .btn.secondary{background:#111827}
+    .btn.ghost{background:#eef2ff;color:#0d6efd}
+    .btn.danger{background:#b91c1c}
     .hidden{display:none}
     .ok{color:#0a7a2e}
     .err{color:#b00020}
     table{border-collapse:collapse;width:100%}
     th,td{border-bottom:1px solid #eee;padding:8px 6px;text-align:left}
     .muted{color:#6b7280}
+    .pill{display:inline-block;padding:4px 10px;border-radius:999px;background:#eef2ff;color:#334155;margin:4px 6px 0 0;font-size:12px}
+    .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+    @media (max-width:720px){ .grid{grid-template-columns:1fr;} }
   </style>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
@@ -59,8 +64,49 @@
       </div>
     </div>
     <div id="tools" class="sec hidden">
-      <h3>Pot is unlocked</h3>
-      <p id="potline" class="muted"></p>
+      <div class="row" style="justify-content:space-between;align-items:center">
+        <div>
+          <div class="muted">Pot ID:</div>
+          <div id="potline" class="pill"></div>
+        </div>
+        <div class="row">
+          <button id="editToggle" class="btn ghost">Edit Pot</button>
+          <button id="refreshPot" class="btn secondary">Refresh</button>
+        </div>
+      </div>
+
+      <div id="potMeta" class="row" style="margin-top:8px;flex-wrap:wrap"></div>
+
+      <div id="editForm" class="hidden" style="margin-top:14px">
+        <div class="grid">
+          <div>
+            <label>Event / Name</label>
+            <input id="f_event" placeholder="e.g., Men's Doubles 3.0-3.5">
+          </div>
+          <div>
+            <label>Status</label>
+            <select id="f_status">
+              <option value="open">open</option>
+              <option value="active">active</option>
+              <option value="closed">closed</option>
+            </select>
+          </div>
+          <div>
+            <label>Location</label>
+            <input id="f_location" placeholder="e.g., 123 Main St">
+          </div>
+          <div>
+            <label>Organizer</label>
+            <input id="f_organizer" placeholder="e.g., Pickleball Compete">
+          </div>
+        </div>
+        <div class="row" style="margin-top:12px">
+          <button id="savePot" class="btn">Save Changes</button>
+          <span id="saveStatus" class="muted"></span>
+        </div>
+      </div>
+
+      <h3 style="margin:22px 0 8px">Entries</h3>
       <div id="entries"></div>
     </div>
   </div>
@@ -72,41 +118,69 @@
   const $ = (id)=>document.getElementById(id);
   const setMsg = (t, ok)=>{ const el=$('status'); el.textContent=t; el.className = ok?'ok':'err'; };
   const parseKey = (v)=>{ if(!v) return null; v=String(v).trim(); const m=v.match(/[?&]key=([^&#]+)/i); return m?decodeURIComponent(m[1]):v; };
+  const db = firebase.firestore();
+  let currentPot = null;
+  let unsubscribe = null;
+  let potSnapUnsub = null;
 
-  async function fetchTimeout(resource, options={}, ms=8000){
+  async function fetchWithTimeout(url, options={}, ms=30000){
     const ctrl = new AbortController();
     const id = setTimeout(()=>ctrl.abort(), ms);
     try{
-      const res = await fetch(resource, { ...options, signal: ctrl.signal });
+      const res = await fetch(url, {cache:'no-store', mode:'cors', credentials:'omit', ...options, signal: ctrl.signal});
       return res;
     } finally { clearTimeout(id); }
   }
-
+  async function warmAPI(){ try{ await fetch(API+'/', { mode:'no-cors' }); }catch(_){ } }
   async function ownerAuthRobust(pot, key, code){
     const payload = { key: key||null, code: code||null };
+    await warmAPI();
     try{
-      const r = await fetchTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth`, {
+      const r = await fetchWithTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth`, {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
       });
       if (r.ok) return r.json().catch(()=>({ok:true}));
-    }catch(e){ console.warn('POST auth failed/timeout', e); }
+    }catch(e){ await new Promise(r=>setTimeout(r,700)); }
     try{
-      const r = await fetchTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth?key=${encodeURIComponent(key||'')}&code=${encodeURIComponent(code||'')}`, { method:'GET' });
+      const r = await fetchWithTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth?key=${encodeURIComponent(key||'')}&code=${encodeURIComponent(code||'')}`);
       if (r.ok) return r.json().catch(()=>({ok:true}));
-    }catch(e){ console.warn('GET auth failed/timeout', e); }
+    }catch(e){ await new Promise(r=>setTimeout(r,700)); }
     try{
-      const r = await fetchTimeout(`${API}/owner/auth?pot=${encodeURIComponent(pot)}&key=${encodeURIComponent(key||'')}&code=${encodeURIComponent(code||'')}`, { method:'GET' });
+      const r = await fetchWithTimeout(`${API}/owner/auth?pot=${encodeURIComponent(pot)}&key=${encodeURIComponent(key||'')}&code=${encodeURIComponent(code||'')}`);
       if (r.ok) return r.json().catch(()=>({ok:true}));
-    }catch(e){ console.warn('ALT auth failed/timeout', e); }
+    }catch(e){}
     throw new Error('Access denied');
   }
 
-  let unsubscribe=null;
+  function renderMeta(d){
+    const meta=$('potMeta');
+    meta.innerHTML='';
+    const pills = [];
+    if(d.event) pills.push(`<span class="pill">${(d.event+'').replace(/[<>]/g,'')}</span>`);
+    if(d.location) pills.push(`<span class="pill">${(d.location+'').replace(/[<>]/g,'')}</span>`);
+    if(d.skill) pills.push(`<span class="pill">Skill: ${(d.skill+'').replace(/[<>]/g,'')}</span>`);
+    if(d.status) pills.push(`<span class="pill">Status: ${(d.status+'').replace(/[<>]/g,'')}</span>`);
+    if(d.org) pills.push(`<span class="pill">Org: ${(d.org+'').replace(/[<>]/g,'')}</span>`);
+    meta.innerHTML = pills.join('');
+  }
+
+  function bindPotDoc(potId){
+    if(potSnapUnsub){ try{potSnapUnsub();}catch(_){ } potSnapUnsub=null; }
+    potSnapUnsub = db.collection('pots').doc(potId).onSnapshot(snap=>{
+      if(!snap.exists) return;
+      const d = snap.data()||{};
+      renderMeta(d);
+      // Fill edit form
+      $('f_event').value = d.event || '';
+      $('f_status').value = (d.status||'open').toLowerCase();
+      $('f_location').value = d.location || '';
+      $('f_organizer').value = d.organizer || d.org || '';
+    });
+  }
+
   function startLive(potId){
-    try{ if(!firebase?.apps?.length) firebase.initializeApp(firebaseConfig); }catch(_){}
-    const db=firebase.firestore();
-    const box=$('entries');
     if(unsubscribe){ try{unsubscribe();}catch(_){ } unsubscribe=null; }
+    const box=$('entries');
     box.innerHTML='<em>Loading…</em>';
     unsubscribe = db.collection('pots').doc(potId).collection('entries').onSnapshot(snap=>{
       const rows=[];
@@ -117,23 +191,22 @@
           <td>${(e.name||e.player_name||'').replace(/[<>]/g,'')}</td>
           <td>${(e.email||e.player_email||'').replace(/[<>]/g,'')}</td>
           <td>${e.member_type||'Member'}</td>
-          <td><button class="paid-toggle" data-id="${d.id}">${e.paid?'Yes':'No'}</button></td>
+          <td>${e.paid?'Yes':'No'}</td>
+          <td><button class="btn danger btn-remove" data-id="${d.id}">Remove</button></td>
         </tr>`);
       });
       box.innerHTML = `<table class="table">
-        <thead><tr><th>Name</th><th>Email</th><th>Type</th><th>Paid</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Type</th><th>Paid</th><th>Actions</th></tr></thead>
         <tbody>${rows.join('')}</tbody>
       </table>`;
-      box.querySelectorAll('.paid-toggle').forEach(btn=>{
+
+      box.querySelectorAll('.btn-remove').forEach(btn=>{
         btn.onclick = async (ev)=>{
           const id = ev.currentTarget.getAttribute('data-id');
-          const key = parseKey($('owner-key').value);
-          const code = (($('owner-code').value||'').trim()||'').toUpperCase() || null;
+          if(!confirm('Remove this player from the pot?')) return;
           try{
-            await fetch(`${API}/pots/${encodeURIComponent(potId)}/owner/entries/${encodeURIComponent(id)}/toggle-paid`, {
-              method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key, code})
-            });
-          }catch(e){ alert('Toggle failed'); console.error(e); }
+            await db.collection('pots').doc(potId).collection('entries').doc(id).delete();
+          }catch(e){ alert('Remove failed'); console.error(e); }
         };
       });
     }, err=>{ console.error(err); box.innerHTML='<em>Error loading entries.</em>'; });
@@ -149,15 +222,44 @@
       await ownerAuthRobust(pot, key, code);
       setMsg('Access granted.', true);
       $('tools').classList.remove('hidden');
-      $('potline').textContent = `Pot ID: ${pot}`;
+      $('potline').textContent = pot;
       localStorage.setItem('mgr_auth', JSON.stringify({pot, key, code}));
+      currentPot = pot;
       startLive(pot);
+      bindPotDoc(pot);
     }catch(e){
       setMsg('Access denied. Check credentials.', false);
       alert('Access denied');
     }
   };
 
+  $('refreshPot').onclick = ()=>{
+    if(currentPot){ startLive(currentPot); bindPotDoc(currentPot); }
+  };
+
+  $('editToggle').onclick = ()=>{
+    $('editForm').classList.toggle('hidden');
+  };
+
+  $('savePot').onclick = async ()=>{
+    if(!currentPot) return;
+    $('saveStatus').textContent = 'Saving…';
+    try{
+      await db.collection('pots').doc(currentPot).update({
+        event: $('f_event').value.trim(),
+        status: $('f_status').value.trim().toLowerCase(),
+        location: $('f_location').value.trim(),
+        organizer: $('f_organizer').value.trim()
+      });
+      $('saveStatus').textContent = 'Saved.';
+      setTimeout(()=>$('saveStatus').textContent='', 2000);
+    }catch(e){
+      console.error(e);
+      $('saveStatus').textContent = 'Save failed.';
+    }
+  };
+
+  // Restore from URL/localStorage
   try{
     const q=new URLSearchParams(location.search);
     if(q.get('pot')) $('pot-id').value=q.get('pot');
@@ -169,7 +271,7 @@
       $('pot-id').value=saved.pot;
       $('owner-key').value=saved.key || '';
       $('owner-code').value=saved.code || '';
-      setTimeout(()=> $('verify').click(), 50);
+      setTimeout(()=> $('verify').click(), 80);
     }
   }catch(_){}
 
