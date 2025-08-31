@@ -1,3 +1,4 @@
+let JOIN_INFLIGHT=false;
 
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
@@ -371,10 +372,7 @@ function renderJoinPotSelectFromCache(){
            (!f.city || c.includes(f.city));
   });
   if(!filtered.length){
-    sel.innerHTML = `<option value="">No matches</option>`;
-    try{ sel.size = 1; }catch(_){}
-  try { const rows = Math.max(1, Math.min(document.getElementById('j-pot-select').options.length, 12)); document.getElementById('j-pot-select').size = rows; } catch(_) {}
-
+    sel.innerHTML = `<option value=\"\">No matches</option>`;\n    try{ sel.size = 1; }catch(_){ }
     const joinBtn = document.getElementById('btn-join');
     if (joinBtn) joinBtn.disabled = true;
     const brief = document.getElementById('j-pot-summary-brief');
@@ -391,7 +389,7 @@ function renderJoinPotSelectFromCache(){
     return `<option value="${p.id}">${label}</option>`;
   }).join('');
   
-  try{ sel.size = Math.max(1, Math.min(filtered.length, 12)); }catch(e){}
+  try{ sel.size=Math.max(1,Math.min(filtered.length,12)); }catch(e){}
 if (filtered.some(p=>p.id===prev)) sel.value = prev;
   if (sel.selectedIndex < 0) sel.selectedIndex = 0;
   const potIdInput = document.getElementById('v-pot');
@@ -584,7 +582,8 @@ function updatePaymentNotes(){
 
 /* ---------- Join (Stripe + others) ---------- */
 async function joinPot(){
-  const p = CURRENT_JOIN_POT; 
+  if (JOIN_INFLIGHT) return; JOIN_INFLIGHT=true; try{const b=document.getElementById('btn-join'); if(b) b.disabled=true;}catch(_){ };
+const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
   const msg = $('#join-msg');
 
@@ -1447,7 +1446,7 @@ async function handleSubscriptionReturn(){
       const res = await fetch(`${API_BASE}/activate-subscription-for-uid`, {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({ uid, email })
+        body: JSON.stringify({ entry_id:(function(){try{const s=`${CURRENT_JOIN_POT?.id||''}|${($('#j-email')?.value||'').trim().toLowerCase()}|${($('#j-first')?.value||'').trim()}|${($('#j-last')?.value||'').trim()}|${($('#j-member-type')?.value||'Member')}`;return btoa(unescape(encodeURIComponent(s))).replace(/[^a-z0-9]/gi,'').slice(0,24);}catch(e){return null;}})(), idempotency_key:(crypto?.randomUUID?crypto.randomUUID():(Date.now().toString(36)+Math.random().toString(36).slice(2))),  uid, email })
       });
       return res.ok;
     }catch(_){ return false; }
