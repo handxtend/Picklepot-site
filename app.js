@@ -372,7 +372,8 @@ function renderJoinPotSelectFromCache(){
            (!f.city || c.includes(f.city));
   });
   if(!filtered.length){
-    sel.innerHTML = `<option value=\"\">No matches</option>`;\n    try{ sel.size = 1; }catch(_){ }
+    sel.innerHTML = `<option value="">No matches</option>`;
+    try{ sel.size = 1; }catch(_){ }
     const joinBtn = document.getElementById('btn-join');
     if (joinBtn) joinBtn.disabled = true;
     const brief = document.getElementById('j-pot-summary-brief');
@@ -1266,7 +1267,8 @@ async function onOrganizerSubscribe(){
     // If you already have an active sub, short-circuit
     if (typeof hasOrganizerSub === 'function' && hasOrganizerSub()){
       const until = ORG_SUB?.until ? new Date(ORG_SUB.until).toLocaleDateString() : 'current period';
-      alert('Your organizer subscription is already active.\nExpires: ' + until);
+      alert('Your organizer subscription is already active.
+Expires: ' + until);
       return;
     }
 
