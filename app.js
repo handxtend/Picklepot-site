@@ -112,15 +112,7 @@ function refreshAdminUI(){
   if (btnLogout) btnLogout.style.display = on ? '' : 'none';
   if (status) status.textContent = on ? '01' : '00';
 
-  if (CURRENT_DETAIL_POT) LAST_DETAIL_ENTRIES.sort((a,b)=>{
-      const at = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
-      const bt = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
-      if (at !== bt) return at - bt;
-      const an = (a.name||'').toLowerCase();
-      const bn = (b.name||'').toLowerCase();
-      return an < bn ? -1 : an > bn ? 1 : 0;
-    });
-    renderRegistrations(LAST_DETAIL_ENTRIES);
+  if (CURRENT_DETAIL_POT) renderRegistrations(LAST_DETAIL_ENTRIES);
 }
 
 /* ---------- SELECT OPTIONS ---------- */
@@ -634,8 +626,50 @@ function updatePaymentNotes(){
 }
 
 /* ---------- Join (Stripe + others) ---------- */
+
+// Lightweight form validation for Join
+function validateJoinForm(){
+  const p = window.CURRENT_JOIN_POT || null;
+  const fname = $('#j-fname')?.value?.trim() || '';
+  const lname = $('#j-lname')?.value?.trim() || '';
+  const email = $('#j-email')?.value?.trim() || '';
+  const member_type = $('#j-mtype')?.value || '';
+  const player_skill = $('#j-skill')?.value || '';
+  const pay_type = $('#j-paytype')?.value || '';
+  const msg = $('#join-msg');
+
+  // reset visuals
+  ['#j-fname','#j-email','#j-mtype','#j-skill','#j-paytype'].forEach(sel=>{
+    try{ const el=$(sel); el?.setAttribute('aria-invalid','false'); el?.style && (el.style.borderColor=''); }catch(_){}
+  });
+
+  function invalid(sel, text){
+    try{ const el=$(sel); el?.setAttribute('aria-invalid','true'); if (el && el.style) el.style.borderColor = '#ef4444'; }catch(_){}
+    if (msg) msg.textContent = text;
+  }
+
+  if (!p || !p.id) { invalid('#j-pot-select','Select a tournament first.'); return { ok:false }; }
+  if (!fname)      { invalid('#j-fname','First name is required.'); return { ok:false }; }
+  // Email required (used as unique key and admin contact)
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { invalid('#j-email','A valid email is required.'); return { ok:false }; }
+  if (!member_type){ invalid('#j-mtype','Select Member / Guest.'); return { ok:false }; }
+  if (!player_skill){ invalid('#j-skill','Select a skill level.'); return { ok:false }; }
+  if (!pay_type)   { invalid('#j-paytype','Choose a payment method.'); return { ok:false }; }
+
+  return { ok:true, p, fname, lname, email, member_type, player_skill, pay_type };
+}
+
 function isStripe(v){ return String(v||'').toLowerCase()==='stripe'; }
 async function joinPot(){
+  const __vf = validateJoinForm();
+  const msg = $('#join-msg');
+  if (!__vf || !__vf.ok) { try{ document.getElementById('btn-join').disabled = false; }catch(_){} return; }
+  const { p, fname, lname, email, member_type, player_skill, pay_type } = __vf;
+  const name = [fname, lname].filter(Boolean).join(' ').trim();
+  const name_lc = name.toLowerCase();
+  const email_lc = (email || '').toLowerCase();
+  const applied_buyin = (member_type === 'Member' ? (p.buyin_member || 0) : (p.buyin_guest || 0));
+
   const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
   const msg = $('#join-msg');
@@ -697,13 +731,6 @@ if (!isStripe(pay_type)) {
     await entriesRef.add(entry);
 
     $('#join-msg').textContent = 'Joined! Complete payment using the selected method.';
-    try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
-    try {
-      if (window.CURRENT_DETAIL_POT && window.CURRENT_DETAIL_POT.id === (window.CURRENT_JOIN_POT && window.CURRENT_JOIN_POT.id)) {
-        if (typeof onLoadPotClicked === 'function') { onLoadPotClicked(); }
-      }
-    } catch(e) { console.warn('Post-join UI refresh note:', e); }
-    
     try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
   } catch(err){
     console.error('[JOIN non-Stripe] failed', err);
@@ -855,6 +882,7 @@ function subscribeDetailEntries(potId){
   tbody.innerHTML = `<tr><td colspan="7" class="muted">Loading registrations…</td></tr>`;
 
   DETAIL_ENTRIES_UNSUB = db.collection('pots').doc(potId).collection('entries')
+    .orderBy('created_at','asc')
     .onSnapshot(snap=>{
       LAST_DETAIL_ENTRIES = [];
       snap.forEach(doc=>{
@@ -2728,30 +2756,10 @@ function startJoinCheckout(){
 
 
 
-// Ensure startJoinCheckout only runs for Stripe
-(function(){
-  try{
-    if (typeof window.startJoinCheckout === 'function') {
-      const __orig_startJoinCheckout = window.startJoinCheckout;
-      window.startJoinCheckout = function(){
-        try{
-          var sel = document.getElementById('j-paytype');
-          var v = sel ? sel.value : '';
-          if (!isStripe(v)) {
-            console.warn('[JOIN] Blocked Stripe checkout because selected method is not Stripe:', v);
-            return;
-          }
-        }catch(_){}
-        return __orig_startJoinCheckout.apply(this, arguments);
-      };
-    }
-  }catch(e){ console.warn('guard startJoinCheckout error', e); }
-})();
-
-
 try{
   if (typeof renderRegistrations === 'function') window.renderRegistrations = renderRegistrations;
   if (typeof enterPotEditMode === 'function') window.enterPotEditMode = enterPotEditMode;
   if (typeof subscribeDetailEntries === 'function') window.subscribeDetailEntries = subscribeDetailEntries;
+  if (typeof joinPot === 'function') window.joinPot = joinPot;
 }catch(_){}
 
