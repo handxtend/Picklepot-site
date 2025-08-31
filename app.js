@@ -2600,89 +2600,48 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 
-/* === Bind Join button safely (no capture blocking) === */
+/* === Robust Join binder + global exposure === */
 (function(){
   try{
-    var jb = document.getElementById('btn-join');
-    if (!jb) return;
-    // Remove inline onclick if any
-    try{ jb.onclick = null; }catch(_){}
-    // Prevent previously-attached listeners (stopImmediatePropagation)
-    function onlyJoin(e){
-      try{ e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); }catch(_){}
-      try{ if (typeof joinPot === 'function') joinPot(); }catch(err){ console.error('joinPot failed', err); }
-      return false;
-    }
-    // Capture-phase blocker to neuter earlier listeners
-    jb.addEventListener('click', function(e){
-      try{ e.preventDefault(); e.stopPropagation(); if (e.stopImmediatePropagation) e.stopImmediatePropagation(); }catch(_){}
-    }, true);
-    // Our handler (bubble)
-    jb.addEventListener('click', onlyJoin, false);
-  }catch(err){ console.error('join hard-bind error', err); }
-})();
-
-
-
-/* === Cancel page cleanup: delete join draft or pot draft === */
-(function(){
-  try{
-    var isCancel = /\/cancel\.html(\?|$)/.test(location.pathname);
-    if(!isCancel) return;
-    function param(n){ try{ return new URL(location.href).searchParams.get(n) || ''; }catch(_){ return ''; } }
-    var flow = param('flow') || '';
-    // Common headers
-    var hdrs = { 'Content-Type': 'application/json' };
-    // JOIN: delete the last created draft entry if we have it
-    if (flow === 'join') {
+    if (typeof joinPot === 'function') { try { window.joinPot = joinPot; } catch(_){} }
+    function bindJoin(){
       try{
-        var raw = sessionStorage.getItem('last_join_entry') || '';
-        if (raw){
-          var info = JSON.parse(raw);
-          if (info && info.potId && info.entryId){
-            fetch('https://picklepot-stripe.onrender.com/cancel-join', {
-              method:'POST', headers: hdrs,
-              body: JSON.stringify({ potId: info.potId, entryId: info.entryId })
-            }).catch(function(e){ console.warn('cancel-join failed', e); });
-          }
+        var selectors = ['#btn-join','#joinBtn','#btnJoin','#join','#j-join','button[data-action="join"]','button[data-join]','[data-join]','#joinButton'];
+        var btn = null;
+        for (var i=0;i<selectors.length;i++){ var el=document.querySelector(selectors[i]); if(el){ btn=el; break; } }
+        if(!btn){
+          var candidates = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]'));
+          btn = candidates.find(function(el){
+            var t = (el.textContent||'').trim() || (el.value||'').trim();
+            return /^join$/i.test(t);
+          });
         }
-      }catch(e){ console.warn('join cancel cleanup error', e); }
+        if(!btn) return false;
+        if (btn.dataset._joinBound === '1') return true;
+        if (btn.tagName === 'INPUT' && String(btn.type).toLowerCase() === 'submit') btn.type = 'button';
+        btn.addEventListener('click', function(e){
+          try{ e.preventDefault(); }catch(_){}
+          try{ e.stopPropagation(); }catch(_){}
+          try{ if (window.joinPot) window.joinPot(); }catch(err){ console.error('joinPot call failed', err); }
+          return false;
+        }, false);
+        btn.onclick = function(e){ try{ e && e.preventDefault && e.preventDefault(); }catch(_){}
+          try{ if (window.joinPot) window.joinPot(); }catch(err){ console.error('joinPot call failed', err); }
+          return false; };
+        btn.dataset._joinBound = '1';
+        console.debug('[join] bound to', btn);
+        return true;
+      }catch(err){ console.error('bindJoin error', err); return false; }
     }
-    // CREATE: ask backend to cancel draft pot/session
-    if (flow === 'create') {
-      try{
-        var draftId = param('draft') || sessionStorage.getItem('last_draft_id') || '';
-        if (draftId){
-          fetch('https://picklepot-stripe.onrender.com/cancel-pot-session', {
-            method:'POST', headers: hdrs, body: JSON.stringify({ draftId: draftId })
-          }).catch(function(e){ console.warn('cancel-pot-session failed', e); });
-        }
-      }catch(e){ console.warn('create cancel cleanup error', e); }
+    function tryBind(){ bindJoin(); }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', tryBind);
+    } else {
+      tryBind();
     }
-  }catch(err){ console.error('cancel page script error', err); }
-})();
-
-
-
-/* === Gentle Join binder: finds Join button by several selectors and text === */
-(function(){
-  try{
-    function bind(){
-      var sels = ['#btn-join','#joinBtn','#btnJoin','#join','button[data-action="join"]','button[data-join]','button[name="join"]'];
-      var jb=null;
-      for(var i=0;i<sels.length;i++){ var el=document.querySelector(sels[i]); if(el){ jb=el; break; } }
-      if(!jb){
-        var candidates = Array.from(document.querySelectorAll('button, input[type="button"], input[type="submit"]'));
-        jb = candidates.find(function(el){
-          var t = (el.textContent||'').trim() || (el.value||'').trim();
-          return /^join$/i.test(t);
-        });
-      }
-      if(!jb) return;
-      var handler = function(e){ try{ e.preventDefault(); }catch(_){ } try{ if(typeof joinPot==='function') joinPot(); }catch(err){ console.error('joinPot failed',err);} return false; };
-      jb.addEventListener('click', handler, false);
-      jb.onclick = handler;
-    }
-    if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', bind); } else { bind(); }
-  }catch(err){ console.error('gentle join binder error', err); }
+    try{
+      var mo = new MutationObserver(function(){ bindJoin(); });
+      mo.observe(document.documentElement, {childList:true, subtree:true});
+    }catch(_){}
+  }catch(err){ console.error('join binder bootstrap error', err); }
 })();
