@@ -92,7 +92,7 @@
   }
 
   async function ownerAuth(pot, key, code){
-    const r = await fetch(\`\${API}/pots/\${encodeURIComponent(pot)}/owner/auth\`, {
+    const r = await fetch(`${API}/pots/${encodeURIComponent(pot)}/owner/auth`, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ key: key || null, code: code || null })
     });
@@ -115,24 +115,24 @@
       snap.forEach(d => {
         const e = d.data() || {};
         if (e.status && e.status !== 'active') return;
-        rows.push(\`<tr data-id="\${d.id}">
-          <td>\${(e.name||e.player_name||'').replace(/[<>]/g,'')}</td>
-          <td>\${(e.email||e.player_email||'').replace(/[<>]/g,'')}</td>
-          <td>\${e.member_type||'Member'}</td>
-          <td><button class="paid-toggle" data-id="\${d.id}">\${e.paid?'Yes':'No'}</button></td>
-        </tr>\`);
+        rows.push(`<tr data-id="${d.id}">
+          <td>${(e.name||e.player_name||'').replace(/[<>]/g,'')}</td>
+          <td>${(e.email||e.player_email||'').replace(/[<>]/g,'')}</td>
+          <td>${e.member_type||'Member'}</td>
+          <td><button class="paid-toggle" data-id="${d.id}">${e.paid?'Yes':'No'}</button></td>
+        </tr>`);
       });
-      box.innerHTML = \`<table class="table">
+      box.innerHTML = `<table class="table">
         <thead><tr><th>Name</th><th>Email</th><th>Type</th><th>Paid</th></tr></thead>
-        <tbody>\${rows.join('')}</tbody>
-      </table>\`;
+        <tbody>${rows.join('')}</tbody>
+      </table>`;
       box.querySelectorAll('.paid-toggle').forEach(btn => {
         btn.onclick = async (ev)=>{
           const entryId = ev.currentTarget.getAttribute('data-id');
           try{
             const key = parseOwnerKey($('owner-key')?.value);
             const code = ($('owner-code')?.value||'').trim()||null;
-            await fetch(\`\${API}/pots/\${encodeURIComponent(pot)}/owner/entries/\${encodeURIComponent(entryId)}/toggle-paid\`, {
+            await fetch(`${API}/pots/${encodeURIComponent(pot)}/owner/entries/${encodeURIComponent(entryId)}/toggle-paid`, {
               method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({key, code})
             });
           }catch(e){ console.error(e); alert('Toggle failed'); }
@@ -155,7 +155,7 @@
       await ownerAuth(pot, key, code);
       setMsg('Access granted.', true);
       $('tools').classList.remove('hidden');
-      $('potline').textContent = \`Pot ID: \${pot}\`;
+      $('potline').textContent = `Pot ID: \${pot}`;
       localStorage.setItem('mgr_auth', JSON.stringify({pot, key, code}));
       startLive(pot);
     }catch(e){
