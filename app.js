@@ -112,7 +112,15 @@ function refreshAdminUI(){
   if (btnLogout) btnLogout.style.display = on ? '' : 'none';
   if (status) status.textContent = on ? '01' : '00';
 
-  if (CURRENT_DETAIL_POT) renderRegistrations(LAST_DETAIL_ENTRIES);
+  if (CURRENT_DETAIL_POT) LAST_DETAIL_ENTRIES.sort((a,b)=>{
+      const at = a.created_at?.toMillis ? a.created_at.toMillis() : 0;
+      const bt = b.created_at?.toMillis ? b.created_at.toMillis() : 0;
+      if (at !== bt) return at - bt;
+      const an = (a.name||'').toLowerCase();
+      const bn = (b.name||'').toLowerCase();
+      return an < bn ? -1 : an > bn ? 1 : 0;
+    });
+    renderRegistrations(LAST_DETAIL_ENTRIES);
 }
 
 /* ---------- SELECT OPTIONS ---------- */
@@ -660,8 +668,8 @@ async function joinPot(){
 // --- Non-Stripe path: register immediately and return (no Stripe calls) ---
 if (!isStripe(pay_type)) {
   try {
-    const pot = window.CURRENT_JOIN_POT || {};
-    const entriesRef = db.collection('pots').doc(pot.id).collection('entries');
+    const p = window.CURRENT_JOIN_POT || {};
+    const entriesRef = db.collection('pots').doc(p.id).collection('entries');
     const fname = $('#j-fname').value.trim();
     const lname = $('#j-lname').value.trim();
     const email = $('#j-email').value.trim();
@@ -670,7 +678,7 @@ if (!isStripe(pay_type)) {
     const name = [fname, lname].filter(Boolean).join(' ').trim();
     const name_lc = name.toLowerCase();
     const email_lc = (email || '').toLowerCase();
-    const applied_buyin = (member_type === 'Member' ? (pot.buyin_member || 0) : (pot.buyin_guest || 0));
+    const applied_buyin = (member_type === 'Member' ? (p.buyin_member || 0) : (p.buyin_guest || 0));
 
     // duplicate check
     const dupEmail = email_lc ? await entriesRef.where('email_lc','==', email_lc).limit(1).get() : { empty:true };
@@ -686,9 +694,19 @@ if (!isStripe(pay_type)) {
       applied_buyin, paid: false, status: 'active',
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
-    await entriesRef.add(entry);
+    const __addRes = await entriesRef.add(entry);
+    console.info('[JOIN] wrote entry to pot', pot && pot.id, 'entry id', __addRes && __addRes.id);
 
     $('#join-msg').textContent = 'Joined! Complete payment using the selected method.';
+    // FORCE-DETAIL-RELOAD: ensure Pot Details shows this pot
+    try{
+      var potIdInput = document.getElementById('v-pot') || document.getElementById('detail-pot-id');
+      if (potIdInput && (potIdInput.value||'').trim() !== (pot && pot.id)) {
+        potIdInput.value = pot.id;
+      }
+      if (typeof onLoadPotClicked === 'function') { onLoadPotClicked(); }
+    }catch(e){ console.warn('detail reload warn', e); }
+    
     try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
   } catch(err){
     console.error('[JOIN non-Stripe] failed', err);
@@ -708,14 +726,14 @@ if (!isStripe(pay_type)) {
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin=(member_type==='Member'? (pot.buyin_member??0) : (pot.buyin_guest??0));
+  const applied_buyin=(member_type==='Member'? (p.buyin_member??0) : (p.buyin_guest??0));
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
     setBusy(true, pay_type==='Stripe' ? 'Redirecting to Stripe…' : 'Joining…');
     msg.textContent = '';
 
-    const entriesRef = db.collection('pots').doc(pot.id).collection('entries');
+    const entriesRef = db.collection('pots').doc(p.id).collection('entries');
 
     const dupEmail = emailLC ? await entriesRef.where('email_lc','==', emailLC).limit(1).get() : { empty:true };
     const dupName  = nameLC  ? await entriesRef.where('name_lc','==', nameLC).limit(1).get()  : { empty:true };
@@ -731,7 +749,7 @@ if (!isStripe(pay_type)) {
     };
     const docRef = await entriesRef.add(entry);
     const entryId = docRef.id;
-    console.log('[JOIN] Entry created', { potId: pot.id, entryId });
+    console.log('[JOIN] Entry created', { potId: p.id, entryId });
 
     if (isStripe(pay_type)){
       const pm = getPaymentMethods(p);
@@ -840,7 +858,6 @@ function subscribeDetailEntries(potId){
   tbody.innerHTML = `<tr><td colspan="7" class="muted">Loading registrations…</td></tr>`;
 
   DETAIL_ENTRIES_UNSUB = db.collection('pots').doc(potId).collection('entries')
-    .orderBy('created_at','asc')
     .onSnapshot(snap=>{
       LAST_DETAIL_ENTRIES = [];
       snap.forEach(doc=>{
@@ -2711,3 +2728,4 @@ function startJoinCheckout(){
   } catch(_) {}
   return startJoinCheckout_orig.apply(this, arguments);
 }
+
