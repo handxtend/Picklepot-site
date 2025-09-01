@@ -52,7 +52,13 @@ if (!signed) localStorage.removeItem('pp_admin');
   ['j-filter-name','j-filter-org','j-filter-city'].forEach(function(id){
     var el = document.getElementById(id);
     if (el && !el.__filterBound){
-      el.addEventListener('input', function(){ try{ renderJoinPotSelectFromCache(); }catch(e){} });
+      el.addEventListener('input', function(){ try{ renderJoinPotSelectFromCache(); }catch(e){
+  if (e && (e.message==='blocked-non-stripe' || String(e).indexOf('blocked-non-stripe')!==-1)) {
+    console.log('[JOIN] non-Stripe checkout was blocked intentionally; ignoring.');
+    return;
+  }
+
+} });
       el.__filterBound = true;
     }
   });
@@ -655,6 +661,47 @@ async function joinPot(){
   const playerSkill=$('#j-skill').value;
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
+
+// --- Non-Stripe path: register immediately and return (no Stripe calls) ---
+if (pay_type !== 'Stripe') {
+  try {
+    const p = window.CURRENT_JOIN_POT || {};
+    const entriesRef = db.collection('pots').doc(p.id).collection('entries');
+    const fname = $('#j-fname').value.trim();
+    const lname = $('#j-lname').value.trim();
+    const email = $('#j-email').value.trim();
+    const member_type = $('#j-mtype').value;
+    const player_skill = $('#j-skill').value;
+    const name = [fname, lname].filter(Boolean).join(' ').trim();
+    const name_lc = name.toLowerCase();
+    const email_lc = (email || '').toLowerCase();
+    const applied_buyin = (member_type === 'Member' ? (p.buyin_member || 0) : (p.buyin_guest || 0));
+
+    // duplicate check
+    const dupEmail = email_lc ? await entriesRef.where('email_lc','==', email_lc).limit(1).get() : { empty:true };
+    const dupName  = name_lc  ? await entriesRef.where('name_lc','==', name_lc).limit(1).get()  : { empty:true };
+    if(!dupEmail.empty || !dupName.empty){
+      $('#join-msg').textContent = 'Duplicate registration: this name or email already joined this event.';
+      return;
+    }
+
+    const entry = {
+      name, name_lc, email, email_lc,
+      member_type, player_skill, pay_type,
+      applied_buyin, paid: false, status: 'active',
+      created_at: firebase.firestore.FieldValue.serverTimestamp()
+    };
+    await entriesRef.add(entry);
+
+    $('#join-msg').textContent = 'Joined! Complete payment using the selected method.';
+    try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
+  } catch(err){
+    console.error('[JOIN non-Stripe] failed', err);
+    $('#join-msg').textContent = 'Join failed. Please try again.';
+  }
+  return; // prevent any fall-through to Stripe checkout
+}
+
 
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!pay_type){ msg.textContent='Choose a payment method.'; return; }
@@ -2632,7 +2679,9 @@ document.addEventListener('DOMContentLoaded', function(){
         btn.addEventListener('click', function(e){
           try{ e.preventDefault(); }catch(_){}
           try{ e.stopPropagation(); }catch(_){}
-          try{ if (window.joinPot) window.joinPot(); }catch(err){ console.error('joinPot call failed', err); }
+          try{ if (window.joinPot) window.joinPot(); }catch(err){
+  if (err && (err.message==='blocked-non-stripe' || String(err).indexOf('blocked-non-stripe')!==-1)) { console.log('[JOIN] blocked non-stripe checkout; ignoring.'); return; }
+ console.error('joinPot call failed', err); }
           return false;
         }, false);
         btn.onclick = function(e){ try{ e && e.preventDefault && e.preventDefault(); }catch(_){}
@@ -2655,65 +2704,3 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(_){}
   }catch(err){ console.error('join binder bootstrap error', err); }
 })();
-
-
-/* === GLOBAL NON-STRIPE GUARDS (anti-redirect) ============================== */
-(function(){
-  function isStripe(v){ return String(v||'').toLowerCase() === 'stripe' || String(v||'').toLowerCase() === 'stripe (card)' || String(v||'').toLowerCase() === 'stripe (card)'; }
-  function selectedPayType(){
-    try{ return (document.getElementById('j-paytype') || {}).value || ''; }catch(_){ return ''; }
-  }
-  // Wrap fetch: block calls to /create-checkout-session if not Stripe
-  try{
-    const __origFetch = window.fetch;
-    window.fetch = function(input, init){
-      try{
-        const url = (typeof input === 'string') ? input : (input && input.url) || '';
-        if (url && url.indexOf('/create-checkout-session') !== -1){
-          const v = selectedPayType();
-          if (!isStripe(v)){
-            console.warn('[JOIN] blocked fetch to /create-checkout-session (non-Stripe selected):', v);
-            return Promise.reject(new Error('blocked-non-stripe'));
-          }
-        }
-      }catch(e){ /* no-op */ }
-      return __origFetch.apply(this, arguments);
-    };
-  }catch(e){ console.warn('fetch guard init failed', e); }
-
-  // Wrap window.open: block Stripe checkout pages when not Stripe
-  try{
-    const __origOpen = window.open;
-    window.open = function(url, name, specs){
-      try{
-        if (typeof url === 'string' && url.indexOf('checkout.stripe.com') !== -1){
-          const v = selectedPayType();
-          if (!isStripe(v)){
-            console.warn('[JOIN] blocked window.open to Stripe (non-Stripe selected):', v);
-            return null;
-          }
-        }
-      }catch(e){ /* no-op */ }
-      return __origOpen.apply(this, arguments);
-    };
-  }catch(e){ console.warn('open guard init failed', e); }
-
-  // Wrap location.assign: block navigations to Stripe checkout when not Stripe
-  try{
-    const __origAssign = window.location.assign.bind(window.location);
-    window.location.assign = function(url){
-      try{
-        if (typeof url === 'string' && url.indexOf('checkout.stripe.com') !== -1){
-          const v = selectedPayType();
-          if (!isStripe(v)){
-            console.warn('[JOIN] blocked location.assign to Stripe (non-Stripe selected):', v);
-            return;
-          }
-        }
-      }catch(e){ /* no-op */ }
-      return __origAssign(url);
-    };
-  }catch(e){ console.warn('assign guard init failed', e); }
-})();
-/* === END GLOBAL NON-STRIPE GUARDS ========================================= */
-
