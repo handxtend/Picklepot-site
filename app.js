@@ -1,12 +1,4 @@
 
-// --- Captured payment method snapshot ---
-function __capturedPayType(){
-  try{
-    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || __capturedPayType() || '';
-  }catch(_){ return ''; }
-}
-
-
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
 /* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
@@ -366,7 +358,6 @@ let DETAIL_ENTRIES_UNSUB = null;
 let LAST_DETAIL_ENTRIES = [];
 let CURRENT_DETAIL_POT = null;
 
-
 // --- Active list filtering helpers ---
 function getActiveFilters(){
   return {
@@ -413,7 +404,6 @@ function renderJoinPotSelectFromCache(){
   const rows = Math.max(1, Math.min((filtered || JOIN_POTS_CACHE).length, 12));
   try { sel.size = rows; } catch(_) {}
 }
-
 
 function attachActivePotsListener(){
   const sel = $('#j-pot-select');
@@ -645,8 +635,7 @@ async function joinPot(){
     btn.textContent = on ? (text || 'Working…') : 'Join';
   }
   function fail(message){
-    console.error('[JOIN] Error:', message);
-    msg.textContent = message || 'Something went wrong.';
+msg.textContent = message || 'Something went wrong.';
     setBusy(false);
   }
 
@@ -663,7 +652,6 @@ async function joinPot(){
   const playerSkill=$('#j-skill').value;
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
-  try{ window.__joinPayMethod = pay_type; sessionStorage.setItem('JOIN_PAY_METHOD', String(pay_type||'')); }catch(_){}
 
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!pay_type){ msg.textContent='Choose a payment method.'; return; }
@@ -698,9 +686,7 @@ async function joinPot(){
     };
     const docRef = await entriesRef.add(entry);
     const entryId = docRef.id;
-    console.log('[JOIN] Entry created', { potId: p.id, entryId });
-
-    if (pay_type === 'Stripe'){
+if (pay_type === 'Stripe'){
       const pm = getPaymentMethods(p);
       if (!pm.stripe){
         return fail('Stripe is disabled for this event.');
@@ -727,10 +713,7 @@ async function joinPot(){
         cancel_url: origin + '/cancel.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
         method: 'stripe'
       };
-
-      console.log('[JOIN] Creating checkout session…', payload);
-
-      let res, data;
+let res, data;
       try{
         res = await fetch(`${window.API_BASE}/create-checkout-session`, {
           method: 'POST',
@@ -764,8 +747,7 @@ async function joinPot(){
     updatePaymentNotes();
     try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
   }catch(e){
-    console.error('[JOIN] Unexpected failure:', e);
-    fail('Join failed (check Firebase rules and your network).');
+fail('Join failed (check Firebase rules and your network).');
   }
 }
 
@@ -1387,7 +1369,6 @@ async function handleSubscriptionReturn(){
   }catch(e){ console.warn('[Sub] handleSubscriptionReturn error', e); }
 }
 
-
 /* ====== ORGANIZER VISIBILITY FIX (non-breaking) ====== */
 (function(){
   const ACTIVE_STATUSES = ['active','trialing','past_due'];
@@ -1455,7 +1436,6 @@ async function handleSubscriptionReturn(){
   // Expose for debugging
   window.__debugCheckOrganizer = ensureOrganizerFlag;
 })();
-
 
 // ===== Organizer UI Fix (drop-in addon; safe to append at end of app.js) =====
 (function(){
@@ -1579,9 +1559,6 @@ async function handleSubscriptionReturn(){
   // Expose for manual retry / debugging
   window.__refreshOrganizerUI = refreshOrganizerUI;
 })();
-
-
-
 
 /* ======================= Organizer & Auth Addon (non-breaking) =======================
    - Persists Firebase auth (LOCAL)
@@ -1798,7 +1775,6 @@ async function warmApi() {
   window.__gateUI = gateUI;
 })();
 
-
 /* ===== scrub any "(signed in)" badges from UI (near Join a Pot etc.) ===== */
 function scrubSignedInBadges(){
   try{
@@ -1824,8 +1800,6 @@ try{
   }
 }catch(_){}
 
-
-
 /* ===== TEMP: Disable Organizer Subscription button ===== */
 document.addEventListener('DOMContentLoaded', ()=>{
   const btn = document.getElementById('btn-subscribe-organizer');
@@ -1848,8 +1822,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
   try{ observer.observe(btn, { attributes: true, attributeFilter: ['disabled','style','class'] }); }catch(_){}
 });
-
-
 
 /* ===== Create A Pot CTA: open form for all users (keep editing admin-only) ===== */
 function _showCreatePotForm(){
@@ -1933,7 +1905,6 @@ try{ const _oldGate = gateUI; window.gateUI = async function(){ try{ await _oldG
   }catch(_){}
 })();
 
-
 /* === Admin-only Stripe visibility === */
 function _isAdmin(){ try { return typeof isSiteAdmin === 'function' && isSiteAdmin(); } catch(_) { return false; } }
 function hideStripeForNonAdmin(){
@@ -1964,14 +1935,9 @@ function hideStripeForNonAdmin(){
 document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
 try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
 
-
 /* === Create Pot -> Stripe Checkout === */
 
-
 /* removed duplicate startCreatePotCheckout */
-
-
-
 
 /* === Ensure How To Use + Show Pot Details wiring (idempotent) === */
 (function ensureUXButtons(){
@@ -2011,7 +1977,6 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
   var _uxObs = new MutationObserver(function(){ try{ wireHowTo(); wireShowDetail(); }catch(_){}});
   _uxObs.observe(document.documentElement || document.body, {childList:true, subtree:true});
 })();
-
 
 /* ====================== CREATE-POT CHECKOUT DRAFT FIX (append-only) ======================
    - Rebinds #btn-create to Stripe Checkout via /create-pot-session
@@ -2077,7 +2042,6 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
   
 /* removed duplicate startCreatePotCheckout */
-
 
   // Ensure #btn-create uses ONLY checkout (replace any old listeners)
   function rebindCreateToCheckout(){
@@ -2157,7 +2121,6 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
   }catch(_){}
 })();
 
-
 // Ensure Create button triggers Stripe checkout (idempotent binding)
 document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
@@ -2213,8 +2176,6 @@ function onCreateClick(e){
     }
   }catch(err){ console.error('Create click failed', err); }
 }
-
-
 
 async function createPotDirect(){
   try{
@@ -2295,8 +2256,6 @@ async function createPotDirect(){
     alert('Failed to create pot.');
   }
 }
-
-
 
 /* Collapse Create-a-Pot section (arrows) */
 document.addEventListener('DOMContentLoaded', () => {
@@ -2413,8 +2372,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
   if (typeof window.startCreatePotCheckout !== 'function') window.startCreatePotCheckout = startCreatePotCheckout;
 
   async function startJoinCheckout(){
-    if ((String(__capturedPayType()).toLowerCase()||'') !== 'stripe' && (String(__capturedPayType()).toLowerCase()||'') !== 'stripe (card)') { console.warn('[JOIN] hard-stop startJoinCheckout: method is', __capturedPayType()); return; }
-const potId = byId('v-pot')?.value?.trim() || '';
+    const potId = byId('v-pot')?.value?.trim() || '';
     const amountDollars = byId('j-cost')?.value || byId('j-amount')?.value || '10';
     const playerName = byId('j-name')?.value || byId('j-player')?.value || 'Player';
     const playerEmail= byId('j-email')?.value || '';
@@ -2440,8 +2398,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
       if(!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
       location.href = data.url;
     }catch(e){
-      console.error('[JOIN]', e);
-      alert('Join failed: ' + (e.message || e));
+alert('Join failed: ' + (e.message || e));
     }
   }
   if (typeof window.startJoinCheckout !== 'function') window.startJoinCheckout = startJoinCheckout;
@@ -2535,7 +2492,6 @@ const potId = byId('v-pot')?.value?.trim() || '';
   }, true);
 })();
 
-
 /* ===== Manage page helpers: auto-resolve pot by owner code ===== */
 async function resolvePotByOwnerCode(ownerCode) {
   try {
@@ -2574,7 +2530,6 @@ function initManageAutoFill() {
 if (location.pathname.endsWith('/manage.html') || location.pathname.endsWith('manage.html')) {
   document.addEventListener('DOMContentLoaded', initManageAutoFill);
 }
-
 
 // --- Simple show/hide for Create/Join cards ---
 document.addEventListener('DOMContentLoaded', function(){
@@ -2616,9 +2571,6 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   }
 });
-
-
-
 
 /* === Robust Join binder + global exposure === */
 (function(){
