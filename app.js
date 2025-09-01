@@ -1,4 +1,23 @@
 
+// --- SAFE POT ALIAS SHIM ---
+// Some older handlers may reference `__pot`. Provide a safe getter that always resolves
+// to the currently selected pot, or null. This avoids ReferenceError and keeps logic intact.
+(function(){
+  try{
+    if (!Object.getOwnPropertyDescriptor(window, '__pot')){
+      Object.defineProperty(window, '__pot', {
+        configurable: true,
+        enumerable: false,
+        get: function(){
+          return (window.CURRENT_DETAIL_POT || window.CURRENT_JOIN_POT || null);
+        },
+        set: function(_v){ /* ignore writes to keep it a live alias */ }
+      });
+    }
+  }catch(e){ window.__pot = window.CURRENT_DETAIL_POT || window.CURRENT_JOIN_POT || null; }
+})();
+// --- END SHIM ---
+
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
 /* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
@@ -656,47 +675,6 @@ async function joinPot(){
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
 
-// --- Non-Stripe path: register immediately and return (no Stripe calls) ---
-if (pay_type !== 'Stripe') {
-  try {
-    const p = window.CURRENT_JOIN_POT || {};
-    const entriesRef = db.collection('pots').doc((__pot && __((__pot && __pot.id) || (p && p.id))) || (p && p.id)).collection('entries');
-    const fname = $('#j-fname').value.trim();
-    const lname = $('#j-lname').value.trim();
-    const email = $('#j-email').value.trim();
-    const member_type = $('#j-mtype').value;
-    const player_skill = $('#j-skill').value;
-    const name = [fname, lname].filter(Boolean).join(' ').trim();
-    const name_lc = name.toLowerCase();
-    const email_lc = (email || '').toLowerCase();
-    const applied_buyin = (member_type === 'Member' ? ((__pot && __pot.buyin_member) || (p && p.buyin_member) || 0) : ((__pot && __pot.buyin_guest) || (p && p.buyin_guest) || 0));
-
-    // duplicate check
-    const dupEmail = email_lc ? await entriesRef.where('email_lc','==', email_lc).limit(1).get() : { empty:true };
-    const dupName  = name_lc  ? await entriesRef.where('name_lc','==', name_lc).limit(1).get()  : { empty:true };
-    if(!dupEmail.empty || !dupName.empty){
-      $('#join-msg').textContent = 'Duplicate registration: this name or email already joined this event.';
-      return;
-    }
-
-    const entry = {
-      name, name_lc, email, email_lc,
-      member_type, player_skill, pay_type,
-      applied_buyin, paid: false, status: 'active',
-      created_at: firebase.firestore.FieldValue.serverTimestamp()
-    };
-    await entriesRef.add(entry);
-
-    $('#join-msg').textContent = 'Joined! Complete payment using the selected method.';
-    try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
-  } catch(err){
-    console.error('[JOIN non-Stripe] failed', err);
-    $('#join-msg').textContent = 'Join failed. Please try again.';
-  }
-  return; // prevent any fall-through to Stripe checkout
-}
-
-
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!pay_type){ msg.textContent='Choose a payment method.'; return; }
 
@@ -714,7 +692,7 @@ if (pay_type !== 'Stripe') {
     setBusy(true, pay_type==='Stripe' ? 'Redirecting to Stripe…' : 'Joining…');
     msg.textContent = '';
 
-    const entriesRef = db.collection('pots').doc((__pot && __((__pot && __pot.id) || (p && p.id))) || (p && p.id)).collection('entries');
+    const entriesRef = db.collection('pots').doc(p.id).collection('entries');
 
     const dupEmail = emailLC ? await entriesRef.where('email_lc','==', emailLC).limit(1).get() : { empty:true };
     const dupName  = nameLC  ? await entriesRef.where('name_lc','==', nameLC).limit(1).get()  : { empty:true };
@@ -813,7 +791,7 @@ async function onLoadPotClicked(){
   const pot = { id:snap.id, ...snap.data() };
   CURRENT_DETAIL_POT = pot;
 
-  if($('#v-pot')) $('#v-pot').value = ((__pot && __pot.id) || (p && p.id));
+  if($('#v-pot')) $('#v-pot').value = pot.id;
 
   $('#pot-info').style.display='';
   $('#pi-name').textContent = pot.name||'';
@@ -825,9 +803,9 @@ async function onLoadPotClicked(){
   $('#pi-location').textContent = pot.location||'';
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
-  $('#pi-id').textContent = `ID: ${((__pot && __pot.id) || (p && p.id))}`;
+  $('#pi-id').textContent = `ID: ${pot.id}`;
 
-  subscribeDetailEntries(((__pot && __pot.id) || (p && p.id)));
+  subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);
 }
 
