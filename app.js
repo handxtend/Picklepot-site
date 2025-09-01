@@ -1,4 +1,33 @@
 
+// --- Gold box bootstrap & delegated listener (safe even if elements not yet present) ---
+(function(){
+  function ensureGoldBox(){
+    var wrap = document.getElementById('where-to-pay');
+    var box  = document.getElementById('where-to-pay-box');
+    if(!wrap){
+      var sel = document.getElementById('j-paytype');
+      if(sel){
+        var html = '<div id="where-to-pay" style="margin-top:8px;display:none">\
+<div id="where-to-pay-box" style="background:#fff8e1;border:1px solid #f6e3a0;border-radius:10px;padding:10px 12px;font-size:14px;color:#6b5600;"></div>\
+</div>';
+        sel.insertAdjacentHTML('afterend', html);
+      }
+      wrap = document.getElementById('where-to-pay');
+      box  = document.getElementById('where-to-pay-box');
+    }
+    return {wrap: wrap, box: box};
+  }
+  window.ensureGoldBox = ensureGoldBox;
+
+  // Delegated change listener for payment selector
+  document.addEventListener('change', function(e){
+    if(e && e.target && e.target.id === 'j-paytype'){
+      try{ if(window.updatePaymentNotes) window.updatePaymentNotes(); }catch(_){}
+    }
+  });
+})();
+// --- end bootstrap ---
+
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
   try{
@@ -172,8 +201,8 @@ function toggleOrganizerExtras(){
 }
 
 function fillSelect(id, items){
-  const el = document.getElementById('where-to-pay-box');
-  const wrap = document.getElementById('where-to-pay');
+  var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
+  const el = gb.box; const wrap = gb.wrap;
   if(!el || !wrap){ return; }
   if (!el) return;
   el.innerHTML = items.map(v => `<option>${v}</option>`).join('');
@@ -624,8 +653,8 @@ function updatePaymentOptions(){
 
 /* Notes under payment select */
 function updatePaymentNotes(){
-  const p = CURRENT_JOIN_POT; const el = document.getElementById('where-to-pay-box');
-  const wrap = document.getElementById('where-to-pay');
+  const p = CURRENT_JOIN_POT; var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
+  const el = gb.box; const wrap = gb.wrap;
   if(!el || !wrap){ return; }
   if(!p){ el.style.display='none'; el.textContent=''; return; }
   const t = $('#j-paytype').value;
@@ -2324,8 +2353,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const toCents = v => Math.round(Number(v||0)*100);
 
   function ensureOptions(id, values){
-    const el = document.getElementById('where-to-pay-box');
-  const wrap = document.getElementById('where-to-pay');
+    var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
+  const el = gb.box; const wrap = gb.wrap;
   if(!el || !wrap){ return; }
     if(!el) return;
     const hasOptions = el.options && el.options.length>0;
@@ -2453,8 +2482,8 @@ const potId = byId('v-pot')?.value?.trim() || '';
   if (typeof window.startJoinCheckout !== 'function') window.startJoinCheckout = startJoinCheckout;
 
   function wire(id, fn){
-    const el = document.getElementById('where-to-pay-box');
-  const wrap = document.getElementById('where-to-pay');
+    var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
+  const el = gb.box; const wrap = gb.wrap;
   if(!el || !wrap){ return; }
     if (el && !el.dataset.wired){
       el.dataset.wired='1';
@@ -2513,8 +2542,8 @@ const potId = byId('v-pot')?.value?.trim() || '';
   });
 
   document.addEventListener('click', function(e){
-    const el = document.getElementById('where-to-pay-box');
-  const wrap = document.getElementById('where-to-pay');
+    var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
+  const el = gb.box; const wrap = gb.wrap;
   if(!el || !wrap){ return; }
     if (!el || el.dataset.wired) return;
     const id = el.id || '';
