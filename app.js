@@ -1,23 +1,4 @@
 
-// --- SAFE POT ALIAS SHIM ---
-// Some older handlers may reference `__pot`. Provide a safe getter that always resolves
-// to the currently selected pot, or null. This avoids ReferenceError and keeps logic intact.
-(function(){
-  try{
-    if (!Object.getOwnPropertyDescriptor(window, '__pot')){
-      Object.defineProperty(window, '__pot', {
-        configurable: true,
-        enumerable: false,
-        get: function(){
-          return (window.CURRENT_DETAIL_POT || window.CURRENT_JOIN_POT || null);
-        },
-        set: function(_v){ /* ignore writes to keep it a live alias */ }
-      });
-    }
-  }catch(e){ window.__pot = window.CURRENT_DETAIL_POT || window.CURRENT_JOIN_POT || null; }
-})();
-// --- END SHIM ---
-
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
 /* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
@@ -2674,3 +2655,65 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(_){}
   }catch(err){ console.error('join binder bootstrap error', err); }
 })();
+
+
+/* === GLOBAL NON-STRIPE GUARDS (anti-redirect) ============================== */
+(function(){
+  function isStripe(v){ return String(v||'').toLowerCase() === 'stripe' || String(v||'').toLowerCase() === 'stripe (card)' || String(v||'').toLowerCase() === 'stripe (card)'; }
+  function selectedPayType(){
+    try{ return (document.getElementById('j-paytype') || {}).value || ''; }catch(_){ return ''; }
+  }
+  // Wrap fetch: block calls to /create-checkout-session if not Stripe
+  try{
+    const __origFetch = window.fetch;
+    window.fetch = function(input, init){
+      try{
+        const url = (typeof input === 'string') ? input : (input && input.url) || '';
+        if (url && url.indexOf('/create-checkout-session') !== -1){
+          const v = selectedPayType();
+          if (!isStripe(v)){
+            console.warn('[JOIN] blocked fetch to /create-checkout-session (non-Stripe selected):', v);
+            return Promise.reject(new Error('blocked-non-stripe'));
+          }
+        }
+      }catch(e){ /* no-op */ }
+      return __origFetch.apply(this, arguments);
+    };
+  }catch(e){ console.warn('fetch guard init failed', e); }
+
+  // Wrap window.open: block Stripe checkout pages when not Stripe
+  try{
+    const __origOpen = window.open;
+    window.open = function(url, name, specs){
+      try{
+        if (typeof url === 'string' && url.indexOf('checkout.stripe.com') !== -1){
+          const v = selectedPayType();
+          if (!isStripe(v)){
+            console.warn('[JOIN] blocked window.open to Stripe (non-Stripe selected):', v);
+            return null;
+          }
+        }
+      }catch(e){ /* no-op */ }
+      return __origOpen.apply(this, arguments);
+    };
+  }catch(e){ console.warn('open guard init failed', e); }
+
+  // Wrap location.assign: block navigations to Stripe checkout when not Stripe
+  try{
+    const __origAssign = window.location.assign.bind(window.location);
+    window.location.assign = function(url){
+      try{
+        if (typeof url === 'string' && url.indexOf('checkout.stripe.com') !== -1){
+          const v = selectedPayType();
+          if (!isStripe(v)){
+            console.warn('[JOIN] blocked location.assign to Stripe (non-Stripe selected):', v);
+            return;
+          }
+        }
+      }catch(e){ /* no-op */ }
+      return __origAssign(url);
+    };
+  }catch(e){ console.warn('assign guard init failed', e); }
+})();
+/* === END GLOBAL NON-STRIPE GUARDS ========================================= */
+
