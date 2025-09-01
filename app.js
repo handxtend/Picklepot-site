@@ -173,6 +173,8 @@ function toggleOrganizerExtras(){
 
 function fillSelect(id, items){
   const el = document.getElementById('where-to-pay-box');
+  const wrap = document.getElementById('where-to-pay');
+  if(!el || !wrap){ return; }
   if (!el) return;
   el.innerHTML = items.map(v => `<option>${v}</option>`).join('');
 }
@@ -623,6 +625,8 @@ function updatePaymentOptions(){
 /* Notes under payment select */
 function updatePaymentNotes(){
   const p = CURRENT_JOIN_POT; const el = document.getElementById('where-to-pay-box');
+  const wrap = document.getElementById('where-to-pay');
+  if(!el || !wrap){ return; }
   if(!p){ el.style.display='none'; el.textContent=''; return; }
   const t = $('#j-paytype').value;
   const lines=[];
@@ -630,7 +634,7 @@ function updatePaymentNotes(){
   if(t==='Zelle')   lines.push(p.pay_zelle ? `Zelle: ${p.pay_zelle}` : 'Zelle instructions not provided.');
   if(t==='CashApp') lines.push(p.pay_cashapp ? `CashApp: ${p.pay_cashapp}` : 'CashApp instructions not provided.');
   if(t==='Onsite')  lines.push(p.pay_onsite ? 'Onsite payment accepted at event check-in.' : 'Onsite payment is not enabled for this tournament.');
-  el.innerHTML = lines.join('<br>'); document.getElementById('where-to-pay').style.display = lines.length ? '' : 'none';
+  el.innerHTML = lines.join('<br>'); wrap.style.display = lines.length ? '' : 'none';
 }
 
 /* ---------- Join (Stripe + others) ---------- */
@@ -2321,6 +2325,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   function ensureOptions(id, values){
     const el = document.getElementById('where-to-pay-box');
+  const wrap = document.getElementById('where-to-pay');
+  if(!el || !wrap){ return; }
     if(!el) return;
     const hasOptions = el.options && el.options.length>0;
     if (!hasOptions){
@@ -2448,6 +2454,8 @@ const potId = byId('v-pot')?.value?.trim() || '';
 
   function wire(id, fn){
     const el = document.getElementById('where-to-pay-box');
+  const wrap = document.getElementById('where-to-pay');
+  if(!el || !wrap){ return; }
     if (el && !el.dataset.wired){
       el.dataset.wired='1';
       el.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
@@ -2506,6 +2514,8 @@ const potId = byId('v-pot')?.value?.trim() || '';
 
   document.addEventListener('click', function(e){
     const el = document.getElementById('where-to-pay-box');
+  const wrap = document.getElementById('where-to-pay');
+  if(!el || !wrap){ return; }
     if (!el || el.dataset.wired) return;
     const id = el.id || '';
     const map = {
