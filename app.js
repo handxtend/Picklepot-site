@@ -1,4 +1,12 @@
 
+// --- Captured payment method snapshot ---
+function __capturedPayType(){
+  try{
+    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || __capturedPayType() || '';
+  }catch(_){ return ''; }
+}
+
+
 /* PiCo Pickle Pot — working app with Start/End time + configurable Pot Share % + admin UI refresh + auto-load registrations + admin controls + per-entry Hold/Move/Resend + rotating banners + Stripe join + per-event payment method toggles + SUCCESS BANNER */
 
 /* ========= IMPORTANT: Backend base URL (no redeclare errors) ========= */
@@ -52,13 +60,7 @@ if (!signed) localStorage.removeItem('pp_admin');
   ['j-filter-name','j-filter-org','j-filter-city'].forEach(function(id){
     var el = document.getElementById(id);
     if (el && !el.__filterBound){
-      el.addEventListener('input', function(){ try{ renderJoinPotSelectFromCache(); }catch(e){
-  if (e && (e.message==='blocked-non-stripe' || String(e).indexOf('blocked-non-stripe')!==-1)) {
-    console.log('[JOIN] non-Stripe checkout was blocked intentionally; ignoring.');
-    return;
-  }
-
-} });
+      el.addEventListener('input', function(){ try{ renderJoinPotSelectFromCache(); }catch(e){} });
       el.__filterBound = true;
     }
   });
@@ -661,47 +663,7 @@ async function joinPot(){
   const playerSkill=$('#j-skill').value;
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
-
-// --- Non-Stripe path: register immediately and return (no Stripe calls) ---
-if (pay_type !== 'Stripe') {
-  try {
-    const p = window.CURRENT_JOIN_POT || {};
-    const entriesRef = db.collection('pots').doc(p.id).collection('entries');
-    const fname = $('#j-fname').value.trim();
-    const lname = $('#j-lname').value.trim();
-    const email = $('#j-email').value.trim();
-    const member_type = $('#j-mtype').value;
-    const player_skill = $('#j-skill').value;
-    const name = [fname, lname].filter(Boolean).join(' ').trim();
-    const name_lc = name.toLowerCase();
-    const email_lc = (email || '').toLowerCase();
-    const applied_buyin = (member_type === 'Member' ? (p.buyin_member || 0) : (p.buyin_guest || 0));
-
-    // duplicate check
-    const dupEmail = email_lc ? await entriesRef.where('email_lc','==', email_lc).limit(1).get() : { empty:true };
-    const dupName  = name_lc  ? await entriesRef.where('name_lc','==', name_lc).limit(1).get()  : { empty:true };
-    if(!dupEmail.empty || !dupName.empty){
-      $('#join-msg').textContent = 'Duplicate registration: this name or email already joined this event.';
-      return;
-    }
-
-    const entry = {
-      name, name_lc, email, email_lc,
-      member_type, player_skill, pay_type,
-      applied_buyin, paid: false, status: 'active',
-      created_at: firebase.firestore.FieldValue.serverTimestamp()
-    };
-    await entriesRef.add(entry);
-
-    $('#join-msg').textContent = 'Joined! Complete payment using the selected method.';
-    try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
-  } catch(err){
-    console.error('[JOIN non-Stripe] failed', err);
-    $('#join-msg').textContent = 'Join failed. Please try again.';
-  }
-  return; // prevent any fall-through to Stripe checkout
-}
-
+  try{ window.__joinPayMethod = pay_type; sessionStorage.setItem('JOIN_PAY_METHOD', String(pay_type||'')); }catch(_){}
 
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!pay_type){ msg.textContent='Choose a payment method.'; return; }
@@ -2451,7 +2413,8 @@ cancel_url: originHost() + '/cancel.html?flow=create',
   if (typeof window.startCreatePotCheckout !== 'function') window.startCreatePotCheckout = startCreatePotCheckout;
 
   async function startJoinCheckout(){
-    const potId = byId('v-pot')?.value?.trim() || '';
+    if ((String(__capturedPayType()).toLowerCase()||'') !== 'stripe' && (String(__capturedPayType()).toLowerCase()||'') !== 'stripe (card)') { console.warn('[JOIN] hard-stop startJoinCheckout: method is', __capturedPayType()); return; }
+const potId = byId('v-pot')?.value?.trim() || '';
     const amountDollars = byId('j-cost')?.value || byId('j-amount')?.value || '10';
     const playerName = byId('j-name')?.value || byId('j-player')?.value || 'Player';
     const playerEmail= byId('j-email')?.value || '';
@@ -2679,9 +2642,7 @@ document.addEventListener('DOMContentLoaded', function(){
         btn.addEventListener('click', function(e){
           try{ e.preventDefault(); }catch(_){}
           try{ e.stopPropagation(); }catch(_){}
-          try{ if (window.joinPot) window.joinPot(); }catch(err){
-  if (err && (err.message==='blocked-non-stripe' || String(err).indexOf('blocked-non-stripe')!==-1)) { console.log('[JOIN] blocked non-stripe checkout; ignoring.'); return; }
- console.error('joinPot call failed', err); }
+          try{ if (window.joinPot) window.joinPot(); }catch(err){ console.error('joinPot call failed', err); }
           return false;
         }, false);
         btn.onclick = function(e){ try{ e && e.preventDefault && e.preventDefault(); }catch(_){}
