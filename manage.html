@@ -316,6 +316,8 @@
       buyin_guest: parseFloat($('f_buyin_guest').value) || 0,
       pot_share_pct: parseFloat($('f_pot_share_pct').value) || 0,
       payment_method: $('f_payment_method').value.trim(),
+      pay_cashapp_str: (document.getElementById('f_pay_cashapp_str')||{}).value ? document.getElementById('f_pay_cashapp_str').value.trim() : '',
+      pay_zelle_str:   (document.getElementById('f_pay_zelle_str')||{}).value   ? document.getElementById('f_pay_zelle_str').value.trim()   : '',
       pay_cashapp: $('f_pay_cashapp').checked,
       pay_zelle: $('f_pay_zelle').checked,
       pay_onsite: $('f_pay_onsite').checked,
