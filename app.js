@@ -623,13 +623,14 @@ function updatePaymentOptions(){
 /* Notes under payment select */
 
 function updatePaymentNotes(){
-  const p = CURRENT_JOIN_POT; const el = $('#j-pay-notes');
+  const p = CURRENT_JOIN_POT; 
+  const el = $('#j-pay-notes');
   if(!p){ el.style.display='none'; el.textContent=''; return; }
   const t = $('#j-paytype').value;
 
   const safeStr = (v)=> (typeof v === 'string' && v.trim()) ? v.trim() : '';
 
-  // Prefer new *_str fields, then fall back to older string fields, then to default label
+  // Prefer new *_str then fall back to older string fields, then to default label
   const zelleInfo   = safeStr(p.pay_zelle_str)   || safeStr(p.pay_zelle)   || safeStr(p.zelle_info)   || safeStr(p.default_payment_label);
   const cashappInfo = safeStr(p.pay_cashapp_str) || safeStr(p.pay_cashapp) || safeStr(p.cashapp_info) || safeStr(p.default_payment_label);
 
@@ -644,6 +645,7 @@ function updatePaymentNotes(){
   el.innerHTML = lines.join('<br>');
   el.style.display = lines.length ? '' : 'none';
 }
+
 
   const t = $('#j-paytype').value;
   const lines=[];
