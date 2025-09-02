@@ -113,6 +113,15 @@
             <input id="f_organizer" placeholder="e.g., Pickleball Compete">
           </div>
           <div>
+            <label>Organizer Email</label>
+            <input id="f_organizer_email" type="email" placeholder="organizer@example.com">
+          </div>
+          <div>
+            <label>Organizer Phone</label>
+            <input id="f_organizer_phone" type="tel" placeholder="(555) 555-5555">
+          </div>
+
+          <div>
             <label>Buy-in (Member)</label>
             <input id="f_buyin_member" type="number" step="0.01" placeholder="10.00">
           </div>
@@ -213,6 +222,8 @@
       $('f_location').value = d.location || '';
       $('f_skill').value = d.skill || '';
       $('f_organizer').value = d.organizer || d.org || '';
+      $('f_organizer_email').value = d.organizer_email || d.org_email || d.email || '';
+      $('f_organizer_phone').value = d.organizer_phone || d.phone || '';
       $('f_date').value = d.date || '';
       $('f_buyin_member').value = d.buyin_member ?? '';
       $('f_buyin_guest').value = d.buyin_guest ?? '';
@@ -310,6 +321,8 @@
       status: $('f_status').value.trim().toLowerCase(),
       location: $('f_location').value.trim(),
       organizer: $('f_organizer').value.trim(),
+      organizer_email: $('f_organizer_email').value.trim(),
+      organizer_phone: $('f_organizer_phone').value.trim(),
       date: $('f_date').value.trim(),
       skill: $('f_skill').value.trim(),
       buyin_member: parseFloat($('f_buyin_member').value) || 0,
