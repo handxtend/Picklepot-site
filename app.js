@@ -1,33 +1,4 @@
 
-// --- Gold box bootstrap & delegated listener (safe even if elements not yet present) ---
-(function(){
-  function ensureGoldBox(){
-    var wrap = document.getElementById('where-to-pay');
-    var box  = document.getElementById('where-to-pay-box');
-    if(!wrap){
-      var sel = document.getElementById('j-paytype');
-      if(sel){
-        var html = '<div id="where-to-pay" style="margin-top:8px;display:none">\
-<div id="where-to-pay-box" style="background:#fff8e1;border:1px solid #f6e3a0;border-radius:10px;padding:10px 12px;font-size:14px;color:#6b5600;"></div>\
-</div>';
-        sel.insertAdjacentHTML('afterend', html);
-      }
-      wrap = document.getElementById('where-to-pay');
-      box  = document.getElementById('where-to-pay-box');
-    }
-    return {wrap: wrap, box: box};
-  }
-  window.ensureGoldBox = ensureGoldBox;
-
-  // Delegated change listener for payment selector
-  document.addEventListener('change', function(e){
-    if(e && e.target && e.target.id === 'j-paytype'){
-      try{ if(window.updatePaymentNotes) window.updatePaymentNotes(); }catch(_){}
-    }
-  });
-})();
-// --- end bootstrap ---
-
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
   try{
@@ -201,9 +172,7 @@ function toggleOrganizerExtras(){
 }
 
 function fillSelect(id, items){
-  var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
-  const el = gb.box; const wrap = gb.wrap;
-  if(!el || !wrap){ return; }
+  const el = (typeof id==='string') ? document.getElementById(id) : id;
   if (!el) return;
   el.innerHTML = items.map(v => `<option>${v}</option>`).join('');
 }
@@ -582,20 +551,6 @@ function getPotSharePct(potId){
   return 50;
 }
 
-function setOrganizerContact(p){
-  try{
-    const email = (p && (p.organizer_email || p.org_email || p.email) || '').trim();
-    const phone = (p && (p.organizer_phone || p.phone) || '').trim();
-    const wrap = document.getElementById('pot-contact');
-    const em   = document.getElementById('j-organizer-email');
-    const ph   = document.getElementById('j-organizer-phone');
-    if(!wrap || !em || !ph) return;
-    em.innerHTML = email ? ('Email: <a href="mailto:'+email+'">'+email+'</a>') : '';
-    ph.textContent = phone ? ('Phone: '+phone) : '';
-    wrap.style.display = (email || phone) ? '' : 'none';
-  }catch(e){}
-}
-
 function watchPotTotals(potId){
   if(JOIN_ENTRIES_UNSUB){ try{JOIN_ENTRIES_UNSUB();}catch(_){} JOIN_ENTRIES_UNSUB=null; }
   const totalEl = $('#j-pot-total');
@@ -667,9 +622,7 @@ function updatePaymentOptions(){
 
 /* Notes under payment select */
 function updatePaymentNotes(){
-  const p = CURRENT_JOIN_POT; var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
-  const el = gb.box; const wrap = gb.wrap;
-  if(!el || !wrap){ return; }
+  const p = CURRENT_JOIN_POT; const el = $('#j-pay-notes');
   if(!p){ el.style.display='none'; el.textContent=''; return; }
   const t = $('#j-paytype').value;
   const lines=[];
@@ -677,7 +630,7 @@ function updatePaymentNotes(){
   if(t==='Zelle')   lines.push(p.pay_zelle ? `Zelle: ${p.pay_zelle}` : 'Zelle instructions not provided.');
   if(t==='CashApp') lines.push(p.pay_cashapp ? `CashApp: ${p.pay_cashapp}` : 'CashApp instructions not provided.');
   if(t==='Onsite')  lines.push(p.pay_onsite ? 'Onsite payment accepted at event check-in.' : 'Onsite payment is not enabled for this tournament.');
-  el.innerHTML = lines.join('<br>'); wrap.style.display = lines.length ? '' : 'none';
+  el.innerHTML = lines.join('<br>'); el.style.display = lines.length ? '' : 'none';
 }
 
 /* ---------- Join (Stripe + others) ---------- */
@@ -841,7 +794,6 @@ async function onLoadPotClicked(){
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
   $('#pi-id').textContent = `ID: ${pot.id}`;
-  try{ setOrganizerContact(pot); }catch(_){ }
 
   subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);
@@ -2368,9 +2320,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const toCents = v => Math.round(Number(v||0)*100);
 
   function ensureOptions(id, values){
-    var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
-  const el = gb.box; const wrap = gb.wrap;
-  if(!el || !wrap){ return; }
+    const el = byId(id);
     if(!el) return;
     const hasOptions = el.options && el.options.length>0;
     if (!hasOptions){
@@ -2497,9 +2447,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
   if (typeof window.startJoinCheckout !== 'function') window.startJoinCheckout = startJoinCheckout;
 
   function wire(id, fn){
-    var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
-  const el = gb.box; const wrap = gb.wrap;
-  if(!el || !wrap){ return; }
+    const el = byId(id);
     if (el && !el.dataset.wired){
       el.dataset.wired='1';
       el.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
@@ -2557,9 +2505,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
   });
 
   document.addEventListener('click', function(e){
-    var gb = (window.ensureGoldBox ? window.ensureGoldBox() : {wrap:null,box:null});
-  const el = gb.box; const wrap = gb.wrap;
-  if(!el || !wrap){ return; }
+    const el = e.target.closest('button, [role="button"], a.btn');
     if (!el || el.dataset.wired) return;
     const id = el.id || '';
     const map = {
