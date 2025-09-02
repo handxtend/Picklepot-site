@@ -278,6 +278,13 @@
 <button class="btn primary" id="btn-load">Load</button>
 </div>
 <div id="pot-info" style="margin-top:12px;display:none">
+
+<!-- Branding (auto-hidden if empty) -->
+<div id="pot-branding" style="display:none; margin:8px 0">
+  <img id="pot-logo" alt="Organizer Logo" style="max-height:60px; display:none; vertical-align:middle; margin-right:10px; border-radius:10px; border:1px solid #eee; background:#fff">
+  <img id="pot-banner" alt="Event Banner" style="max-height:120px; display:none; vertical-align:middle; border-radius:10px; border:1px solid #eee; background:#fff">
+</div>
+
 <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">
 <span class="pill soft-blue-box" id="pi-name"></span>
 <span class="pill soft-blue-box" id="pi-event"></span>
@@ -288,11 +295,6 @@
 <span class="pill soft-blue-box" id="pi-organizer"></span>
 <span class="pill status-chip" id="pi-status"></span>
 <span class="pill soft-blue-box admin-only" id="pi-id" style="display:none"></span>
-</div>
-<!-- Organizer contact (auto-hidden if empty) -->
-<div id="pot-contact" style="margin:6px 0 10px;display:none" class="muted">
-  <div id="j-organizer-email"></div>
-  <div id="j-organizer-phone"></div>
 </div>
 <h3 style="margin:14px 0 6px">Registrations</h3>
 <div style="overflow:auto">
