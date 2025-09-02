@@ -243,9 +243,9 @@
 <div><label>Organizer</label><input id="j-filter-org" placeholder="Organizer name"/></div>
 <div><label>City</label><input id="j-filter-city" placeholder="City"/></div>
 </div>
-<div class="row">
+<div class="row" style="margin-top:10px">
 <div style="flex:1">
-<label style="display:none">Active Tournaments</label>
+<div class="muted" style="font-weight:700;margin:4px 0 6px">Select Tournament</div>
 <select id="j-pot-select" size="12"></select>
 <div class="muted" style="margin-top:6px">Summary: <span class="soft-blue-box" id="j-pot-summary-brief">—</span></div>
 <div class="badge warn" id="j-started-badge" style="display:none;margin-top:6px">Tournament Started</div>
@@ -288,11 +288,6 @@
 <span class="pill soft-blue-box" id="pi-organizer"></span>
 <span class="pill status-chip" id="pi-status"></span>
 <span class="pill soft-blue-box admin-only" id="pi-id" style="display:none"></span>
-</div>
-<!-- Organizer contact (auto-hidden if empty) -->
-<div id="pot-contact" style="margin:6px 0 10px;display:none" class="muted">
-  <div id="j-organizer-email"></div>
-  <div id="j-organizer-phone"></div>
 </div>
 <h3 style="margin:14px 0 6px">Registrations</h3>
 <div style="overflow:auto">

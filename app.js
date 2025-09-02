@@ -553,20 +553,6 @@ function getPotSharePct(potId){
   return 50;
 }
 
-function setOrganizerContact(p){
-  try{
-    const email = (p && (p.organizer_email || p.org_email || p.email) || '').trim();
-    const phone = (p && (p.organizer_phone || p.phone) || '').trim();
-    const wrap = document.getElementById('pot-contact');
-    const em   = document.getElementById('j-organizer-email');
-    const ph   = document.getElementById('j-organizer-phone');
-    if(!wrap || !em || !ph) return;
-    em.innerHTML = email ? ('Email: <a href="mailto:'+email+'">'+email+'</a>') : '';
-    ph.textContent = phone ? ('Phone: '+phone) : '';
-    wrap.style.display = (email || phone) ? '' : 'none';
-  }catch(e){}
-}
-
 function watchPotTotals(potId){
   if(JOIN_ENTRIES_UNSUB){ try{JOIN_ENTRIES_UNSUB();}catch(_){} JOIN_ENTRIES_UNSUB=null; }
   const totalEl = $('#j-pot-total');
@@ -819,7 +805,6 @@ async function onLoadPotClicked(){
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
   $('#pi-id').textContent = `ID: ${pot.id}`;
-  try{ setOrganizerContact(pot); }catch(_){ }
 
   subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);

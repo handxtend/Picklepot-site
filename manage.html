@@ -113,15 +113,6 @@
             <input id="f_organizer" placeholder="e.g., Pickleball Compete">
           </div>
           <div>
-            <label>Organizer Email</label>
-            <input id="f_organizer_email" type="email" placeholder="organizer@example.com">
-          </div>
-          <div>
-            <label>Organizer Phone</label>
-            <input id="f_organizer_phone" type="tel" placeholder="(555) 555-5555">
-          </div>
-
-          <div>
             <label>Buy-in (Member)</label>
             <input id="f_buyin_member" type="number" step="0.01" placeholder="10.00">
           </div>
@@ -133,6 +124,10 @@
             <label>Pot Share %</label>
             <input id="f_pot_share_pct" type="number" step="1" min="0" max="100" placeholder="100">
           </div>
+          <div>
+            <label>Default Payment Method (label)</label>
+            <input id="f_payment_method" placeholder="e.g., Onsite / Cash App / Zelle">
+          </div>
         </div>
 
         <div class="row" style="margin-top:12px">
@@ -142,16 +137,6 @@
           <label class="muted"><input type="checkbox" id="f_pay_stripe" disabled> Stripe (disabled)</label>
           <span class="note">Stripe is disabled here as requested.</span>
         </div>
-        <!-- Payment destination inputs (shown only when enabled) -->
-        <div id="cashapp_info_wrap" class="row" style="margin-top:8px; display:none; flex-direction:column; align-items:flex-start">
-          <label>Cash App Handle</label>
-          <input id="f_pay_cashapp_str" placeholder="$YourCashtag (e.g., $PicklePotters)">
-        </div>
-        <div id="zelle_info_wrap" class="row" style="margin-top:8px; display:none; flex-direction:column; align-items:flex-start">
-          <label>Zelle Address (email or phone)</label>
-          <input id="f_pay_zelle_str" placeholder="you@example.com or (555) 555-5555">
-        </div>
-
 
         <div class="row" style="margin-top:12px">
           <button id="savePot" class="btn">Save Changes</button>
@@ -217,16 +202,6 @@
     meta.innerHTML = pills.join('');
   }
 
-  
-  function togglePayInfo(){
-    try{
-      var cashWrap = document.getElementById('cashapp_info_wrap');
-      var zelleWrap = document.getElementById('zelle_info_wrap');
-      if(cashWrap) cashWrap.style.display = (document.getElementById('f_pay_cashapp')?.checked ? '' : 'none');
-      if(zelleWrap) zelleWrap.style.display = (document.getElementById('f_pay_zelle')?.checked ? '' : 'none');
-    }catch(_){}
-  }
-
   function bindPotDoc(potId){
     if(potSnapUnsub){ try{potSnapUnsub();}catch(_){ } potSnapUnsub=null; }
     potSnapUnsub = db.collection('pots').doc(potId).onSnapshot(snap=>{
@@ -238,21 +213,17 @@
       $('f_location').value = d.location || '';
       $('f_skill').value = d.skill || '';
       $('f_organizer').value = d.organizer || d.org || '';
-      $('f_organizer_email').value = d.organizer_email || d.org_email || d.email || '';
-      $('f_organizer_phone').value = d.organizer_phone || d.phone || '';
       $('f_date').value = d.date || '';
       $('f_buyin_member').value = d.buyin_member ?? '';
       $('f_buyin_guest').value = d.buyin_guest ?? '';
       $('f_pot_share_pct').value = d.pot_share_pct ?? '';
-      var _fpm = $('f_payment_method'); if(_fpm) _fpm.value = d.payment_method || '';
+      $('f_payment_method').value = d.payment_method || '';
+
       const pm = d.payment_methods || {};
       $('f_pay_cashapp').checked = !!(d.pay_cashapp ?? pm.cashapp);
       $('f_pay_zelle').checked   = !!(d.pay_zelle   ?? pm.zelle);
       $('f_pay_onsite').checked  = !!(d.pay_onsite  ?? pm.onsite);
       $('f_pay_stripe').checked  = false; // disabled
-      var _cashStr = document.getElementById('f_pay_cashapp_str'); if(_cashStr) _cashStr.value = d.pay_cashapp_str || d.pay_cashapp || '';
-      var _zelleStr = document.getElementById('f_pay_zelle_str'); if(_zelleStr) _zelleStr.value = d.pay_zelle_str || d.pay_zelle || '';
-      togglePayInfo();
     });
   }
 
@@ -312,12 +283,6 @@
       await ownerAuthRobust(pot, key, code);
       setMsg('Access granted.', true);
       $('tools').classList.remove('hidden');
-      try{
-        document.getElementById('f_pay_cashapp').addEventListener('change', togglePayInfo);
-        document.getElementById('f_pay_zelle').addEventListener('change', togglePayInfo);
-        togglePayInfo();
-      }catch(_){ }
-
       $('potline').textContent = pot;
       localStorage.setItem('mgr_auth', JSON.stringify({pot, key, code}));
       currentPot = pot;
@@ -345,14 +310,12 @@
       status: $('f_status').value.trim().toLowerCase(),
       location: $('f_location').value.trim(),
       organizer: $('f_organizer').value.trim(),
-      organizer_email: $('f_organizer_email').value.trim(),
-      organizer_phone: $('f_organizer_phone').value.trim(),
       date: $('f_date').value.trim(),
       skill: $('f_skill').value.trim(),
       buyin_member: parseFloat($('f_buyin_member').value) || 0,
       buyin_guest: parseFloat($('f_buyin_guest').value) || 0,
       pot_share_pct: parseFloat($('f_pot_share_pct').value) || 0,
-      payment_method: (function(){var el=$('f_payment_method');return el?el.value.trim():'';})(),
+      payment_method: $('f_payment_method').value.trim(),
       pay_cashapp_str: (document.getElementById('f_pay_cashapp_str')||{}).value ? document.getElementById('f_pay_cashapp_str').value.trim() : '',
       pay_zelle_str:   (document.getElementById('f_pay_zelle_str')||{}).value   ? document.getElementById('f_pay_zelle_str').value.trim()   : '',
       pay_cashapp: $('f_pay_cashapp').checked,
