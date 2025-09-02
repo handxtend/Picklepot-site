@@ -43,6 +43,34 @@
       appId:"1:508555645160:web:82e09803feb83d5150395d"
     };
     try{ if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+
+  <!-- Ensure organizer is signed in (anonymous auth is fine) before uploads -->
+  <script>
+    (function(){
+      try{
+        // Disable upload buttons until we know auth state
+        var ul = document.getElementById('upload_logo');
+        var ub = document.getElementById('upload_banner');
+        if(ul) ul.disabled = true;
+        if(ub) ub.disabled = true;
+
+        firebase.auth().onAuthStateChanged(function(user){
+          if(!user){
+            firebase.auth().signInAnonymously().catch(function(e){ console.error('Anon sign-in failed', e); });
+          }else{
+            try{
+              if(ul) ul.disabled = false;
+              if(ub) ub.disabled = false;
+              console.log('Signed in (anon):', user.uid);
+            }catch(_){}
+          }
+        });
+      }catch(e){
+        console.warn('Auth bootstrap skipped:', e);
+      }
+    })();
+  </script>
+
          firebase.auth().signInAnonymously().catch(()=>{});}catch(e){}
   </script>
 </head>
