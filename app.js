@@ -431,7 +431,13 @@ function attachActivePotsListener(){
     const pots = [];
     snap.forEach(d => {
       const x = { id: d.id, ...d.data() };
-      const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
+      
+      const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : (typeof x.created_at === 'number' ? x.created_at : null);
+      const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at === 'number' ? x.start_at   : null);
+      const basisMs   = createdMs || startMs;
+      const ninetyMs  = 90 * 24 * 60 * 60 * 1000; // 90 days
+      if (basisMs && (now - basisMs) > ninetyMs) return; // hide older than 90 days
+const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (endMs && endMs <= now) return; // hide ended
       pots.push(x);
     });
