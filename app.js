@@ -205,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_btn){
       const _clone = _btn.cloneNode(true);
       _btn.parentNode.replaceChild(_clone, _btn);
-      _clone.addEventListener('click', onCreateClick);
+      _clone.addEventListener('click', onCreateClick, { once: true });
     }
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
@@ -241,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
-  $('#btn-create').addEventListener('click', onCreateClick);
+  $('#btn-create').addEventListener('click', onCreateClick, { once: true });
 (function(){ 
   const old = document.getElementById('btn-join');
   if (old){
@@ -355,7 +355,7 @@ function getPaymentMethods(p){
 /* ---------- Create Pot ---------- */
 async function createPot(){
   // Route to Stripe checkout (draft first)
-  return startCreatePotCheckout();
+  return createPot();
 }
 /* ---------- Active list / Totals ---------- */
 let JOIN_POTS_CACHE = [];
@@ -2086,7 +2086,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     var clone = b.cloneNode(true);
     clone.dataset._create_checkout_wired = '1';
     b.parentNode.replaceChild(clone, b);
-    clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); startCreatePotCheckout(); });
+    clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); createPot(); });
   }
 
   // Handle returns specifically for Create-Pot flow
@@ -2162,7 +2162,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
-    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
+    btn.addEventListener('click', function(e){ e.preventDefault(); createPot(); });
     btn.__stripeBound = true;
   }
 });
@@ -2209,7 +2209,7 @@ function onCreateClick(e){
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
       return createPotDirect();
     } else {
-      return startCreatePotCheckout();
+      return createPot();
     }
   }catch(err){ console.error('Create click failed', err); }
 }
@@ -2383,7 +2383,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
-  async function startCreatePotCheckout(){
+  async function createPot(){
     const btn = byId('btn-create');
     const msg = byId('create-msg') || byId('create-result');
     const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
@@ -2608,7 +2608,7 @@ document.addEventListener('DOMContentLoaded', function(){
       btnCreate.addEventListener('click', function(ev){
         // allow existing handlers, but provide a fallback if none are bound
         try{
-          if (typeof startCreatePotCheckout === 'function') return startCreatePotCheckout();
+          if (typeof startCreatePotCheckout === 'function') return createPot();
           if (typeof onCreateClick === 'function') return onCreateClick();
         }catch(e){ console.error('Create Pot click error:', e); }
       });
