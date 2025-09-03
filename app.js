@@ -431,15 +431,17 @@ function attachActivePotsListener(){
     const pots = [];
     snap.forEach(d => {
       const x = { id: d.id, ...d.data() };
-      
-      const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : (typeof x.created_at === 'number' ? x.created_at : null);
-      const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at === 'number' ? x.start_at   : null);
-      const basisMs   = createdMs || startMs;
-      const ninetyMs  = 90 * 24 * 60 * 60 * 1000; // 90 days
-      if (basisMs && (now - basisMs) > ninetyMs) return; // hide older than 90 days
-const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
+      const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (endMs && endMs <= now) return; // hide ended
-      pots.push(x);
+      
+      // 90-day expiry (organizer pots). Admin-created pots do not expire.
+      const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : (typeof x.created_at === 'number' ? x.created_at : null);
+      const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at   === 'number' ? x.start_at   : null);
+      const basisMs   = createdMs || startMs;
+      const isAdminCreated = !!(x.admin_created || x.is_admin_created || x.created_by_admin);
+      const ninetyMs  = 90 * 24 * 60 * 60 * 1000;
+      if (!isAdminCreated && basisMs && (now - basisMs) > ninetyMs) return; // hide expired by age
+pots.push(x);
     });
     pots.sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
     JOIN_POTS_CACHE = pots;
@@ -476,11 +478,12 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       const pots = Array.from(buffer.values()).filter(x=>{
         const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : (typeof x.end_at === 'number' ? x.end_at : null);
         const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : (typeof x.created_at === 'number' ? x.created_at : null);
-        const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at === 'number' ? x.start_at   : null);
+        const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at   === 'number' ? x.start_at   : null);
         const basisMs   = createdMs || startMs;
+        const isAdminCreated = !!(x.admin_created || x.is_admin_created || x.created_by_admin);
         const ninetyMs  = 90 * 24 * 60 * 60 * 1000;
         if (endMs && endMs <= now) return false;
-        if (basisMs && (now - basisMs) > ninetyMs) return false;
+        if (!isAdminCreated && basisMs && (now - basisMs) > ninetyMs) return false;
         return true;
       }).sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
       JOIN_POTS_CACHE = pots;
@@ -633,26 +636,16 @@ function updatePaymentOptions(){
 }
 
 /* Notes under payment select */
-
 function updatePaymentNotes(){
-  const p = CURRENT_JOIN_POT;
-  const el = $('#j-pay-notes');
+  const p = CURRENT_JOIN_POT; const el = $('#j-pay-notes');
   if(!p){ el.style.display='none'; el.textContent=''; return; }
   const t = $('#j-paytype').value;
-
-  const safeStr = (v)=> (typeof v === 'string' && v.trim()) ? v.trim() : '';
-  const zelleInfo   = safeStr(p.pay_zelle_str)   || safeStr(p.pay_zelle)   || safeStr(p.zelle_info)   || safeStr(p.default_payment_label);
-  const cashappInfo = safeStr(p.pay_cashapp_str) || safeStr(p.pay_cashapp) || safeStr(p.cashapp_info) || safeStr(p.default_payment_label);
-  const onsiteAllowed = (p.allow_onsite === true) || (p.pay_onsite === true) || (p.accept_onsite === true);
-
-  const lines = [];
+  const lines=[];
   if(t==='Stripe')  lines.push('Pay securely by card via Stripe Checkout.');
-  if(t==='Zelle')   lines.push(zelleInfo ? ('Zelle: ' + zelleInfo) : 'Zelle instructions not provided.');
-  if(t==='CashApp') lines.push(cashappInfo ? ('CashApp: ' + cashappInfo) : 'CashApp instructions not provided.');
-  if(t==='Onsite')  lines.push(onsiteAllowed ? 'Pay onsite at check-in.' : 'Onsite payment is not enabled for this tournament.');
-
-  el.innerHTML = lines.join('<br>');
-  el.style.display = lines.length ? '' : 'none';
+  if(t==='Zelle')   lines.push(p.pay_zelle ? `Zelle: ${p.pay_zelle}` : 'Zelle instructions not provided.');
+  if(t==='CashApp') lines.push(p.pay_cashapp ? `CashApp: ${p.pay_cashapp}` : 'CashApp instructions not provided.');
+  if(t==='Onsite')  lines.push(p.pay_onsite ? 'Onsite payment accepted at event check-in.' : 'Onsite payment is not enabled for this tournament.');
+  el.innerHTML = lines.join('<br>'); el.style.display = lines.length ? '' : 'none';
 }
 
 /* ---------- Join (Stripe + others) ---------- */
@@ -800,8 +793,7 @@ async function onLoadPotClicked(){
   const snap = await db.collection('pots').doc(id).get();
   if(!snap.exists){ alert('Pot not found'); return; }
 
-  const pot = {
-      created_at: firebase.firestore.FieldValue.serverTimestamp(), id:snap.id, ...snap.data() };
+  const pot = { id:snap.id, ...snap.data() };
   CURRENT_DETAIL_POT = pot;
 
   if($('#v-pot')) $('#v-pot').value = pot.id;
@@ -817,27 +809,11 @@ async function onLoadPotClicked(){
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
   $('#pi-id').textContent = `ID: ${pot.id}`;
-  try{ setOrganizerContact(pot); }catch(_){ }
 
   subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);
 }
 
-
-/* ---------- Organizer Contact display ---------- */
-function setOrganizerContact(p){
-  try{
-    var wrap = document.getElementById('pot-contact');
-    var em = document.getElementById('j-organizer-email');
-    var ph = document.getElementById('j-organizer-phone');
-    if(!wrap || !em || !ph) return;
-    var email = (p && (p.organizer_email || p.org_email || p.email) || '').trim();
-    var phone = (p && (p.organizer_phone || p.phone) || '').trim();
-    em.innerHTML = email ? ('Email: <a href="mailto:'+email+'">'+email+'</a>') : '';
-    ph.textContent = phone ? ('Phone: '+phone) : '';
-    wrap.style.display = (email || phone) ? '' : 'none';
-  }catch(e){}
-}
 /* ---------- Registrations table ---------- */
 function subscribeDetailEntries(potId){
   if(DETAIL_ENTRIES_UNSUB){ try{DETAIL_ENTRIES_UNSUB();}catch(_){} DETAIL_ENTRIES_UNSUB=null; }
@@ -2305,6 +2281,8 @@ async function createPotDirect(){
     const fullLocation = location || [addr_line1, [addr_city, addr_state].filter(Boolean).join(', '), addr_zip].filter(Boolean).join(' ');
 
     const pot = {
+      created_at: firebase.firestore.FieldValue.serverTimestamp(),
+      admin_created: (function(){ try{ return typeof isSiteAdmin==='function' && isSiteAdmin(); }catch(_){ return false; } })(),
       name, organizer, event, skill,
       buyin_member, buyin_guest,
       date, time, location: fullLocation,
