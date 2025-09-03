@@ -172,6 +172,7 @@
 <!-- ======= CREATE POT ======= -->
 <section class="card admin-only" id="create-card" style="display:none">
 <h2 class="section-header">Create a Pot</h2>
+<div id="create-expiry-note-panel" class="muted" style="display:none;background-color:#003366;color:#fff;padding:8px 12px;border-radius:6px;margin:6px 0 10px;margin:6px 0 8px;font-size:15px;">Pots expire 3 months (90 days) after creation.</div>
 <div class="row">
 <div><label>Tournament Name</label><select id="c-name-select"></select></div>
 <div id="c-name-other-wrap" style="display:none"><label>Other Tournament Name</label><input id="c-name-other" placeholder="Enter tournament name"/></div>
@@ -243,8 +244,9 @@
 <div><label>Organizer</label><input id="j-filter-org" placeholder="Organizer name"/></div>
 <div><label>City</label><input id="j-filter-city" placeholder="City"/></div>
 </div>
-<div class="row">
+<div class="row" style="margin-top:10px">
 <div style="flex:1">
+<div class="muted" style="font-weight:700;margin:8px 0 6px">Select Tournament</div>
 <label style="display:none">Active Tournaments</label>
 <select id="j-pot-select" size="12"></select>
 <div class="muted" style="margin-top:6px">Summary: <span class="soft-blue-box" id="j-pot-summary-brief">—</span></div>
@@ -289,7 +291,13 @@
 <span class="pill status-chip" id="pi-status"></span>
 <span class="pill soft-blue-box admin-only" id="pi-id" style="display:none"></span>
 </div>
-<div id="pi-contact" class="muted" style="margin:6px 0 10px; display:none;"></div>
+
+<!-- Organizer contact (auto-hidden if empty) -->
+<div id="pot-contact" style="margin:6px 0 10px;display:none" class="muted">
+  <div id="j-organizer-email"></div>
+  <div id="j-organizer-phone"></div>
+</div>
+
 <h3 style="margin:14px 0 6px">Registrations</h3>
 <div style="overflow:auto">
 <table id="adminTable">
@@ -442,5 +450,19 @@
       obs.observe(document.body, { childList:true, subtree:true, characterData:true });
     })();
   </script>
+
+<script>
+  (function(){
+    var btn = document.getElementById('btn-start-create');
+    var panelNote = document.getElementById('create-expiry-note-panel');
+    if(btn && panelNote){
+      panelNote.style.display = 'none';
+      btn.addEventListener('click', function(){
+        try{ panelNote.style.display = ''; }catch(_){}
+      });
+    }
+  })();
+</script>
+
 </body>
 </html>
