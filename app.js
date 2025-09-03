@@ -431,6 +431,13 @@ function attachActivePotsListener(){
     const pots = [];
     snap.forEach(d => {
       const x = { id: d.id, ...d.data() };
+
+    const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : null;
+    const startMs = x.start_at?.toMillis ? x.start_at.toMillis() : null;
+    const basis = createdMs || startMs;
+    const threeMonthsMs = 90 * 24 * 60 * 60 * 1000; // ~3 months
+    if (basis && (now - basis) > threeMonthsMs) return; // hide pots older than ~3 months
+    
       const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (endMs && endMs <= now) return; // hide ended
       pots.push(x);
@@ -621,26 +628,16 @@ function updatePaymentOptions(){
 }
 
 /* Notes under payment select */
-
 function updatePaymentNotes(){
-  const p = CURRENT_JOIN_POT;
-  const el = $('#j-pay-notes');
+  const p = CURRENT_JOIN_POT; const el = $('#j-pay-notes');
   if(!p){ el.style.display='none'; el.textContent=''; return; }
   const t = $('#j-paytype').value;
-
-  const safeStr = (v)=> (typeof v === 'string' && v.trim()) ? v.trim() : '';
-  const zelleInfo   = safeStr(p.pay_zelle_str)   || safeStr(p.pay_zelle)   || safeStr(p.zelle_info)   || safeStr(p.default_payment_label);
-  const cashappInfo = safeStr(p.pay_cashapp_str) || safeStr(p.pay_cashapp) || safeStr(p.cashapp_info) || safeStr(p.default_payment_label);
-  const onsiteAllowed = (p.allow_onsite === true) || (p.pay_onsite === true) || (p.accept_onsite === true);
-
-  const lines = [];
+  const lines=[];
   if(t==='Stripe')  lines.push('Pay securely by card via Stripe Checkout.');
-  if(t==='Zelle')   lines.push(zelleInfo ? ('Zelle: ' + zelleInfo) : 'Zelle instructions not provided.');
-  if(t==='CashApp') lines.push(cashappInfo ? ('CashApp: ' + cashappInfo) : 'CashApp instructions not provided.');
-  if(t==='Onsite')  lines.push(onsiteAllowed ? 'Pay onsite at check-in.' : 'Onsite payment is not enabled for this tournament.');
-
-  el.innerHTML = lines.join('<br>');
-  el.style.display = lines.length ? '' : 'none';
+  if(t==='Zelle')   lines.push(p.pay_zelle ? `Zelle: ${p.pay_zelle}` : 'Zelle instructions not provided.');
+  if(t==='CashApp') lines.push(p.pay_cashapp ? `CashApp: ${p.pay_cashapp}` : 'CashApp instructions not provided.');
+  if(t==='Onsite')  lines.push(p.pay_onsite ? 'Onsite payment accepted at event check-in.' : 'Onsite payment is not enabled for this tournament.');
+  el.innerHTML = lines.join('<br>'); el.style.display = lines.length ? '' : 'none';
 }
 
 /* ---------- Join (Stripe + others) ---------- */
@@ -788,7 +785,8 @@ async function onLoadPotClicked(){
   const snap = await db.collection('pots').doc(id).get();
   if(!snap.exists){ alert('Pot not found'); return; }
 
-  const pot = { id:snap.id, ...snap.data() };
+  const pot = {
+      created_at: firebase.firestore.FieldValue.serverTimestamp(), id:snap.id, ...snap.data() };
   CURRENT_DETAIL_POT = pot;
 
   if($('#v-pot')) $('#v-pot').value = pot.id;
