@@ -374,12 +374,16 @@ function getPaymentMethods(p){
 /* ---------- Create Pot ---------- */
 async function createPot(){
   if (guardPotCreateStart()) return;
-  if (typeof isSiteAdmin==='function' && isSiteAdmin()){
-    return createPotDirect();
+  try {
+    if (typeof isSiteAdmin==='function' && isSiteAdmin()) {
+      return await createPotDirect();
+    }
+    return await startCreatePotCheckout();
+  } finally {
+    guardPotCreateEnd();
   }
+}
   return startCreatePotCheckout();
-  try{}finally{ guardPotCreateEnd(); }
-
 }
 /* ---------- Active list / Totals ---------- */
 let JOIN_POTS_CACHE = [];
@@ -2257,7 +2261,6 @@ function onCreateClick(e){
 
 
 async function createPotDirect(){
-  if (guardPotCreateStart()) return;
   try{
     if(!db){ alert('Firebase is not initialized.'); return; }
     const uid = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : null;
@@ -2429,8 +2432,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
   async function startCreatePotCheckout(){
-  if (guardPotCreateStart()) return;
-    if (typeof isSiteAdmin==='function' && isSiteAdmin()){ return createPotDirect(); }
+  if (typeof isSiteAdmin==='function' && isSiteAdmin()){ return createPotDirect(); }
     const btn = byId('btn-create');
     const msg = byId('create-msg') || byId('create-result');
     const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
