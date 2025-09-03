@@ -70,7 +70,7 @@
     
     <div id="mypots" class="sec hidden">
       <h3>My Pots</h3>
-      <div class="muted" style="margin:6px 0 10px">Pots linked to your owner code on this browser. Click to load.</div>
+      <div class="muted" style="margin:6px 0 10px">Pots linked to your owner code on this browser. Click a chip to load. Use × to remove.</div>
       <div id="mypots-empty" class="pill muted" style="display:none">No pots yet. Load or create a pot to add it here.</div>
       <div id="mypots-list" style="display:flex;flex-wrap:wrap;gap:6px"></div>
     </div>
@@ -132,6 +132,10 @@
             <label>Pot Share %</label>
             <input id="f_pot_share_pct" type="number" step="1" min="0" max="100" placeholder="100">
           </div>
+          <div>
+            <label>Default Payment Method (label)</label>
+            <input id="f_payment_method" placeholder="e.g., Onsite / Cash App / Zelle">
+          </div>
         </div>
 
         <div class="row" style="margin-top:12px">
@@ -141,16 +145,6 @@
           <label class="muted"><input type="checkbox" id="f_pay_stripe" disabled> Stripe (disabled)</label>
           <span class="note">Stripe is disabled here as requested.</span>
         </div>
-        <!-- Payment destination inputs (shown only when enabled) -->
-        <div id="cashapp_info_wrap" class="row" style="margin-top:8px; display:none; flex-direction:column; align-items:flex-start">
-          <label>Cash App Handle</label>
-          <input id="f_pay_cashapp_str" placeholder="$YourCashtag (e.g., $PicklePotters)">
-        </div>
-        <div id="zelle_info_wrap" class="row" style="margin-top:8px; display:none; flex-direction:column; align-items:flex-start">
-          <label>Zelle Address (email or phone)</label>
-          <input id="f_pay_zelle_str" placeholder="you@example.com or (555) 555-5555">
-        </div>
-
 
         <div class="row" style="margin-top:12px">
           <button id="savePot" class="btn">Save Changes</button>
@@ -196,6 +190,10 @@
     if(!arr.includes(potId)) arr.unshift(potId);
     mp_write(code, arr.slice(0,200));
   }
+  function mp_remove(code, potId){
+    const arr = mp_read(code).filter(x=>x!==potId);
+    mp_write(code, arr);
+  }
   async function mp_fetchServerList(code){
     try{
       const r = await fetch(`${API}/owner/list?code=${encodeURIComponent(code)}`);
@@ -206,6 +204,25 @@
       return [];
     }catch(_){ return []; }
   }
+  function mp_fmtDate(v){
+    try{
+      if(!v) return '';
+      const d = new Date(v);
+      if(isNaN(d)) return String(v);
+      const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,'0'), dd=String(d.getDate()).padStart(2,'0');
+      return `${y}-${m}-${dd}`;
+    }catch(_){ return ''; }
+  }
+  async function mp_meta(id){
+    try{
+      const snap = await db.collection('pots').doc(id).get();
+      if(snap.exists){
+        const p = snap.data()||{};
+        return { name: p.name||p.event||p.title||'', date: p.date||p.start_date||p.start||'' };
+      }
+    }catch(_){}
+    return {};
+  }
   function mp_render(code){
     const listEl = document.getElementById('mypots-list');
     const emptyEl = document.getElementById('mypots-empty');
@@ -215,11 +232,26 @@
     if(!arr.length){ emptyEl.style.display=''; return; }
     emptyEl.style.display='none';
     arr.forEach(id=>{
-      const b = document.createElement('button');
-      b.className = 'pill';
-      b.textContent = id;
-      b.onclick = ()=>{ document.getElementById('pot-id').value = id; document.getElementById('verify').click?.(); };
-      listEl.appendChild(b);
+      const openBtn = document.createElement('button');
+      openBtn.className = 'pill';
+      openBtn.textContent = id;
+      openBtn.title = id;
+      openBtn.onclick = ()=>{ document.getElementById('pot-id').value = id; document.getElementById('verify').click?.(); };
+      listEl.appendChild(openBtn);
+
+      const x = document.createElement('button');
+      x.className = 'pill muted';
+      x.textContent = '×';
+      x.title = 'Remove';
+      x.onclick = (e)=>{ e.stopPropagation(); const code=(document.getElementById('owner-code').value||'').trim(); mp_remove(code,id); mp_render(code); };
+      listEl.appendChild(x);
+
+      mp_meta(id).then(meta=>{
+        if(meta && (meta.name||meta.date)){
+          openBtn.textContent = (meta.name||id) + (meta.date ? (' • ' + mp_fmtDate(meta.date)) : '');
+          openBtn.title = id;
+        }
+      });
     });
   }
 async function ownerAuthRobust(pot, key, code){
@@ -253,16 +285,6 @@ async function ownerAuthRobust(pot, key, code){
     meta.innerHTML = pills.join('');
   }
 
-  
-  function togglePayInfo(){
-    try{
-      var cashWrap = document.getElementById('cashapp_info_wrap');
-      var zelleWrap = document.getElementById('zelle_info_wrap');
-      if(cashWrap) cashWrap.style.display = (document.getElementById('f_pay_cashapp')?.checked ? '' : 'none');
-      if(zelleWrap) zelleWrap.style.display = (document.getElementById('f_pay_zelle')?.checked ? '' : 'none');
-    }catch(_){}
-  }
-
   function bindPotDoc(potId){
     if(potSnapUnsub){ try{potSnapUnsub();}catch(_){ } potSnapUnsub=null; }
     potSnapUnsub = db.collection('pots').doc(potId).onSnapshot(snap=>{
@@ -278,15 +300,13 @@ async function ownerAuthRobust(pot, key, code){
       $('f_buyin_member').value = d.buyin_member ?? '';
       $('f_buyin_guest').value = d.buyin_guest ?? '';
       $('f_pot_share_pct').value = d.pot_share_pct ?? '';
-      var _fpm = $('f_payment_method'); if(_fpm) _fpm.value = d.payment_method || '';
+      $('f_payment_method').value = d.payment_method || '';
+
       const pm = d.payment_methods || {};
       $('f_pay_cashapp').checked = !!(d.pay_cashapp ?? pm.cashapp);
       $('f_pay_zelle').checked   = !!(d.pay_zelle   ?? pm.zelle);
       $('f_pay_onsite').checked  = !!(d.pay_onsite  ?? pm.onsite);
       $('f_pay_stripe').checked  = false; // disabled
-      var _cashStr = document.getElementById('f_pay_cashapp_str'); if(_cashStr) _cashStr.value = d.pay_cashapp_str || d.pay_cashapp || '';
-      var _zelleStr = document.getElementById('f_pay_zelle_str'); if(_zelleStr) _zelleStr.value = d.pay_zelle_str || d.pay_zelle || '';
-      togglePayInfo();
     });
   }
 
@@ -360,12 +380,6 @@ async function ownerAuthRobust(pot, key, code){
       })();
     
       $('tools').classList.remove('hidden');
-      try{
-        document.getElementById('f_pay_cashapp').addEventListener('change', togglePayInfo);
-        document.getElementById('f_pay_zelle').addEventListener('change', togglePayInfo);
-        togglePayInfo();
-      }catch(_){ }
-
       $('potline').textContent = pot;
       localStorage.setItem('mgr_auth', JSON.stringify({pot, key, code}));
       currentPot = pot;
@@ -398,9 +412,7 @@ async function ownerAuthRobust(pot, key, code){
       buyin_member: parseFloat($('f_buyin_member').value) || 0,
       buyin_guest: parseFloat($('f_buyin_guest').value) || 0,
       pot_share_pct: parseFloat($('f_pot_share_pct').value) || 0,
-      payment_method: (function(){var el=$('f_payment_method');return el?el.value.trim():'';})(),
-      pay_cashapp_str: (document.getElementById('f_pay_cashapp_str')||{}).value ? document.getElementById('f_pay_cashapp_str').value.trim() : '',
-      pay_zelle_str:   (document.getElementById('f_pay_zelle_str')||{}).value   ? document.getElementById('f_pay_zelle_str').value.trim()   : '',
+      payment_method: $('f_payment_method').value.trim(),
       pay_cashapp: $('f_pay_cashapp').checked,
       pay_zelle: $('f_pay_zelle').checked,
       pay_onsite: $('f_pay_onsite').checked,
