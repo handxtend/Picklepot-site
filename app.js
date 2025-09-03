@@ -474,8 +474,14 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
     const mergeApply = () => {
       const now = Date.now();
       const pots = Array.from(buffer.values()).filter(x=>{
-        const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
-        return !(endMs && endMs <= now);
+        const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : (typeof x.end_at === 'number' ? x.end_at : null);
+        const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : (typeof x.created_at === 'number' ? x.created_at : null);
+        const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at === 'number' ? x.start_at   : null);
+        const basisMs   = createdMs || startMs;
+        const ninetyMs  = 90 * 24 * 60 * 60 * 1000;
+        if (endMs && endMs <= now) return false;
+        if (basisMs && (now - basisMs) > ninetyMs) return false;
+        return true;
       }).sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
       JOIN_POTS_CACHE = pots;
       if (!pots.length){
@@ -794,7 +800,8 @@ async function onLoadPotClicked(){
   const snap = await db.collection('pots').doc(id).get();
   if(!snap.exists){ alert('Pot not found'); return; }
 
-  const pot = { id:snap.id, ...snap.data() };
+  const pot = {
+      created_at: firebase.firestore.FieldValue.serverTimestamp(), id:snap.id, ...snap.data() };
   CURRENT_DETAIL_POT = pot;
 
   if($('#v-pot')) $('#v-pot').value = pot.id;
