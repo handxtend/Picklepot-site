@@ -354,7 +354,8 @@ function getPaymentMethods(p){
 
 /* ---------- Create Pot ---------- */
 async function createPot(){
-  // Route to Stripe checkout (draft first)
+  // Admin bypass: create directly; others go to Stripe checkout
+  if (typeof isSiteAdmin==='function' && isSiteAdmin()) return createPotDirect();
   return startCreatePotCheckout();
 }
 /* ---------- Active list / Totals ---------- */
@@ -621,26 +622,16 @@ function updatePaymentOptions(){
 }
 
 /* Notes under payment select */
-
 function updatePaymentNotes(){
-  const p = CURRENT_JOIN_POT;
-  const el = $('#j-pay-notes');
+  const p = CURRENT_JOIN_POT; const el = $('#j-pay-notes');
   if(!p){ el.style.display='none'; el.textContent=''; return; }
   const t = $('#j-paytype').value;
-
-  const safeStr = (v)=> (typeof v === 'string' && v.trim()) ? v.trim() : '';
-  const zelleInfo   = safeStr(p.pay_zelle_str)   || safeStr(p.pay_zelle)   || safeStr(p.zelle_info)   || safeStr(p.default_payment_label);
-  const cashappInfo = safeStr(p.pay_cashapp_str) || safeStr(p.pay_cashapp) || safeStr(p.cashapp_info) || safeStr(p.default_payment_label);
-  const onsiteAllowed = (p.allow_onsite === true) || (p.pay_onsite === true) || (p.accept_onsite === true);
-
-  const lines = [];
+  const lines=[];
   if(t==='Stripe')  lines.push('Pay securely by card via Stripe Checkout.');
-  if(t==='Zelle')   lines.push(zelleInfo ? ('Zelle: ' + zelleInfo) : 'Zelle instructions not provided.');
-  if(t==='CashApp') lines.push(cashappInfo ? ('CashApp: ' + cashappInfo) : 'CashApp instructions not provided.');
-  if(t==='Onsite')  lines.push(onsiteAllowed ? 'Pay onsite at check-in.' : 'Onsite payment is not enabled for this tournament.');
-
-  el.innerHTML = lines.join('<br>');
-  el.style.display = lines.length ? '' : 'none';
+  if(t==='Zelle')   lines.push(p.pay_zelle ? `Zelle: ${p.pay_zelle}` : 'Zelle instructions not provided.');
+  if(t==='CashApp') lines.push(p.pay_cashapp ? `CashApp: ${p.pay_cashapp}` : 'CashApp instructions not provided.');
+  if(t==='Onsite')  lines.push(p.pay_onsite ? 'Onsite payment accepted at event check-in.' : 'Onsite payment is not enabled for this tournament.');
+  el.innerHTML = lines.join('<br>'); el.style.display = lines.length ? '' : 'none';
 }
 
 /* ---------- Join (Stripe + others) ---------- */
@@ -710,7 +701,7 @@ async function joinPot(){
     const entryId = docRef.id;
     console.log('[JOIN] Entry created', { potId: p.id, entryId });
 
-    if (pay_type === 'Stripe'){
+    if (pay_type === 'Stripe' && !(typeof isSiteAdmin==='function' && isSiteAdmin())) {
       const pm = getPaymentMethods(p);
       if (!pm.stripe){
         return fail('Stripe is disabled for this event.');
@@ -804,27 +795,11 @@ async function onLoadPotClicked(){
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
   $('#pi-id').textContent = `ID: ${pot.id}`;
-  try{ setOrganizerContact(pot); }catch(_){ }
 
   subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);
 }
 
-
-/* ---------- Organizer Contact display ---------- */
-function setOrganizerContact(p){
-  try{
-    var wrap = document.getElementById('pot-contact');
-    var em = document.getElementById('j-organizer-email');
-    var ph = document.getElementById('j-organizer-phone');
-    if(!wrap || !em || !ph) return;
-    var email = (p && (p.organizer_email || p.org_email || p.email) || '').trim();
-    var phone = (p && (p.organizer_phone || p.phone) || '').trim();
-    em.innerHTML = email ? ('Email: <a href="mailto:'+email+'">'+email+'</a>') : '';
-    ph.textContent = phone ? ('Phone: '+phone) : '';
-    wrap.style.display = (email || phone) ? '' : 'none';
-  }catch(e){}
-}
 /* ---------- Registrations table ---------- */
 function subscribeDetailEntries(potId){
   if(DETAIL_ENTRIES_UNSUB){ try{DETAIL_ENTRIES_UNSUB();}catch(_){} DETAIL_ENTRIES_UNSUB=null; }
@@ -2112,7 +2087,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     var clone = b.cloneNode(true);
     clone.dataset._create_checkout_wired = '1';
     b.parentNode.replaceChild(clone, b);
-    clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); startCreatePotCheckout(); });
+    clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); createPot(); });
   }
 
   // Handle returns specifically for Create-Pot flow
