@@ -1,6 +1,3 @@
-window.__creatingPot = window.__creatingPot || false;
-function guardPotCreateStart(){ if(window.__creatingPot) return true; window.__creatingPot=true; return false; }
-function guardPotCreateEnd(){ window.__creatingPot=false; }
 
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
@@ -208,7 +205,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_btn){
       const _clone = _btn.cloneNode(true);
       _btn.parentNode.replaceChild(_clone, _btn);
-      _clone.addEventListener('click', onCreateClick, { once: true });
+      _clone.addEventListener('click', onCreateClick);
     }
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
@@ -244,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
-  $('#btn-create').addEventListener('click', onCreateClick, { once: true });
+  $('#btn-create').addEventListener('click', onCreateClick);
 (function(){ 
   const old = document.getElementById('btn-join');
   if (old){
@@ -344,19 +341,24 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* ---------- Utility: payment methods map ---------- */
+
 function getPaymentMethods(p){
   const pm = p?.payment_methods || {};
   const has = v => v === true;
   return {
     stripe: has(pm.stripe) || false,
-    zelle:  has(pm.zelle)  || (!!p?.pay_zelle),
-    cashapp:has(pm.cashapp)|| (!!p?.pay_cashapp),
+    zelle:  has(pm.zelle)  || (!!p?.pay_zelle_str)  || (!!p?.pay_zelle),
+    cashapp:has(pm.cashapp)|| (!!p?.pay_cashapp_str) || (!!p?.pay_cashapp),
     onsite: has(pm.onsite) || (!!p?.pay_onsite)
   };
 }
 
+
 /* ---------- Create Pot ---------- */
-// (duplicate removed; real implementation is in Create UI block below)
+async function createPot(){
+  // Route to Stripe checkout (draft first)
+  return startCreatePotCheckout();
+}
 /* ---------- Active list / Totals ---------- */
 let JOIN_POTS_CACHE = [];
 let JOIN_POTS_SUB = null;
@@ -551,6 +553,20 @@ function getPotSharePct(potId){
   return 50;
 }
 
+function setOrganizerContact(p){
+  try{
+    const email = (p && (p.organizer_email || p.org_email || p.email) || '').trim();
+    const phone = (p && (p.organizer_phone || p.phone) || '').trim();
+    const wrap = document.getElementById('pot-contact');
+    const em   = document.getElementById('j-organizer-email');
+    const ph   = document.getElementById('j-organizer-phone');
+    if(!wrap || !em || !ph) return;
+    em.innerHTML = email ? ('Email: <a href="mailto:'+email+'">'+email+'</a>') : '';
+    ph.textContent = phone ? ('Phone: '+phone) : '';
+    wrap.style.display = (email || phone) ? '' : 'none';
+  }catch(e){}
+}
+
 function watchPotTotals(potId){
   if(JOIN_ENTRIES_UNSUB){ try{JOIN_ENTRIES_UNSUB();}catch(_){} JOIN_ENTRIES_UNSUB=null; }
   const totalEl = $('#j-pot-total');
@@ -624,26 +640,23 @@ function updatePaymentOptions(){
 
 function updatePaymentNotes(){
   const p = CURRENT_JOIN_POT; const el = $('#j-pay-notes');
-  if(!p){ if(el){ el.style.display='none'; el.textContent=''; } return; }
-  const t = $('#j-paytype').value;
-  const z = p.pay_zelle_str || p.pay_zelle || p.zelle_info || '';
-  const c = p.pay_cashapp_str || p.pay_cashapp || p.cashapp_info || '';
-  const o = p.pay_onsite_str || p.pay_onsite || '';
-  const lines = [];
-  if(t==='Stripe')  lines.push('Pay securely by card via Stripe Checkout.');
-  if(t==='Zelle')   lines.push(z ? `Zelle: ${z}` : 'Zelle instructions not provided.');
-  if(t==='CashApp') lines.push(c ? `CashApp: ${c}` : 'CashApp instructions not provided.');
-  if(t==='Onsite')  lines.push(o ? `${o}` : (p.allow_onsite ? 'Onsite payment accepted at check-in.' : 'Onsite payment is not enabled for this tournament.'));
-  if(el){ el.innerHTML = lines.join('<br>'); el.style.display = lines.length ? '' : 'none'; }
-}
+  if(!p){ el.style.display='none'; el.textContent=''; return; }
   const t = $('#j-paytype').value;
   const lines=[];
   if(t==='Stripe')  lines.push('Pay securely by card via Stripe Checkout.');
-  if(t==='Zelle')   lines.push(p.pay_zelle ? `Zelle: ${p.pay_zelle}` : 'Zelle instructions not provided.');
-  if(t==='CashApp') lines.push(p.pay_cashapp ? `CashApp: ${p.pay_cashapp}` : 'CashApp instructions not provided.');
+  if(t==='Zelle'){
+    const addr = (p.pay_zelle_str || p.pay_zelle || '').trim();
+    lines.push(addr ? `Zelle: ${addr}` : 'Zelle instructions not provided.');
+  }
+  if(t==='CashApp'){
+    let tag = (p.pay_cashapp_str || p.pay_cashapp || '').trim();
+    if(tag && !tag.startsWith('$')) tag = '$' + tag;
+    lines.push(tag ? `CashApp: ${tag}` : 'CashApp instructions not provided.');
+  }
   if(t==='Onsite')  lines.push(p.pay_onsite ? 'Onsite payment accepted at event check-in.' : 'Onsite payment is not enabled for this tournament.');
   el.innerHTML = lines.join('<br>'); el.style.display = lines.length ? '' : 'none';
 }
+
 
 /* ---------- Join (Stripe + others) ---------- */
 async function joinPot(){
@@ -806,23 +819,7 @@ async function onLoadPotClicked(){
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
   $('#pi-id').textContent = `ID: ${pot.id}`;
-  // Organizer contact line
-  const orgEmail = pot.organizer_email || pot.organizerEmail || '';
-  const orgPhone = pot.organizer_phone || pot.organizerPhone || '';
-  const contactEl = $('#pi-contact');
-  if (contactEl){
-    const parts = [];
-    if (orgEmail) parts.push(`Email: ${orgEmail}`);
-    if (orgPhone) parts.push(`Phone: ${orgPhone}`);
-    if (parts.length){
-      contactEl.textContent = parts.join('  |  ');
-      contactEl.style.display = '';
-    }else{
-      contactEl.style.display = 'none';
-      contactEl.textContent = '';
-    }
-  }
-
+  try{ setOrganizerContact(pot); }catch(_){ }
 
   subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);
@@ -2115,7 +2112,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     var clone = b.cloneNode(true);
     clone.dataset._create_checkout_wired = '1';
     b.parentNode.replaceChild(clone, b);
-    clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); createPot(); });
+    clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); startCreatePotCheckout(); });
   }
 
   // Handle returns specifically for Create-Pot flow
@@ -2191,7 +2188,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
-    btn.addEventListener('click', function(e){ e.preventDefault(); createPot(); });
+    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
     btn.__stripeBound = true;
   }
 });
@@ -2238,7 +2235,7 @@ function onCreateClick(e){
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
       return createPotDirect();
     } else {
-      return createPot();
+      return startCreatePotCheckout();
     }
   }catch(err){ console.error('Create click failed', err); }
 }
@@ -2246,7 +2243,6 @@ function onCreateClick(e){
 
 
 async function createPotDirect(){
-  if (window.__creatingPot) return;
   try{
     if(!db){ alert('Firebase is not initialized.'); return; }
     const uid = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : null;
@@ -2413,7 +2409,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
-  async function createPot(){
+  async function startCreatePotCheckout(){
     const btn = byId('btn-create');
     const msg = byId('create-msg') || byId('create-result');
     const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
@@ -2440,7 +2436,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
       show(e.message||String(e));
     }finally{ setBusy(false, 'Create Pot'); }
   }
-  window.startCreatePotCheckout = window.startCreatePotCheckout || function(){ try{ if (typeof isSiteAdmin==='function' && isSiteAdmin()) { return createPotDirect(); } }catch(_){ } return createPot(); };
+  if (typeof window.startCreatePotCheckout !== 'function') window.startCreatePotCheckout = startCreatePotCheckout;
 
   async function startJoinCheckout(){
     if ((String(__capturedPayType()).toLowerCase()||'') !== 'stripe' && (String(__capturedPayType()).toLowerCase()||'') !== 'stripe (card)') { console.warn('[JOIN] hard-stop startJoinCheckout: method is', __capturedPayType()); return; }
@@ -2638,7 +2634,7 @@ document.addEventListener('DOMContentLoaded', function(){
       btnCreate.addEventListener('click', function(ev){
         // allow existing handlers, but provide a fallback if none are bound
         try{
-          if (typeof startCreatePotCheckout === 'function') return createPot();
+          if (typeof startCreatePotCheckout === 'function') return startCreatePotCheckout();
           if (typeof onCreateClick === 'function') return onCreateClick();
         }catch(e){ console.error('Create Pot click error:', e); }
       });
