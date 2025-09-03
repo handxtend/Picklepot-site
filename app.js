@@ -354,7 +354,9 @@ function getPaymentMethods(p){
 
 /* ---------- Create Pot ---------- */
 async function createPot(){
-  // Route to Stripe checkout (draft first)
+  if (typeof isSiteAdmin==='function' && isSiteAdmin()){
+    return createPotDirect();
+  }
   return startCreatePotCheckout();
 }
 /* ---------- Active list / Totals ---------- */
@@ -2401,6 +2403,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
   async function startCreatePotCheckout(){
+    if (typeof isSiteAdmin==='function' && isSiteAdmin()){ return createPotDirect(); }
     const btn = byId('btn-create');
     const msg = byId('create-msg') || byId('create-result');
     const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
