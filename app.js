@@ -202,10 +202,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Force Create button to use Stripe Checkout
   try{
     const _btn = document.getElementById('btn-create');
-if (_btn && !_btn.__boundCreate) {
-  _btn.addEventListener('click', onCreateClick);
-  _btn.__boundCreate = true;
-}
+    if (_btn){
+      const _clone = _btn.cloneNode(true);
+      _btn.parentNode.replaceChild(_clone, _btn);
+      _clone.addEventListener('click', onCreateClick);
+    }
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
   handleSubscriptionReturn();
@@ -859,6 +860,7 @@ function renderRegistrations(entries){
   const tbody = document.querySelector('#adminTable tbody');
   if(!tbody) return;
   const showEmail = isSiteAdmin();
+  const stripeOk = (typeof getPaymentMethods==='function' && typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? !!getPaymentMethods(CURRENT_DETAIL_POT).stripe : false;
   const canAdmin  = isSiteAdmin();
 
   if(!entries || !entries.length){
@@ -890,7 +892,7 @@ function renderRegistrations(entries){
 
     return `
       <tr>
-        <td>${escapeHtml(name)}</td>
+        <td>${(!e.paid && stripeOk) ? (`<a href="#" data-act="pay" data-id="${e.id}" title="Pay now">${escapeHtml(name)}</a>`) : escapeHtml(name)}</td>
         <td>${escapeHtml(email)}</td>
         <td>${escapeHtml(type)}</td>
         <td>${buyin}</td>
@@ -901,6 +903,19 @@ function renderRegistrations(entries){
   }).join('');
 
   tbody.innerHTML = html;
+  if(!tbody.__payBind){
+    tbody.addEventListener('click', function(ev){
+      const a = ev.target.closest('a[data-act="pay"]');
+      if(!a) return;
+      ev.preventDefault();
+      try{
+        const id = a.getAttribute('data-id');
+        const entry = (entries||[]).find(x=>x.id===id);
+        if(entry){ startEntryCheckout(entry); }
+      }catch(e){ console.error('entry pay click failed', e); }
+    });
+    tbody.__payBind = true;
+  }
 }
 
 /* ---------- Admin utilities ---------- */
@@ -2196,11 +2211,10 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
-    btn.addEventListener('click', function(e){ e.preventDefault(); onCreateClick(e); });
+    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
     btn.__stripeBound = true;
   }
 });
-
 
 function fillStateAndCity(){
   const stSel = document.getElementById('c-addr-state');
@@ -2239,10 +2253,6 @@ function toggleAddressForLocation(){
 }
 
 function onCreateClick(e){
-  if (window.__creatingPot) { e && e.preventDefault && e.preventDefault(); return; }
-  window.__creatingPot = true;
-  try {
-
   try{
     e && e.preventDefault && e.preventDefault();
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
@@ -2251,8 +2261,6 @@ function onCreateClick(e){
       return startCreatePotCheckout();
     }
   }catch(err){ console.error('Create click failed', err); }
-
-  } finally { window.__creatingPot = false; }
 }
 
 
@@ -2485,6 +2493,45 @@ const potId = byId('v-pot')?.value?.trim() || '';
       alert('Join failed: ' + (e.message || e));
     }
   }
+
+
+async function startEntryCheckout(entry){
+  try{
+    const pot = (typeof CURRENT_DETAIL_POT !== 'undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
+    if (!pot) { alert('No pot selected.'); return; }
+    const pm = getPaymentMethods(pot);
+    if (!pm.stripe) { alert('Stripe payment is not available for this pot.'); return; }
+    if (!entry || entry.paid) { alert('This entry is already paid or invalid.'); return; }
+
+    const amountDollars = Number(entry.applied_buyin || entry.buyin || 0);
+    if (!amountDollars || isNaN(amountDollars)) { alert('No amount to charge for this entry.'); return; }
+
+    const payload = {
+      pot_id: pot.id || byId('v-pot')?.value?.trim() || '',
+      entry_id: entry.id || ('e_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7)),
+      amount_cents: toCents(amountDollars),
+      player_name: entry.name || 'Player',
+      player_email: entry.email || ''
+    };
+
+    setBusy && setBusy(true, 'Redirecting…');
+    const r = await fetch((window.API_BASE||'') + '/create-checkout-session', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await r.json().catch(()=>null);
+    if (!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
+    location.href = data.url;
+  }catch(e){
+    console.error('[ENTRY PAY]', e);
+    alert(e.message || String(e));
+  }finally{
+    setBusy && setBusy(false, '');
+  }
+}
+
+
   if (typeof window.startJoinCheckout !== 'function') window.startJoinCheckout = startJoinCheckout;
 
   function wire(id, fn){
@@ -2626,7 +2673,7 @@ document.addEventListener('DOMContentLoaded', function(){
   var btnCreateCollapse = document.getElementById('btn-create-collapse');
   var btnJoinCollapse   = document.getElementById('btn-join-collapse');
 
-  function show(el){ if(el){ el.style.display=''; el.scrollIntoView({behavior:'smooth', block:'start'});} try{ var note=document.getElementById('create-expire-note'); if(note){ note.style.display = (typeof isSiteAdmin==='function' && isSiteAdmin()) ? 'none' : ''; } }catch(_){} }
+  function show(el){ if(el){ el.style.display=''; el.scrollIntoView({behavior:'smooth', block:'start'});} }
   function hide(el){ if(el){ el.style.display='none'; } }
 
   if (btnStartCreate && createCard){
