@@ -160,7 +160,7 @@
 <!-- Organizer Subscription (single block under Tips bar) -->
 <!-- Create CTA replaces Organizer Subscription -->
 <div class="create-cta" style="display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin:8px 0 12px;">
-<button class="btn primary xl" id="btn-start-create" type="button">Create A Pot</button>
+<button class="btn primary xl" id="btn-start-create" type="button">Create A Pot</button> <span id="create-expiry-note" class="muted" style="display:none;font-size:12px;">Pots expire 3 months after creation.</span>
 <a class="btn secondary xl" href="manage.html" role="button" style="text-decoration:none">Organizer: Manage a Pot</a>
 </div>
 <div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
@@ -243,8 +243,9 @@
 <div><label>Organizer</label><input id="j-filter-org" placeholder="Organizer name"/></div>
 <div><label>City</label><input id="j-filter-city" placeholder="City"/></div>
 </div>
-<div class="row">
+<div class="row" style="margin-top:10px">
 <div style="flex:1">
+<div class="muted" style="font-weight:700;margin:8px 0 6px">Select Tournament</div>
 <label style="display:none">Active Tournaments</label>
 <select id="j-pot-select" size="12"></select>
 <div class="muted" style="margin-top:6px">Summary: <span class="soft-blue-box" id="j-pot-summary-brief">—</span></div>
@@ -448,5 +449,19 @@
       obs.observe(document.body, { childList:true, subtree:true, characterData:true });
     })();
   </script>
+
+<script>
+  (function(){
+    var btn = document.getElementById('btn-start-create');
+    var note = document.getElementById('create-expiry-note');
+    if(btn && note){
+      note.style.display = 'none';
+      btn.addEventListener('click', function(){
+        try{ note.style.display = 'inline'; }catch(_){}
+      }, { once: false });
+    }
+  })();
+</script>
+
 </body>
 </html>
