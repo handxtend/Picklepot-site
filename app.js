@@ -383,8 +383,7 @@ async function createPot(){
     guardPotCreateEnd();
   }
 }
-  return startCreatePotCheckout();
-}
+
 /* ---------- Active list / Totals ---------- */
 let JOIN_POTS_CACHE = [];
 let JOIN_POTS_SUB = null;
