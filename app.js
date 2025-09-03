@@ -1890,7 +1890,17 @@ document.addEventListener('DOMContentLoaded', ()=>{
 function _showCreatePotForm(){
   const section = document.getElementById('create-card');
   if (!section) return;
-  try{ section.classList.remove('admin-only'); }catch(_){}
+  try{ section.classList.remove('admin-only'); 
+  try{
+    var note = document.getElementById('create-expire-note');
+    if (note){
+      var admin = (typeof isSiteAdmin==='function' && isSiteAdmin());
+      // Show note only for non-admins (organizers)
+      note.style.display = admin ? 'none' : '';
+    }
+  }catch(_){} 
+}
+catch(_){}
   try{ section.style.display = ''; }catch(_){}
   try{ section.scrollIntoView({ behavior: 'smooth', block: 'start' }); }catch(_){}
 }
