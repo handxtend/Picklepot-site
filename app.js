@@ -791,6 +791,23 @@ async function onLoadPotClicked(){
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
   $('#pi-id').textContent = `ID: ${pot.id}`;
+  // Organizer contact line
+  const orgEmail = pot.organizer_email || pot.organizerEmail || '';
+  const orgPhone = pot.organizer_phone || pot.organizerPhone || '';
+  const contactEl = $('#pi-contact');
+  if (contactEl){
+    const parts = [];
+    if (orgEmail) parts.push(`Email: ${orgEmail}`);
+    if (orgPhone) parts.push(`Phone: ${orgPhone}`);
+    if (parts.length){
+      contactEl.textContent = parts.join('  |  ');
+      contactEl.style.display = '';
+    }else{
+      contactEl.style.display = 'none';
+      contactEl.textContent = '';
+    }
+  }
+
 
   subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);
