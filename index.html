@@ -172,7 +172,6 @@
 <!-- ======= CREATE POT ======= -->
 <section class="card admin-only" id="create-card" style="display:none">
 <h2 class="section-header">Create a Pot</h2>
-<div id="create-expiry-note-panel" class="muted" style="display:none;background-color:#003366;color:#fff;padding:8px 12px;border-radius:6px;margin:6px 0 10px;margin:6px 0 8px;font-size:15px;">Pots expire 3 months (90 days) after creation.</div>
 <div class="row">
 <div><label>Tournament Name</label><select id="c-name-select"></select></div>
 <div id="c-name-other-wrap" style="display:none"><label>Other Tournament Name</label><input id="c-name-other" placeholder="Enter tournament name"/></div>
@@ -450,19 +449,5 @@
       obs.observe(document.body, { childList:true, subtree:true, characterData:true });
     })();
   </script>
-
-<script>
-  (function(){
-    var btn = document.getElementById('btn-start-create');
-    var panelNote = document.getElementById('create-expiry-note-panel');
-    if(btn && panelNote){
-      panelNote.style.display = 'none';
-      btn.addEventListener('click', function(){
-        try{ panelNote.style.display = ''; }catch(_){}
-      });
-    }
-  })();
-</script>
-
 </body>
 </html>

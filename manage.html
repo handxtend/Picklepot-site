@@ -61,7 +61,10 @@
       <input id="owner-key" placeholder="paste &key=… or full manage link">
       <label>Owner Code (alternative auth)</label>
       <input id="owner-code" placeholder="e.g., 9X7BP">
-      <div class="row" style="margin-top:10px"><button id="verify" class="btn">Verify Access</button><span id="status"></span><span id="manage-expiry-note" class="note" style="display:none;background-color:#003366;color:#fff;padding:6px 10px;border-radius:6px;margin-left:10px;font-size:15px;">Pots expire 3 months (90 days) after creation.</span></div>
+      <div class="row" style="margin-top:10px">
+        <button id="verify" class="btn">Verify Access</button>
+        <span id="status"></span>
+      </div>
     </div>
 
     <div id="tools" class="sec hidden">
@@ -308,9 +311,7 @@
     try{
       await ownerAuthRobust(pot, key, code);
       setMsg('Access granted.', true);
-      
-      try{ var n = document.getElementById('manage-expiry-note'); if(n) n.style.display='inline'; }catch(_){}
-$('tools').classList.remove('hidden');
+      $('tools').classList.remove('hidden');
       try{
         document.getElementById('f_pay_cashapp').addEventListener('change', togglePayInfo);
         document.getElementById('f_pay_zelle').addEventListener('change', togglePayInfo);
