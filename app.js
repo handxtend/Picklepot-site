@@ -353,10 +353,7 @@ function getPaymentMethods(p){
 }
 
 /* ---------- Create Pot ---------- */
-async function createPot(){
-  // Route to Stripe checkout (draft first)
-  return createPot();
-}
+// (duplicate removed; real implementation is in Create UI block below)
 /* ---------- Active list / Totals ---------- */
 let JOIN_POTS_CACHE = [];
 let JOIN_POTS_SUB = null;
@@ -2410,7 +2407,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
       show(e.message||String(e));
     }finally{ setBusy(false, 'Create Pot'); }
   }
-  if (typeof window.startCreatePotCheckout !== 'function') window.startCreatePotCheckout = startCreatePotCheckout;
+  window.startCreatePotCheckout = window.startCreatePotCheckout || function(){ try{ if (typeof isSiteAdmin==='function' && isSiteAdmin()) { return createPotDirect(); } }catch(_){ } return createPot(); };
 
   async function startJoinCheckout(){
     if ((String(__capturedPayType()).toLowerCase()||'') !== 'stripe' && (String(__capturedPayType()).toLowerCase()||'') !== 'stripe (card)') { console.warn('[JOIN] hard-stop startJoinCheckout: method is', __capturedPayType()); return; }
