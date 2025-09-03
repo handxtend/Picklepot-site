@@ -160,7 +160,7 @@
 <!-- Organizer Subscription (single block under Tips bar) -->
 <!-- Create CTA replaces Organizer Subscription -->
 <div class="create-cta" style="display:flex; gap:8px; align-items:center; justify-content:center; flex-wrap:wrap; margin:8px 0 12px;">
-<button class="btn primary xl" id="btn-start-create" type="button">Create A Pot</button> <span id="create-expiry-note" style="display:none;color:#fff;margin-left:10px;">Pots expire 3 months after creation.</span>
+<button class="btn primary xl" id="btn-start-create" type="button">Create A Pot</button>
 <a class="btn secondary xl" href="manage.html" role="button" style="text-decoration:none">Organizer: Manage a Pot</a>
 </div>
 <div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
@@ -243,8 +243,9 @@
 <div><label>Organizer</label><input id="j-filter-org" placeholder="Organizer name"/></div>
 <div><label>City</label><input id="j-filter-city" placeholder="City"/></div>
 </div>
-<div class="row">
+<div class="row" style="margin-top:10px">
 <div style="flex:1">
+<div class="muted" style="font-weight:700;margin:8px 0 6px">Select Tournament</div>
 <label style="display:none">Active Tournaments</label>
 <select id="j-pot-select" size="12"></select>
 <div class="muted" style="margin-top:6px">Summary: <span class="soft-blue-box" id="j-pot-summary-brief">—</span></div>
@@ -259,21 +260,7 @@
 <div><label>Email</label><input id="j-email" placeholder="you@example.com" type="email"/></div>
 <div><label>Member / Guest</label><select id="j-mtype"><option value="Member">Member</option><option value="Guest">Guest</option></select><div class="pill-cost" id="j-cost" style="margin-top:6px">Cost: —</div></div>
 <div><label>Skill Level</label><select id="j-skill"></select></div>
-<div><label>Payment Type</label>\1
-
-<!-- ✅ GOLD where-to-pay box -->
-<div id="where-to-pay" style="margin-top:8px;display:none">
-  <div id="where-to-pay-box" style="
-    background:#fff8e1;
-    border:1px solid #f6e3a0;
-    border-radius:10px;
-    padding:10px 12px;
-    font-size:14px;
-    color:#6b5600;">
-    <!-- Filled dynamically by app.js -->
-  </div>
-</div>
-</div>
+<div><label>Payment Type</label><select id="j-paytype"></select></div>
 </div>
 <div class="alert" id="j-pay-notes" style="display:none"></div>
 <p class="muted" style="margin:8px 0 0">Note: Lower-skilled players can play up, but higher-skilled players <b>CANNOT</b> play down.</p>
@@ -303,6 +290,13 @@
 <span class="pill status-chip" id="pi-status"></span>
 <span class="pill soft-blue-box admin-only" id="pi-id" style="display:none"></span>
 </div>
+
+<!-- Organizer contact (auto-hidden if empty) -->
+<div id="pot-contact" style="margin:6px 0 10px;display:none" class="muted">
+  <div id="j-organizer-email"></div>
+  <div id="j-organizer-phone"></div>
+</div>
+
 <h3 style="margin:14px 0 6px">Registrations</h3>
 <div style="overflow:auto">
 <table id="adminTable">
@@ -455,19 +449,5 @@
       obs.observe(document.body, { childList:true, subtree:true, characterData:true });
     })();
   </script>
-
-<script>
-  (function(){
-    var btn = document.getElementById('btn-start-create');
-    var note = document.getElementById('create-expiry-note');
-    if(btn && note){
-      note.style.display = 'none';
-      btn.addEventListener('click', function(){
-        try{ note.style.display = 'inline'; }catch(_){}
-      });
-    }
-  })();
-</script>
-
 </body>
 </html>
