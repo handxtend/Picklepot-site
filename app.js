@@ -342,9 +342,9 @@ if (_btn && !_btn.__boundCreate) {
 /* ---------- Utility: payment methods map ---------- */
 function getPaymentMethods(p){
   const pm = p?.payment_methods || {};
-  const has = v => v === true;
+  const has = v => (v === true) || v === 1 || v === '1' || v === 'true' || v === 'yes';
   return {
-    stripe: has(pm.stripe) || false,
+    stripe: has(pm.stripe) || has(p?.allowStripe) || has(p?.allow_stripe) || has(p?.stripe) || false,
     zelle:  has(pm.zelle)  || (!!p?.pay_zelle),
     cashapp:has(pm.cashapp)|| (!!p?.pay_cashapp),
     onsite: has(pm.onsite) || (!!p?.pay_onsite)
