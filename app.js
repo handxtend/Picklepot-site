@@ -1,3 +1,6 @@
+window.__creatingPot = window.__creatingPot || false;
+function guardPotCreateStart(){ if(window.__creatingPot) return true; window.__creatingPot=true; return false; }
+function guardPotCreateEnd(){ window.__creatingPot=false; }
 
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
@@ -618,9 +621,21 @@ function updatePaymentOptions(){
 }
 
 /* Notes under payment select */
+
 function updatePaymentNotes(){
   const p = CURRENT_JOIN_POT; const el = $('#j-pay-notes');
-  if(!p){ el.style.display='none'; el.textContent=''; return; }
+  if(!p){ if(el){ el.style.display='none'; el.textContent=''; } return; }
+  const t = $('#j-paytype').value;
+  const z = p.pay_zelle_str || p.pay_zelle || p.zelle_info || '';
+  const c = p.pay_cashapp_str || p.pay_cashapp || p.cashapp_info || '';
+  const o = p.pay_onsite_str || p.pay_onsite || '';
+  const lines = [];
+  if(t==='Stripe')  lines.push('Pay securely by card via Stripe Checkout.');
+  if(t==='Zelle')   lines.push(z ? `Zelle: ${z}` : 'Zelle instructions not provided.');
+  if(t==='CashApp') lines.push(c ? `CashApp: ${c}` : 'CashApp instructions not provided.');
+  if(t==='Onsite')  lines.push(o ? `${o}` : (p.allow_onsite ? 'Onsite payment accepted at check-in.' : 'Onsite payment is not enabled for this tournament.'));
+  if(el){ el.innerHTML = lines.join('<br>'); el.style.display = lines.length ? '' : 'none'; }
+}
   const t = $('#j-paytype').value;
   const lines=[];
   if(t==='Stripe')  lines.push('Pay securely by card via Stripe Checkout.');
@@ -2231,6 +2246,7 @@ function onCreateClick(e){
 
 
 async function createPotDirect(){
+  if (window.__creatingPot) return;
   try{
     if(!db){ alert('Firebase is not initialized.'); return; }
     const uid = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : null;
