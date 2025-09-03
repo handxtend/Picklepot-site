@@ -1,4 +1,23 @@
 
+// ---- Global creation guard to prevent duplicate pot creation clicks ----
+window.__creatingPot = window.__creatingPot || false;
+function guardPotCreateStart(){
+  if (window.__creatingPot) return true; // already creating
+  window.__creatingPot = true;
+  try{
+    var b = document.getElementById('btn-create');
+    if (b){ b.disabled = true; b.classList.add('disabled'); }
+  }catch(_){}
+  return false;
+}
+function guardPotCreateEnd(){
+  window.__creatingPot = false;
+  try{
+    var b = document.getElementById('btn-create');
+    if (b){ b.disabled = false; b.classList.remove('disabled'); }
+  }catch(_){}
+}
+
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
   try{
@@ -354,10 +373,13 @@ function getPaymentMethods(p){
 
 /* ---------- Create Pot ---------- */
 async function createPot(){
+  if (guardPotCreateStart()) return;
   if (typeof isSiteAdmin==='function' && isSiteAdmin()){
     return createPotDirect();
   }
   return startCreatePotCheckout();
+  try{}finally{ guardPotCreateEnd(); }
+
 }
 /* ---------- Active list / Totals ---------- */
 let JOIN_POTS_CACHE = [];
@@ -2104,6 +2126,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     clone.dataset._create_checkout_wired = '1';
     b.parentNode.replaceChild(clone, b);
     clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); startCreatePotCheckout(); });
+    clone.__stripeBound = true;
   }
 
   // Handle returns specifically for Create-Pot flow
@@ -2234,6 +2257,7 @@ function onCreateClick(e){
 
 
 async function createPotDirect(){
+  if (guardPotCreateStart()) return;
   try{
     if(!db){ alert('Firebase is not initialized.'); return; }
     const uid = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : null;
@@ -2313,6 +2337,8 @@ async function createPotDirect(){
     console.error('[CreateDirect] Failed:', e);
     alert('Failed to create pot.');
   }
+  try{}finally{ guardPotCreateEnd(); }
+
 }
 
 
@@ -2403,6 +2429,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
   async function startCreatePotCheckout(){
+  if (guardPotCreateStart()) return;
     if (typeof isSiteAdmin==='function' && isSiteAdmin()){ return createPotDirect(); }
     const btn = byId('btn-create');
     const msg = byId('create-msg') || byId('create-result');
@@ -2553,6 +2580,8 @@ const potId = byId('v-pot')?.value?.trim() || '';
       fn.call(el, e);
     }
   }, true);
+  try{}finally{ guardPotCreateEnd(); }
+
 })();
 
 
