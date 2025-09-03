@@ -1890,17 +1890,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
 function _showCreatePotForm(){
   const section = document.getElementById('create-card');
   if (!section) return;
-  try{ section.classList.remove('admin-only'); 
-  try{
-    var note = document.getElementById('create-expire-note');
-    if (note){
-      var admin = (typeof isSiteAdmin==='function' && isSiteAdmin());
-      // Show note only for non-admins (organizers)
-      note.style.display = admin ? 'none' : '';
-    }
-  }catch(_){} 
-}
-catch(_){}
+  try{ section.classList.remove('admin-only'); }catch(_){}
   try{ section.style.display = ''; }catch(_){}
   try{ section.scrollIntoView({ behavior: 'smooth', block: 'start' }); }catch(_){}
 }
@@ -2207,10 +2197,11 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
-    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
+    btn.addEventListener('click', function(e){ e.preventDefault(); onCreateClick(e); });
     btn.__stripeBound = true;
   }
 });
+
 
 function fillStateAndCity(){
   const stSel = document.getElementById('c-addr-state');
