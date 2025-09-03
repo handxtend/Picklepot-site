@@ -1,23 +1,4 @@
 
-// ---- Global creation guard to prevent duplicate pot creation clicks ----
-window.__creatingPot = window.__creatingPot || false;
-function guardPotCreateStart(){
-  if (window.__creatingPot) return true; // already creating
-  window.__creatingPot = true;
-  try{
-    var b = document.getElementById('btn-create');
-    if (b){ b.disabled = true; b.classList.add('disabled'); }
-  }catch(_){}
-  return false;
-}
-function guardPotCreateEnd(){
-  window.__creatingPot = false;
-  try{
-    var b = document.getElementById('btn-create');
-    if (b){ b.disabled = false; b.classList.remove('disabled'); }
-  }catch(_){}
-}
-
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
   try{
@@ -373,17 +354,9 @@ function getPaymentMethods(p){
 
 /* ---------- Create Pot ---------- */
 async function createPot(){
-  if (guardPotCreateStart()) return;
-  try {
-    if (typeof isSiteAdmin==='function' && isSiteAdmin()) {
-      return await createPotDirect();
-    }
-    return await startCreatePotCheckout();
-  } finally {
-    guardPotCreateEnd();
-  }
+  // Route to Stripe checkout (draft first)
+  return createPot();
 }
-
 /* ---------- Active list / Totals ---------- */
 let JOIN_POTS_CACHE = [];
 let JOIN_POTS_SUB = null;
@@ -460,15 +433,7 @@ function attachActivePotsListener(){
       const x = { id: d.id, ...d.data() };
       const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (endMs && endMs <= now) return; // hide ended
-      
-      // 90-day expiry (organizer pots). Admin-created pots do not expire.
-      const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : (typeof x.created_at === 'number' ? x.created_at : null);
-      const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at   === 'number' ? x.start_at   : null);
-      const basisMs   = createdMs || startMs;
-      const isAdminCreated = !!(x.admin_created || x.is_admin_created || x.created_by_admin);
-      const ninetyMs  = 90 * 24 * 60 * 60 * 1000;
-      if (!isAdminCreated && basisMs && (now - basisMs) > ninetyMs) return; // hide expired by age
-pots.push(x);
+      pots.push(x);
     });
     pots.sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
     JOIN_POTS_CACHE = pots;
@@ -503,15 +468,8 @@ pots.push(x);
     const mergeApply = () => {
       const now = Date.now();
       const pots = Array.from(buffer.values()).filter(x=>{
-        const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : (typeof x.end_at === 'number' ? x.end_at : null);
-        const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : (typeof x.created_at === 'number' ? x.created_at : null);
-        const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at   === 'number' ? x.start_at   : null);
-        const basisMs   = createdMs || startMs;
-        const isAdminCreated = !!(x.admin_created || x.is_admin_created || x.created_by_admin);
-        const ninetyMs  = 90 * 24 * 60 * 60 * 1000;
-        if (endMs && endMs <= now) return false;
-        if (!isAdminCreated && basisMs && (now - basisMs) > ninetyMs) return false;
-        return true;
+        const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
+        return !(endMs && endMs <= now);
       }).sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
       JOIN_POTS_CACHE = pots;
       if (!pots.length){
@@ -663,16 +621,26 @@ function updatePaymentOptions(){
 }
 
 /* Notes under payment select */
+
 function updatePaymentNotes(){
-  const p = CURRENT_JOIN_POT; const el = $('#j-pay-notes');
+  const p = CURRENT_JOIN_POT;
+  const el = $('#j-pay-notes');
   if(!p){ el.style.display='none'; el.textContent=''; return; }
   const t = $('#j-paytype').value;
-  const lines=[];
+
+  const safeStr = (v)=> (typeof v === 'string' && v.trim()) ? v.trim() : '';
+  const zelleInfo   = safeStr(p.pay_zelle_str)   || safeStr(p.pay_zelle)   || safeStr(p.zelle_info)   || safeStr(p.default_payment_label);
+  const cashappInfo = safeStr(p.pay_cashapp_str) || safeStr(p.pay_cashapp) || safeStr(p.cashapp_info) || safeStr(p.default_payment_label);
+  const onsiteAllowed = (p.allow_onsite === true) || (p.pay_onsite === true) || (p.accept_onsite === true);
+
+  const lines = [];
   if(t==='Stripe')  lines.push('Pay securely by card via Stripe Checkout.');
-  if(t==='Zelle')   lines.push(p.pay_zelle ? `Zelle: ${p.pay_zelle}` : 'Zelle instructions not provided.');
-  if(t==='CashApp') lines.push(p.pay_cashapp ? `CashApp: ${p.pay_cashapp}` : 'CashApp instructions not provided.');
-  if(t==='Onsite')  lines.push(p.pay_onsite ? 'Onsite payment accepted at event check-in.' : 'Onsite payment is not enabled for this tournament.');
-  el.innerHTML = lines.join('<br>'); el.style.display = lines.length ? '' : 'none';
+  if(t==='Zelle')   lines.push(zelleInfo ? ('Zelle: ' + zelleInfo) : 'Zelle instructions not provided.');
+  if(t==='CashApp') lines.push(cashappInfo ? ('CashApp: ' + cashappInfo) : 'CashApp instructions not provided.');
+  if(t==='Onsite')  lines.push(onsiteAllowed ? 'Pay onsite at check-in.' : 'Onsite payment is not enabled for this tournament.');
+
+  el.innerHTML = lines.join('<br>');
+  el.style.display = lines.length ? '' : 'none';
 }
 
 /* ---------- Join (Stripe + others) ---------- */
@@ -836,11 +804,27 @@ async function onLoadPotClicked(){
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
   $('#pi-id').textContent = `ID: ${pot.id}`;
+  try{ setOrganizerContact(pot); }catch(_){ }
 
   subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);
 }
 
+
+/* ---------- Organizer Contact display ---------- */
+function setOrganizerContact(p){
+  try{
+    var wrap = document.getElementById('pot-contact');
+    var em = document.getElementById('j-organizer-email');
+    var ph = document.getElementById('j-organizer-phone');
+    if(!wrap || !em || !ph) return;
+    var email = (p && (p.organizer_email || p.org_email || p.email) || '').trim();
+    var phone = (p && (p.organizer_phone || p.phone) || '').trim();
+    em.innerHTML = email ? ('Email: <a href="mailto:'+email+'">'+email+'</a>') : '';
+    ph.textContent = phone ? ('Phone: '+phone) : '';
+    wrap.style.display = (email || phone) ? '' : 'none';
+  }catch(e){}
+}
 /* ---------- Registrations table ---------- */
 function subscribeDetailEntries(potId){
   if(DETAIL_ENTRIES_UNSUB){ try{DETAIL_ENTRIES_UNSUB();}catch(_){} DETAIL_ENTRIES_UNSUB=null; }
@@ -2128,8 +2112,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     var clone = b.cloneNode(true);
     clone.dataset._create_checkout_wired = '1';
     b.parentNode.replaceChild(clone, b);
-    clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); startCreatePotCheckout(); });
-    clone.__stripeBound = true;
+    clone.addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); createPot(); });
   }
 
   // Handle returns specifically for Create-Pot flow
@@ -2205,7 +2188,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
-    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
+    btn.addEventListener('click', function(e){ e.preventDefault(); createPot(); });
     btn.__stripeBound = true;
   }
 });
@@ -2246,13 +2229,8 @@ function toggleAddressForLocation(){
   block.style.display = show ? '' : 'none';
 }
 
-function onCreateClick(e){
-  try{
-    e && e.preventDefault && e.preventDefault();
-    if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
-      return createPotDirect();
-    } else {
-      return startCreatePotCheckout();
+function onCreateClick(e){ e && (e.preventDefault ? e.preventDefault() : 0); e && e.stopPropagation && e.stopPropagation(); return createPot(); } else {
+      return createPot();
     }
   }catch(err){ console.error('Create click failed', err); }
 }
@@ -2309,8 +2287,6 @@ async function createPotDirect(){
     const fullLocation = location || [addr_line1, [addr_city, addr_state].filter(Boolean).join(', '), addr_zip].filter(Boolean).join(' ');
 
     const pot = {
-      created_at: firebase.firestore.FieldValue.serverTimestamp(),
-      admin_created: (function(){ try{ return typeof isSiteAdmin==='function' && isSiteAdmin(); }catch(_){ return false; } })(),
       name, organizer, event, skill,
       buyin_member, buyin_guest,
       date, time, location: fullLocation,
@@ -2339,8 +2315,6 @@ async function createPotDirect(){
     console.error('[CreateDirect] Failed:', e);
     alert('Failed to create pot.');
   }
-  try{}finally{ guardPotCreateEnd(); }
-
 }
 
 
@@ -2431,7 +2405,6 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
   async function startCreatePotCheckout(){
-  if (typeof isSiteAdmin==='function' && isSiteAdmin()){ return createPotDirect(); }
     const btn = byId('btn-create');
     const msg = byId('create-msg') || byId('create-result');
     const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
@@ -2581,8 +2554,6 @@ const potId = byId('v-pot')?.value?.trim() || '';
       fn.call(el, e);
     }
   }, true);
-  try{}finally{ guardPotCreateEnd(); }
-
 })();
 
 
@@ -2658,7 +2629,7 @@ document.addEventListener('DOMContentLoaded', function(){
       btnCreate.addEventListener('click', function(ev){
         // allow existing handlers, but provide a fallback if none are bound
         try{
-          if (typeof startCreatePotCheckout === 'function') return startCreatePotCheckout();
+          if (typeof startCreatePotCheckout === 'function') return createPot();
           if (typeof onCreateClick === 'function') return onCreateClick();
         }catch(e){ console.error('Create Pot click error:', e); }
       });
