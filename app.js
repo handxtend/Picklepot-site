@@ -668,15 +668,14 @@ function updateBigTotals(paidShare, totalShare){
 function updateJoinCost(){
   const p = CURRENT_JOIN_POT; if(!p) return;
   const mtype = $('#j-mtype').value;
-  const isMember = /member/i.test(mtype) && !/guest/i.test(mtype);
-  const amt = (isMember ? Number(p.buyin_member||0) : Number(p.buyin_guest||0));
+  const amt = (mtype==='Member'? Number(p.buyin_member||0) : Number(p.buyin_guest||0));
   $('#j-cost').textContent = 'Cost: ' + dollars(amt);
 }
 function evaluateJoinEligibility(){
   const p=CURRENT_JOIN_POT; if(!p) return;
   const warn = $('#j-warn');
   const playerSkill = $('#j-skill').value;
-  const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[playerSkill]??0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill]??0) );
+  const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[playerSkill] || 0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill] || 0) );
   warn.style.display = allow ? 'none' : 'block';
   warn.textContent = allow ? '' : 'Higher skill level cannot play down';
 }
@@ -755,15 +754,14 @@ async function joinPot(){
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!__effective_pay_type){ msg.textContent='Choose a payment method.'; return; }
 
-  const rank = s => ({\"Any\":0,\"2.5 - 3.0\":1,\"3.25+\":2}[s] ?? 0);
+  const rank = s => ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] || 0);
   if(p.skill!=='Any' && rank(playerSkill) > rank(p.skill)){
     msg.textContent='Selected skill is higher than pot skill — joining is not allowed.'; 
     return;
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const __isMember = /member/i.test(member_type) && !/guest/i.test(member_type);
-  const applied_buyin = __isMember ? (p.buyin_member??0) : (p.buyin_guest??0);
+  const applied_buyin=(member_type==='Member'? (p.buyin_member||0) : (p.buyin_guest||0));
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
@@ -2814,16 +2812,7 @@ function startEntryCheckout(entry){
     if (!entry || paid){ alert('This entry is already paid or invalid.'); return; }
     if (!pm.stripe){ alert('Stripe payment is not available for this pot.'); return; }
 
-    var amountDollars = (function(){
-      var pot = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
-      var eAmt = Number(entry.applied_buyin || entry.buyin || 0);
-      if (eAmt && isFinite(eAmt)) return eAmt;
-      if (pot){
-        var isMember = /member/i.test(String(entry.member_type||'')) && !/guest/i.test(String(entry.member_type||''));
-        return Number(isMember ? (pot.buyin_member||0) : (pot.buyin_guest||0));
-      }
-      return 0;
-    })();
+    var amountDollars = Number(entry.applied_buyin || entry.buyin || 0);
     if (!amountDollars || !isFinite(amountDollars)){ alert('No amount to charge for this entry.'); return; }
 
     var payload = {
