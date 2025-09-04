@@ -808,6 +808,8 @@ async function joinPot(){
         pot_id: p.id,
         entry_id: entryId,
         amount_cents: amount_cents,
+        member_type: member_type,
+        applied_buyin: applied_buyin,
         player_name: name || 'Player',
         player_email: email || undefined,
         success_url: origin + '/success.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
