@@ -966,7 +966,7 @@ function renderRegistrations(entries){
 
     return `
       <tr>
-        <td>${(function(){ const paid=(e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; if(!paid && stripeOk){ return `<a href=\"#\" data-act=\"pay\" data-id=\"${e.id}\">${escapeHtml(name)}</a>`;} return escapeHtml(name); })()}</td>
+        <td>${(function(){ const paid=(e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; if(!paid && stripeOk){ return `<a href=\"#\" data-act=\"pay\" data-id=\"${e.id}\" onclick=\"return window.__payClick && window.__payClick(event, '${e.id}');\">${escapeHtml(name)}</a>`;} return escapeHtml(name); })()}</td>
         <td>${escapeHtml(email)}</td>
         <td>${escapeHtml(type)}</td>
         <td>${buyin}</td>
@@ -2866,3 +2866,16 @@ function handleEntryPayClick(ev){
   return false;
 }
 try{ window.handleEntryPayClick = handleEntryPayClick; }catch(_){}
+
+
+/* --- Ensure pay-link click never navigates and always starts checkout --- */
+function __payClick(ev, id){
+  try{
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var entries = (typeof LAST_DETAIL_ENTRIES !== 'undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : [];
+    var entry = (entries || []).find(function(x){ return x && x.id === id; });
+    if (entry && window.startEntryCheckout){ window.startEntryCheckout(entry); return false; }
+  }catch(e){ console.error('__payClick failed', e); }
+  return false;
+}
+try{ window.__payClick = __payClick; }catch(_){}
