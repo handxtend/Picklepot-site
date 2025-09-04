@@ -1,7 +1,21 @@
 
+// --- helper: remove undefined / NaN so Firestore accepts the payload ---
+function sanitizeDoc(obj){
+  const out = {};
+  if (!obj || typeof obj !== 'object') return out;
+  for (const k of Object.keys(obj)){
+    const v = obj[k];
+    if (v === undefined) continue;
+    if (typeof v === 'number' && Number.isNaN(v)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+
 /* ===== Enforce Join Button Disable Rules (skill play-down + dup email + dup name) ===== */
 function recomputeJoinDisabled(){
-  try{
+  try{ try{ applyMemberCsvLock(); }catch(_){}
     var btn = document.getElementById('btn-join');
     if (!btn) return;
     var p = (typeof CURRENT_JOIN_POT!=='undefined' && CURRENT_JOIN_POT) ? CURRENT_JOIN_POT : null;
@@ -42,6 +56,7 @@ function recomputeJoinDisabled(){
       if (dupName) msgs.push('Name already registered');
       warn.textContent = msgs.join(' · ');
       warn.style.display = msgs.length ? 'block' : 'none';
+      try{ warn.classList.add('warn'); warn.classList.remove('muted'); }catch(_){}
     }
   }catch(e){ console.error('recomputeJoinDisabled failed', e); }
 }
@@ -51,8 +66,9 @@ try{ window.recomputeJoinDisabled = recomputeJoinDisabled; }catch(_){}
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
   try{
-    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || __capturedPayType() || '';
+    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || '';
   }catch(_){ return ''; }
+}catch(_){ return ''; }
 }
 
 
@@ -74,7 +90,7 @@ function isSiteAdmin(){ return localStorage.getItem('site_admin') === '1'; }
 function setSiteAdmin(on){ on?localStorage.setItem('site_admin','1'):localStorage.removeItem('site_admin'); }
 
 const $  = (s,el=document)=>el.querySelector(s);
-const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
+const $$ = (s,el=document)=>Array.from(el.querySelectorAll(s));
 const dollars = n => '$' + Number(n||0).toFixed(2);
 
 /* --- session helpers --- */
@@ -84,13 +100,13 @@ function clearClientSession() {
 }
 
 (function forceLogoutViaURL(){
-  if (new URLSearchParams(location.search).has('logout')) {
-    clearClientSession();
-    history.replaceState({}, '', location.pathname);
-  }
+  try{
+    if (new URLSearchParams(location.search).has('logout')) {
+      clearClientSession();
+      history.replaceState({}, '', location.pathname);
+    }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){ } }
 })();
-
-/* Update “Signed In/Out” label and buttons */
 
 /* ===== Create Expiry Note Visibility ===== */
 function updateCreateExpireNoteVisibility(){
@@ -148,7 +164,7 @@ async function loadOrganizerSubStatus(){
     console.error('[Sub] Failed to load organizer subscription status', err);
     ORG_SUB = { active:false, until:null };
     return ORG_SUB;
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 function refreshOrganizerUI(){
@@ -312,7 +328,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fresh.className = old.className;
     old.parentNode.replaceChild(fresh, old);
     fresh.addEventListener('click', joinPot);
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 })();
 
   const loadBtn = $('#btn-load');
@@ -554,13 +570,13 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (typeof onJoinPotChange === 'function') onJoinPotChange();
     };
     const onSnap = (snap) => {
-      snap.forEach(d=>{ buffer.set(d.id, { id:d.id, ...d.data() }); });
+      snap.forEach(d=>{ buffer.set(d.id, { id: d.id, ...d.data() }); });
       mergeApply();
     };
     unsubs.push(db.collection('pots').where('status','==','open').onSnapshot(onSnap, onError));
     unsubs.push(db.collection('pots').where('status','==','active').onSnapshot(onSnap, onError));
     JOIN_POTS_SUB = () => unsubs.forEach(u=>{ try{u();}catch(_){ } });
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 function onJoinPotChange(){
@@ -679,6 +695,7 @@ function evaluateJoinEligibility(){
   const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[playerSkill] || 0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill] || 0) );
   warn.style.display = allow ? 'none' : 'block';
   warn.textContent = allow ? '' : 'Higher skill level cannot play down';
+  try{ warn.classList.add('warn'); warn.classList.remove('muted'); }catch(_){}
 }
 
 /* Build payment options per event */
@@ -759,18 +776,28 @@ function applyMemberCsvLock(){
   try{
     const p = window.CURRENT_JOIN_POT; if(!p) return;
     const memberOpt = document.querySelector('#j-mtype option[value="Member"]');
+    const guestOpt  = document.querySelector('#j-mtype option[value="Guest"]');
     const select = document.getElementById('j-mtype');
-    if (!memberOpt || !select) return;
+    if (!memberOpt || !guestOpt || !select) return;
     const fname = document.getElementById('j-fname')?.value || '';
     const lname = document.getElementById('j-lname')?.value || '';
     const allowed = isCsvMember(p, fname, lname);
     if (allowed === null){
       memberOpt.disabled = false;
+      guestOpt.disabled = false;
       return;
     }
-    memberOpt.disabled = (allowed === false);
-    if (allowed === false && select.value === 'Member'){
-      select.value = 'Guest';
+    if (allowed === true){
+      // In CSV: Member only
+      memberOpt.disabled = false;
+      guestOpt.disabled = true;
+      if (select.value === 'Guest'){ select.value = 'Member'; try{ updateJoinCost(); }catch(_){} }
+    } else {
+      // Not in CSV: Guest only
+      memberOpt.disabled = true;
+      guestOpt.disabled = false;
+      if (select.value === 'Member'){ select.value = 'Guest'; try{ updateJoinCost(); }catch(_){} }
+    }
       if (typeof updateJoinCost === 'function') updateJoinCost();
     }
   }catch(_){}
@@ -852,114 +879,7 @@ async function joinPot(){
       const allowed = isCsvMember(CURRENT_JOIN_POT, $('#j-fname').value, $('#j-lname').value);
       if (allowed === false) effectiveMemberType = 'Guest';
     }
-  }catch(_){ }
-  const __admin = (typeof isSiteAdmin==='function' ? !!isSiteAdmin() : false);
-  let __effective_pay_type = (__admin && pay_type==='Stripe') ? 'Onsite' : pay_type;
-
-  try{ window.__joinPayMethod = pay_type; sessionStorage.setItem('JOIN_PAY_METHOD', String(pay_type||'')); }catch(_){}
-
-  if(!fname){ msg.textContent='First name is required.'; return; }
-  if(!__effective_pay_type){ msg.textContent='Choose a payment method.'; return; }
-
-  const rank = s => ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] || 0);
-  if(p.skill!=='Any' && rank(playerSkill) > rank(p.skill)){
-    msg.textContent='Selected skill is higher than pot skill — joining is not allowed.'; 
-    return;
-  }
-
-  const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin=(effectiveMemberType==='Member'? (p.buyin_member||0) : (p.buyin_guest||0));
-  const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
-
-  try{
-    setBusy(true, (__effective_pay_type==='Stripe' ? 'Redirecting to Stripe…' : 'Joining…'));
-    msg.textContent = '';
-
-    const entriesRef = db.collection('pots').doc(p.id).collection('entries');
-
-    const dupEmail = emailLC ? await entriesRef.where('email_lc','==', emailLC).limit(1).get() : { empty:true };
-    const dupName  = nameLC  ? await entriesRef.where('name_lc','==', nameLC).limit(1).get()  : { empty:true };
-    if(!dupEmail.empty || !dupName.empty){ 
-      return fail('Duplicate registration: this name or email already joined this event.');
-    }
-
-    const entry = {
-      name, name_lc:nameLC, email, email_lc:emailLC,
-      member_type: effectiveMemberType, player_skill:playerSkill, pay_type: __effective_pay_type,
-      applied_buyin, paid:false, status: (__effective_pay_type==='Stripe' ? 'draft' : 'active'),
-      created_at: firebase.firestore.FieldValue.serverTimestamp()
-    };
-    const docRef = await entriesRef.add(entry);
-    const entryId = docRef.id;
-    console.log('[JOIN] Entry created', { potId: p.id, entryId });
-
-    if (__effective_pay_type === 'Stripe'){
-      const pm = getPaymentMethods(p);
-      if (!pm.stripe){
-        return fail('Stripe is disabled for this event.');
-      }
-
-      const amount_cents = Math.round(Number(applied_buyin || 0) * 100);
-      if (!Number.isFinite(amount_cents) || amount_cents < 50){
-        return fail('Stripe requires a fee of at least $0.50.');
-      }
-
-      // Use HTTPS origin if page was opened as file://
-      const origin =
-        window.location.protocol === 'file:'
-          ? 'https://pickleballcompete.com'
-          : window.location.origin;
-
-      const payload = {
-        pot_id: p.id,
-        entry_id: entryId,
-        amount_cents,
-        player_name: name || 'Player',
-        player_email: email || undefined,
-        success_url: origin + '/success.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
-        cancel_url: origin + '/cancel.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
-        method: 'stripe'
-      };
-
-      console.log('[JOIN] Creating checkout session…', payload);
-
-      let res, data;
-      try{
-        res = await fetch(`${window.API_BASE}/create-checkout-session`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      }catch(networkErr){
-        return fail('Network error contacting payment server. Check your internet or CORS.');
-      }
-
-      try { data = await res.json(); }
-      catch(parseErr){ return fail('Bad response from payment server.'); }
-
-      if (!res.ok || !data?.url){
-        const errMsg = data?.error || `Payment server error (${res.status}).`;
-        return fail(errMsg);
-      }
-
-      // Keep IDs for success page UX
-      sessionStorage.setItem('potId', p.id);
-      sessionStorage.setItem('entryId', entryId);
-
-      try { window.window.location.assign(data.url); }
-      catch { window.open(data.url, '_blank', 'noopener'); }
-      return;
-    }
-
-    // Non-Stripe:
-    setBusy(false);
-    msg.textContent='Joined! Complete payment using the selected method.';
-    updatePaymentNotes();
-    try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
-  }catch(e){
-    console.error('[JOIN] Unexpected failure:', e);
-    fail('Join failed (check Firebase rules and your network).');
-  }
+  } catch(e){ console.error('[JOIN] Unexpected failure:', e); fail('Join failed (check Firebase rules and your network).'); } finally { try{ window.__creatingPot=false; }catch(_){ } }catch(_){} }
 }
 
 /* ---------- Pot Detail loader + registrations subscription ---------- */
@@ -971,7 +891,7 @@ async function onLoadPotClicked(){
   const snap = await db.collection('pots').doc(id).get();
   if(!snap.exists){ alert('Pot not found'); return; }
 
-  const pot = { id:snap.id, ...snap.data() };
+  const pot = { id: snap.id, ...snap.data() };
   CURRENT_DETAIL_POT = pot;
 
   if($('#v-pot')) $('#v-pot').value = pot.id;
@@ -1021,7 +941,7 @@ function subscribeDetailEntries(potId){
       LAST_DETAIL_ENTRIES = [];
       snap.forEach(doc=>{
         const d = doc.data();
-        LAST_DETAIL_ENTRIES.push({ id: doc.id, ...d });
+        LAST_DETAIL_ENTRIES.push({ id: doc.id, d });
       });
       renderRegistrations(LAST_DETAIL_ENTRIES);
     }, err=>{
@@ -1096,7 +1016,7 @@ function renderRegistrations(entries){
       }catch(err){ console.error('entry pay click failed', err); }
     });
     tbody.__payBind = true;
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 /* ---------- Admin utilities ---------- */
@@ -1308,7 +1228,7 @@ async function moveEntry(entryId, toPotId){
       alert('Duplicate exists in the target tournament (same name or email).'); return;
     }
 
-    const data = {...entry}; delete data.id;
+    const data = {entry}; delete data.id;
     data.created_at = firebase.firestore.FieldValue.serverTimestamp();
     data.moved_from = fromPotId;
     data.moved_at   = firebase.firestore.FieldValue.serverTimestamp();
@@ -1477,7 +1397,7 @@ function checkStripeReturn(){
       const cleanUrl = location.pathname + location.hash;
       history.replaceState(null, '', cleanUrl);
     }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 /* ---------- Auth (Sign In/Out) + subscription watcher ---------- */
@@ -1584,7 +1504,7 @@ async function onOrganizerSubscribe(){
   }catch(e){
     console.error('[Sub] Failed to start organizer subscription', e);
     alert('Could not start subscription.');
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 async function handleSubscriptionReturn(){
@@ -1840,7 +1760,7 @@ async function warmApi() {
   } catch (e) {
     // swallow; this is only a best-effort warmup
     // console.debug('warmApi failed', e);
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
   const $  = (s,el=document)=>el.querySelector(s);
@@ -2053,7 +1973,7 @@ try{
   const _origGate = gateUI;
   if (typeof gateUI === 'function'){
     window.gateUI = async function(){ try{ await _origGate(); }catch(_){ } try{ scrubSignedInBadges(); }catch(_){ } }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }catch(_){}
 
 
@@ -2141,7 +2061,7 @@ function hideStripeForNonAdmin(){
     }else{
       try { const wrap = allowStripe.closest('div'); if (wrap) wrap.style.display = ''; } catch(_){}
     }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
 try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
@@ -2191,7 +2111,7 @@ function hideStripeForNonAdmin(){
     }else{
       try { const wrap = allowSel.closest('div'); if (wrap) wrap.style.display = ''; } catch(_){}
     }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
 try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
@@ -2396,7 +2316,7 @@ document.addEventListener('DOMContentLoaded', function(){
   if (btn && !btn.__stripeBound){
     btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
     btn.__stripeBound = true;
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 });
 
 function fillStateAndCity(){
@@ -2425,7 +2345,7 @@ function fillStateAndCity(){
       const otherWrap = document.getElementById('c-addr-city-other-wrap');
       if (typeof toggleOther === 'function') toggleOther(citySel, otherWrap);
     });
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 function toggleAddressForLocation(){
   var sel = document.getElementById('c-location-select');
@@ -2435,20 +2355,26 @@ function toggleAddressForLocation(){
   block.style.display = show ? '' : 'none';
 }
 
-function onCreateClick(e){
+async function onCreateClick(e){
+  try{ e && e.preventDefault && e.preventDefault(); }catch(_){}
+  var btn=document.getElementById('btn-create');
+  if (window.__createClickInFlight) return; window.__createClickInFlight=true; if(btn) try{btn.disabled=true;}catch(_){}
+
   try{
     e && e.preventDefault && e.preventDefault();
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
-      return createPotDirect();
+      await createPotDirect();
     } else {
-      return startCreatePotCheckout();
+      await startCreatePotCheckout();
     }
   }catch(err){ console.error('Create click failed', err); }
+  finally { try{window.__createClickInFlight=false;}catch(_){ } try{ if(btn) setTimeout(()=>{btn.disabled=false;},800);}catch(_){ } }
 }
 
 
 
 async function createPotDirect(){
+  if (window.__creatingPot) return; window.__creatingPot = true;
   try{
     if(!db){ alert('Firebase is not initialized.'); return; }
     const uid = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : null;
@@ -2515,7 +2441,7 @@ async function createPotDirect(){
       org_email: orgEmail
     };
 
-    const ref = await db.collection('pots').add(pot);
+    const ref = await db.collection('pots').add(sanitizeDoc(pot));
     const resultEl = document.getElementById('create-result');
     if (resultEl) resultEl.textContent = `Created (ID: ${ref.id}).`;
     alert('Pot created.');
@@ -2527,7 +2453,7 @@ async function createPotDirect(){
   }catch(e){
     console.error('[CreateDirect] Failed:', e);
     alert('Failed to create pot.');
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 
@@ -2543,7 +2469,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try{ cta?.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
     });
     btn.__bound = true;
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 });
 
 /* =================== Global UI Init & Wiring (All-Fix v2) =================== */
@@ -2618,6 +2544,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
   async function startCreatePotCheckout(){
+    if (typeof isSiteAdmin === 'function' && isSiteAdmin()) { return await (typeof createPotDirect==='function'?createPotDirect():null); }
     const btn = byId('btn-create');
     const msg = byId('create-msg') || byId('create-result');
     const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
@@ -2857,7 +2784,7 @@ document.addEventListener('DOMContentLoaded', function(){
       });
       btnCreate.__bound = true;
     }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 });
 
 
