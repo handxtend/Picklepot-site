@@ -89,7 +89,7 @@ function isSiteAdmin(){ return localStorage.getItem('site_admin') === '1'; }
 function setSiteAdmin(on){ on?localStorage.setItem('site_admin','1'):localStorage.removeItem('site_admin'); }
 
 const $  = (s,el=document)=>el.querySelector(s);
-const $$ = (s,el=document)=>[...el.querySelectorAll(s)];
+const $$ = (s,el=document)=>[el.querySelectorAll(s)];
 const dollars = n => '$' + Number(n||0).toFixed(2);
 
 /* --- session helpers --- */
@@ -506,7 +506,7 @@ function attachActivePotsListener(){
     const now = Date.now();
     const pots = [];
     snap.forEach(d => {
-      const x = { id: d.id, ...d.data() };
+      const x = { id: d.id, d.data() };
       
       const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : (typeof x.created_at === 'number' ? x.created_at : null);
       const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at === 'number' ? x.start_at   : null);
@@ -569,7 +569,7 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (typeof onJoinPotChange === 'function') onJoinPotChange();
     };
     const onSnap = (snap) => {
-      snap.forEach(d=>{ buffer.set(d.id, { id:d.id, ...d.data() }); });
+      snap.forEach(d=>{ buffer.set(d.id, { id:d.id, d.data() }); });
       mergeApply();
     };
     unsubs.push(db.collection('pots').where('status','==','open').onSnapshot(onSnap, onError));
@@ -997,7 +997,7 @@ async function onLoadPotClicked(){
   const snap = await db.collection('pots').doc(id).get();
   if(!snap.exists){ alert('Pot not found'); return; }
 
-  const pot = { id:snap.id, ...snap.data() };
+  const pot = { id:snap.id, snap.data() };
   CURRENT_DETAIL_POT = pot;
 
   if($('#v-pot')) $('#v-pot').value = pot.id;
@@ -1047,7 +1047,7 @@ function subscribeDetailEntries(potId){
       LAST_DETAIL_ENTRIES = [];
       snap.forEach(doc=>{
         const d = doc.data();
-        LAST_DETAIL_ENTRIES.push({ id: doc.id, ...d });
+        LAST_DETAIL_ENTRIES.push({ id: doc.id, d });
       });
       renderRegistrations(LAST_DETAIL_ENTRIES);
     }, err=>{
@@ -1334,7 +1334,7 @@ async function moveEntry(entryId, toPotId){
       alert('Duplicate exists in the target tournament (same name or email).'); return;
     }
 
-    const data = {...entry}; delete data.id;
+    const data = {entry}; delete data.id;
     data.created_at = firebase.firestore.FieldValue.serverTimestamp();
     data.moved_from = fromPotId;
     data.moved_at   = firebase.firestore.FieldValue.serverTimestamp();
@@ -2474,7 +2474,7 @@ async function onCreateClick(e){
       await startCreatePotCheckout();
     }
   }catch(err){ console.error('Create click failed', err); }
-  finally{ try{window.__createClickInFlight=false;}catch(_){} try{ if(btn) setTimeout(()=>{btn.disabled=false;},800);}catch(_){} }
+  finally { try{window.__createClickInFlight=false;}catch(_){ } try{ if(btn) setTimeout(()=>{btn.disabled=false;},800);}catch(_){ } }
 }
 
 
