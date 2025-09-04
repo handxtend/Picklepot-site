@@ -667,8 +667,8 @@ function updateBigTotals(paidShare, totalShare){
 /* ---------- Join helpers ---------- */
 function updateJoinCost(){
   const p = CURRENT_JOIN_POT; if(!p) return;
-  const mtype = $('#j-mtype').value;
-  const amt = (mtype==='Member'? Number(p.buyin_member||0) : Number(p.buyin_guest||0));
+  const mtype = $('#j-mtype').value; const isGuest = /guest/i.test(String(mtype));
+  const amt = isGuest ? Number(p.buyin_guest||0) : Number(p.buyin_member||0);
   $('#j-cost').textContent = 'Cost: ' + dollars(amt);
 }
 function evaluateJoinEligibility(){
@@ -744,7 +744,7 @@ async function joinPot(){
   const lname=$('#j-lname').value.trim();
   const email=$('#j-email').value.trim();
   const playerSkill=$('#j-skill').value;
-  const member_type=$('#j-mtype').value;
+  const member_type=$('#j-mtype').value; const __isGuest = /guest/i.test(String(member_type));
   const pay_type=$('#j-paytype').value;
   const __admin = (typeof isSiteAdmin==='function' ? !!isSiteAdmin() : false);
   let __effective_pay_type = (__admin && pay_type==='Stripe') ? 'Onsite' : pay_type;
@@ -761,7 +761,7 @@ async function joinPot(){
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin=(member_type==='Member'? (p.buyin_member||0) : (p.buyin_guest||0));
+  const applied_buyin = __isGuest ? (p.buyin_guest||0) : (p.buyin_member||0);
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
