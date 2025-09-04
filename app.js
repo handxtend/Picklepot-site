@@ -717,15 +717,6 @@ function updatePaymentNotes(){
 }
 
 /* ---------- Join (Stripe + others) ---------- */
-function setJoinMsg(text, isError){
-  try{
-    const jm = document.getElementById('join-msg');
-    if (!jm) return;
-    if (isError) jm.classList.add('error'); else jm.classList.remove('error');
-    jm.textContent = text || '';
-  }catch(_){ }
-}
-
 async function joinPot(){
   const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
@@ -2582,7 +2573,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
       window.location.assign(data.url);
     }catch(e){
       console.error('[JOIN]', e);
-      setJoinMsg('Join failed: ' + (e.message || e), true);
+      alert('Join failed: ' + (e.message || e));
     }
   }
   if (typeof window.startJoinCheckout !== 'function') window.startJoinCheckout = startJoinCheckout;
