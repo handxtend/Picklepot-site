@@ -202,10 +202,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Force Create button to use Stripe Checkout
   try{
     const _btn = document.getElementById('btn-create');
-if (_btn && !_btn.__boundCreate) {
-  _btn.addEventListener('click', onCreateClick);
-  _btn.__boundCreate = true;
-}
+    if (_btn){
+      const _clone = _btn.cloneNode(true);
+      _btn.parentNode.replaceChild(_clone, _btn);
+      _clone.addEventListener('click', onCreateClick);
+    }
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
   handleSubscriptionReturn();
@@ -860,6 +861,19 @@ function renderRegistrations(entries){
   if(!tbody) return;
   const showEmail = isSiteAdmin();
   const canAdmin  = isSiteAdmin();
+  const stripeOk = (function(){
+    try{
+      var p = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
+      var booly = v => (v===true)||v===1||v==='1'||String(v||'').toLowerCase()==='true'||String(v||'').toLowerCase()==='yes';
+      if (p){
+        if (typeof getPaymentMethods==='function'){ var pm=getPaymentMethods(p); if(pm && pm.stripe) return true; }
+        if (booly(p.allowStripe)||booly(p.allow_stripe)||booly(p.stripe)||booly(p.pay_stripe)||booly(p.accept_stripe)) return true;
+      }
+      var sel = document.getElementById('j-paytype');
+      if (sel){ return Array.from(sel.options||[]).some(o=>/stripe/i.test(o.value||o.textContent||'')); }
+      return false;
+    }catch(_){ return false; }
+  })();
 
   if(!entries || !entries.length){
     tbody.innerHTML = `<tr><td colspan="7" class="muted">No registrations yet.</td></tr>`;
@@ -890,7 +904,7 @@ function renderRegistrations(entries){
 
     return `
       <tr>
-        <td>${escapeHtml(name)}</td>
+        <td>${(function(){ const paid=(e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; if(!paid && stripeOk){ return `<a href="javascript:void(0)" data-act="pay" data-id="${e.id}" onclick="return window.handleEntryPayClick && window.handleEntryPayClick(event);">${escapeHtml(name)}</a>`;} return escapeHtml(name); })()}</td>
         <td>${escapeHtml(email)}</td>
         <td>${escapeHtml(type)}</td>
         <td>${buyin}</td>
@@ -901,6 +915,19 @@ function renderRegistrations(entries){
   }).join('');
 
   tbody.innerHTML = html;
+  if(!tbody.__payBind){
+    tbody.addEventListener('click', function(ev){
+      var a = ev.target.closest && ev.target.closest('a[data-act="pay"]');
+      if(!a) return;
+      ev.preventDefault();
+      try{
+        var id = a.getAttribute('data-id');
+        var entry = (entries||[]).find(function(x){ return x.id===id; });
+        if(entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
+      }catch(err){ console.error('entry pay click failed', err); }
+    });
+    tbody.__payBind = true;
+  }
 }
 
 /* ---------- Admin utilities ---------- */
@@ -2239,10 +2266,6 @@ function toggleAddressForLocation(){
 }
 
 function onCreateClick(e){
-  if (window.__creatingPot) { e && e.preventDefault && e.preventDefault(); return; }
-  window.__creatingPot = true;
-  try {
-
   try{
     e && e.preventDefault && e.preventDefault();
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
@@ -2251,8 +2274,6 @@ function onCreateClick(e){
       return startCreatePotCheckout();
     }
   }catch(err){ console.error('Create click failed', err); }
-
-  } finally { window.__creatingPot = false; }
 }
 
 
@@ -2626,7 +2647,7 @@ document.addEventListener('DOMContentLoaded', function(){
   var btnCreateCollapse = document.getElementById('btn-create-collapse');
   var btnJoinCollapse   = document.getElementById('btn-join-collapse');
 
-  function show(el){ if(el){ el.style.display=''; el.scrollIntoView({behavior:'smooth', block:'start'});} try{ var note=document.getElementById('create-expire-note'); if(note){ note.style.display = (typeof isSiteAdmin==='function' && isSiteAdmin()) ? 'none' : ''; } }catch(_){} }
+  function show(el){ if(el){ el.style.display=''; el.scrollIntoView({behavior:'smooth', block:'start'});} }
   function hide(el){ if(el){ el.style.display='none'; } }
 
   if (btnStartCreate && createCard){
@@ -2708,7 +2729,7 @@ document.addEventListener('DOMContentLoaded', function(){
 })();
 
 
-/* ===== Utility: toCents (global fallback) ===== */
+/* Utility: toCents (global) */
 function toCents(val){
   try{
     var s = String(val == null ? '' : val).replace(/[^0-9.\-]/g, '');
@@ -2720,18 +2741,55 @@ function toCents(val){
 try{ window.toCents = toCents; }catch(_){}
 
 
-/* ===== Inline fallback: handleEntryPayClick ===== */
+/* Entry-specific Stripe Checkout */
+function startEntryCheckout(entry){
+  try{
+    var pot = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
+    if (!pot) { alert('No pot selected.'); return; }
+    var pm = (typeof getPaymentMethods==='function') ? getPaymentMethods(pot) : {stripe:false};
+    var paidBool = (entry && (entry.paid===true || entry.paid===1 || String(entry.paid||'').toLowerCase()==='true' || String(entry.paid||'').toLowerCase()==='yes'));
+    if (!entry || paidBool){ alert('This entry is already paid or invalid.'); return; }
+    if (!pm.stripe){ alert('Stripe payment is not available for this pot.'); return; }
+
+    var amountDollars = Number(entry.applied_buyin || entry.buyin || 0);
+    if (!amountDollars || !isFinite(amountDollars)){ alert('No amount to charge for this entry.'); return; }
+
+    var payload = {
+      pot_id: pot.id || (document.getElementById('v-pot')?.value?.trim() || ''),
+      entry_id: entry.id || ('e_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7)),
+      amount_cents: toCents(amountDollars),
+      player_name: entry.name || 'Player',
+      player_email: entry.email || '',
+      success_url: (window.location.origin || '') + '/success.html?flow=join',
+      cancel_url: (window.location.origin || '') + '/cancel.html?flow=join'
+    };
+
+    var url = (window.API_BASE||'') + '/create-checkout-session';
+    fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(r => r.json().then(d => ({ok:r.ok,status:r.status,data:d})))
+    .then(res => {
+      if(!res.ok || !(res.data && res.data.url)){
+        alert((res.data && (res.data.error||res.data.message)) || ('Payment server error ('+res.status+')'));
+        return;
+      }
+      location.href = res.data.url;
+    })
+    .catch(err => { console.error('[ENTRY PAY]', err); alert('Network error.'); });
+  }catch(e){ console.error('[ENTRY PAY]', e); alert(e.message || String(e)); }
+}
+try{ window.startEntryCheckout = startEntryCheckout; }catch(_){}
+
+
+/* Inline click fallback */
 function handleEntryPayClick(ev){
   try{
-    if (ev && ev.preventDefault) ev.preventDefault();
+    if(ev && ev.preventDefault) ev.preventDefault();
     var a = (ev && (ev.currentTarget || (ev.target && ev.target.closest && ev.target.closest('a[data-act="pay"]')))) || null;
     var id = a ? a.getAttribute('data-id') : null;
-    var entries = (typeof LAST_DETAIL_ENTRIES !== 'undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : [];
-    var entry = entries.find(function(x){ return x && x.id === id; });
-    if (entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
-  }catch(e){
-    console.error('handleEntryPayClick failed', e);
-  }
+    var entries = (typeof LAST_DETAIL_ENTRIES!=='undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : [];
+    var entry = entries.find(function(x){ return x && x.id===id; });
+    if(entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
+  }catch(e){ console.error('handleEntryPayClick failed', e); }
   return false;
 }
 try{ window.handleEntryPayClick = handleEntryPayClick; }catch(_){}
