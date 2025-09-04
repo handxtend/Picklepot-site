@@ -15,7 +15,7 @@ function sanitizeDoc(obj){
 
 /* ===== Enforce Join Button Disable Rules (skill play-down + dup email + dup name) ===== */
 function recomputeJoinDisabled(){
-  try{
+  try{ try{ applyMemberCsvLock(); }catch(_){}
     var btn = document.getElementById('btn-join');
     if (!btn) return;
     var p = (typeof CURRENT_JOIN_POT!=='undefined' && CURRENT_JOIN_POT) ? CURRENT_JOIN_POT : null;
@@ -102,7 +102,7 @@ function clearClientSession() {
   if (new URLSearchParams(location.search).has('logout')) {
     clearClientSession();
     history.replaceState({}, '', location.pathname);
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 })();
 
 /* Update “Signed In/Out” label and buttons */
@@ -163,7 +163,7 @@ async function loadOrganizerSubStatus(){
     console.error('[Sub] Failed to load organizer subscription status', err);
     ORG_SUB = { active:false, until:null };
     return ORG_SUB;
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 function refreshOrganizerUI(){
@@ -327,7 +327,7 @@ document.addEventListener('DOMContentLoaded', () => {
     fresh.className = old.className;
     old.parentNode.replaceChild(fresh, old);
     fresh.addEventListener('click', joinPot);
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 })();
 
   const loadBtn = $('#btn-load');
@@ -575,7 +575,7 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
     unsubs.push(db.collection('pots').where('status','==','open').onSnapshot(onSnap, onError));
     unsubs.push(db.collection('pots').where('status','==','active').onSnapshot(onSnap, onError));
     JOIN_POTS_SUB = () => unsubs.forEach(u=>{ try{u();}catch(_){ } });
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 function onJoinPotChange(){
@@ -775,18 +775,28 @@ function applyMemberCsvLock(){
   try{
     const p = window.CURRENT_JOIN_POT; if(!p) return;
     const memberOpt = document.querySelector('#j-mtype option[value="Member"]');
+    const guestOpt  = document.querySelector('#j-mtype option[value="Guest"]');
     const select = document.getElementById('j-mtype');
-    if (!memberOpt || !select) return;
+    if (!memberOpt || !guestOpt || !select) return;
     const fname = document.getElementById('j-fname')?.value || '';
     const lname = document.getElementById('j-lname')?.value || '';
     const allowed = isCsvMember(p, fname, lname);
     if (allowed === null){
       memberOpt.disabled = false;
+      guestOpt.disabled = false;
       return;
     }
-    memberOpt.disabled = (allowed === false);
-    if (allowed === false && select.value === 'Member'){
-      select.value = 'Guest';
+    if (allowed === true){
+      // In CSV: Member only
+      memberOpt.disabled = false;
+      guestOpt.disabled = true;
+      if (select.value === 'Guest'){ select.value = 'Member'; try{ updateJoinCost(); }catch(_){} }
+    } else {
+      // Not in CSV: Guest only
+      memberOpt.disabled = true;
+      guestOpt.disabled = false;
+      if (select.value === 'Member'){ select.value = 'Guest'; try{ updateJoinCost(); }catch(_){} }
+    }
       if (typeof updateJoinCost === 'function') updateJoinCost();
     }
   }catch(_){}
@@ -975,7 +985,7 @@ async function joinPot(){
   }catch(e){
     console.error('[JOIN] Unexpected failure:', e);
     fail('Join failed (check Firebase rules and your network).');
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 /* ---------- Pot Detail loader + registrations subscription ---------- */
@@ -1112,7 +1122,7 @@ function renderRegistrations(entries){
       }catch(err){ console.error('entry pay click failed', err); }
     });
     tbody.__payBind = true;
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 /* ---------- Admin utilities ---------- */
@@ -1493,7 +1503,7 @@ function checkStripeReturn(){
       const cleanUrl = location.pathname + location.hash;
       history.replaceState(null, '', cleanUrl);
     }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 /* ---------- Auth (Sign In/Out) + subscription watcher ---------- */
@@ -1600,7 +1610,7 @@ async function onOrganizerSubscribe(){
   }catch(e){
     console.error('[Sub] Failed to start organizer subscription', e);
     alert('Could not start subscription.');
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 async function handleSubscriptionReturn(){
@@ -1856,7 +1866,7 @@ async function warmApi() {
   } catch (e) {
     // swallow; this is only a best-effort warmup
     // console.debug('warmApi failed', e);
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
   const $  = (s,el=document)=>el.querySelector(s);
@@ -2069,7 +2079,7 @@ try{
   const _origGate = gateUI;
   if (typeof gateUI === 'function'){
     window.gateUI = async function(){ try{ await _origGate(); }catch(_){ } try{ scrubSignedInBadges(); }catch(_){ } }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }catch(_){}
 
 
@@ -2157,7 +2167,7 @@ function hideStripeForNonAdmin(){
     }else{
       try { const wrap = allowStripe.closest('div'); if (wrap) wrap.style.display = ''; } catch(_){}
     }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
 try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
@@ -2207,7 +2217,7 @@ function hideStripeForNonAdmin(){
     }else{
       try { const wrap = allowSel.closest('div'); if (wrap) wrap.style.display = ''; } catch(_){}
     }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
 try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
@@ -2412,7 +2422,7 @@ document.addEventListener('DOMContentLoaded', function(){
   if (btn && !btn.__stripeBound){
     btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
     btn.__stripeBound = true;
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 });
 
 function fillStateAndCity(){
@@ -2441,7 +2451,7 @@ function fillStateAndCity(){
       const otherWrap = document.getElementById('c-addr-city-other-wrap');
       if (typeof toggleOther === 'function') toggleOther(citySel, otherWrap);
     });
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 function toggleAddressForLocation(){
   var sel = document.getElementById('c-location-select');
@@ -2451,20 +2461,26 @@ function toggleAddressForLocation(){
   block.style.display = show ? '' : 'none';
 }
 
-function onCreateClick(e){
+async function onCreateClick(e){
+  try{ e && e.preventDefault && e.preventDefault(); }catch(_){}
+  var btn=document.getElementById('btn-create');
+  if (window.__createClickInFlight) return; window.__createClickInFlight=true; if(btn) try{btn.disabled=true;}catch(_){}
+
   try{
     e && e.preventDefault && e.preventDefault();
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
-      return createPotDirect();
+      await createPotDirect();
     } else {
-      return startCreatePotCheckout();
+      await startCreatePotCheckout();
     }
   }catch(err){ console.error('Create click failed', err); }
+  finally{ try{window.__createClickInFlight=false;}catch(_){} try{ if(btn) setTimeout(()=>{btn.disabled=false;},800);}catch(_){} }
 }
 
 
 
 async function createPotDirect(){
+  if (window.__creatingPot) return; window.__creatingPot = true;
   try{
     if(!db){ alert('Firebase is not initialized.'); return; }
     const uid = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : null;
@@ -2543,7 +2559,7 @@ async function createPotDirect(){
   }catch(e){
     console.error('[CreateDirect] Failed:', e);
     alert('Failed to create pot.');
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 }
 
 
@@ -2559,7 +2575,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try{ cta?.scrollIntoView({behavior:'smooth', block:'center'}); }catch(_){}
     });
     btn.__bound = true;
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 });
 
 /* =================== Global UI Init & Wiring (All-Fix v2) =================== */
@@ -2874,7 +2890,7 @@ document.addEventListener('DOMContentLoaded', function(){
       });
       btnCreate.__bound = true;
     }
-  }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
 });
 
 
