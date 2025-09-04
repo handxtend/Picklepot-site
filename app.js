@@ -1,4 +1,53 @@
 
+/* ===== Enforce Join Button Disable Rules (skill play-down + dup email + dup name) ===== */
+function recomputeJoinDisabled(){
+  try{
+    var btn = document.getElementById('btn-join');
+    if (!btn) return;
+    var p = (typeof CURRENT_JOIN_POT!=='undefined' && CURRENT_JOIN_POT) ? CURRENT_JOIN_POT : null;
+    if (!p){ btn.disabled = true; return; }
+
+    var fname = (document.getElementById('j-fname')?.value || '').trim();
+    var lname = (document.getElementById('j-lname')?.value || '').trim();
+    var full  = (document.getElementById('j-name') ?.value || '').trim();
+    var email = (document.getElementById('j-email')?.value || '').trim();
+    var skill = (document.getElementById('j-skill')?.value || 'Any');
+
+    var playerName = (fname || lname) ? (fname + ' ' + lname).trim() : full;
+    var entries = (window.LAST_JOIN_ENTRIES && Array.isArray(window.LAST_JOIN_ENTRIES)) ? window.LAST_JOIN_ENTRIES : [];
+
+    var rank = function(s){ return ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] || 0); };
+    var skillOk = (p.skill==='Any') || (rank(skill) <= rank(p.skill));
+
+    var dupEmail = false;
+    if (email){
+      var eml = email.toLowerCase();
+      dupEmail = entries.some(function(e){ return (String(e.email||'').toLowerCase() === eml); });
+    }
+
+    var dupName = false;
+    if (playerName){
+      var combo = playerName.toLowerCase().replace(/\s+/g,' ').trim();
+      dupName = entries.some(function(e){ return (String(e.name||'').toLowerCase().replace(/\s+/g,' ').trim() === combo); });
+    }
+
+    var shouldDisable = (!skillOk) || dupEmail || dupName;
+    btn.disabled = !!shouldDisable;
+
+    var warn = document.getElementById('j-warn');
+    if (warn){
+      var msgs=[];
+      if (!skillOk) msgs.push('Higher skill level cannot play down');
+      if (dupEmail) msgs.push('Email already registered');
+      if (dupName) msgs.push('Name already registered');
+      warn.textContent = msgs.join(' · ');
+      warn.style.display = msgs.length ? 'block' : 'none';
+    }
+  }catch(e){ console.error('recomputeJoinDisabled failed', e); }
+}
+try{ window.recomputeJoinDisabled = recomputeJoinDisabled; }catch(_){}
+
+
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
   try{
@@ -42,6 +91,18 @@ function clearClientSession() {
 })();
 
 /* Update “Signed In/Out” label and buttons */
+
+/* ===== Create Expiry Note Visibility ===== */
+function updateCreateExpireNoteVisibility(){
+  try{
+    var note = document.getElementById('create-expire-note');
+    if (!note) return;
+    var admin = (typeof isSiteAdmin==='function' && isSiteAdmin());
+    note.style.display = admin ? 'none' : '';
+  }catch(_){}
+}
+try{ window.updateCreateExpireNoteVisibility = updateCreateExpireNoteVisibility; }catch(_){}
+
 document.addEventListener('DOMContentLoaded', initAuthGate);
 function initAuthGate() {
   const uid = localStorage.getItem('pp_uid');
@@ -540,7 +601,10 @@ function onJoinPotChange(){
   watchPotTotals(p.id);
 
   autoLoadDetailFromSelection();
+
+  try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ }
 }
+
 
 function autoLoadDetailFromSelection(){
   const selId = $('#j-pot-select')?.value;
@@ -563,10 +627,10 @@ function watchPotTotals(potId){
   if(!potId){ totalEl.style.display='none'; updateBigTotals(0,0); return; }
 
   JOIN_ENTRIES_UNSUB = db.collection('pots').doc(potId).collection('entries')
-    .onSnapshot(snap=>{
+    .onSnapshot(snap=>{ var __list=[];
       let totalAll=0, totalPaid=0, countAll=0, countPaid=0;
 
-      snap.forEach(doc=>{
+      snap.forEach(doc=>{ try{ __list.push(Object.assign({id:doc.id}, doc.data()||{})); }catch(_){ }
         const d = doc.data();
         const isActive = !d.status || d.status === 'active';
         if (!isActive) return;
@@ -577,6 +641,9 @@ function watchPotTotals(potId){
           if (d.paid) { totalPaid += amt; countPaid++; }
         }
       });
+
+      try{ window.LAST_JOIN_ENTRIES = __list; }catch(_){}
+try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){}
 
       totalEl.innerHTML =
         `Total Pot (All): <b>${dollars(totalAll)}</b> (${countAll} entr${countAll===1?'y':'ies'}) • ` +
@@ -2060,7 +2127,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
       catch(_){ location.hash = '#pot-detail-section'; }
     });
   }
-  document.addEventListener('DOMContentLoaded', function(){
+  document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
     try{ wireHowTo(); wireShowDetail(); }catch(_){}
   });
   // Also attempt late-binding in case DOM is injected later
@@ -2645,7 +2712,7 @@ document.addEventListener('DOMContentLoaded', function(){
   function hide(el){ if(el){ el.style.display='none'; } }
 
   if (btnStartCreate && createCard){
-    btnStartCreate.addEventListener('click', function(){ show(createCard); hide(joinCard); });
+    btnStartCreate.addEventListener('click', function(){ show(createCard); hide(joinCard); try{ updateCreateExpireNoteVisibility(); }catch(_){ } });
   }
   if (btnCreateCollapse && createCard){
     btnCreateCollapse.addEventListener('click', function(){ hide(createCard); window.scrollTo({top:0, behavior:'smooth'}); });
@@ -2772,3 +2839,15 @@ function startEntryCheckout(entry){
   }catch(e){ console.error('[ENTRY PAY]', e); alert(e.message || String(e)); }
 }
 try{ window.startEntryCheckout = startEntryCheckout; }catch(_){}
+
+document.addEventListener('DOMContentLoaded', function(){
+  ['j-fname','j-lname','j-name','j-email','j-skill'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el && !el.__eligBind){
+      el.addEventListener('input', function(){ try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ } });
+      el.addEventListener('change', function(){ try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ } });
+      el.__eligBind = true;
+    }
+  });
+  try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ }
+});
