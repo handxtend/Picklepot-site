@@ -761,7 +761,7 @@ async function joinPot(){
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin = __isGuest ? (p.buyin_guest||0) : (p.buyin_member||0);
+  const applied_buyin = Number(__isGuest ? (p.buyin_guest||0) : (p.buyin_member||0));
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
@@ -779,7 +779,7 @@ async function joinPot(){
     const entry = {
       name, name_lc:nameLC, email, email_lc:emailLC,
       member_type, player_skill:playerSkill, pay_type: __effective_pay_type,
-      applied_buyin, paid:false, status: (__effective_pay_type==='Stripe' ? 'draft' : 'active'),
+      applied_buyin, buyin: applied_buyin, paid:false, status: (__effective_pay_type==='Stripe' ? 'draft' : 'active'),
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
     const docRef = await entriesRef.add(entry);
