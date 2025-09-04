@@ -104,29 +104,16 @@ function updateCreateExpireNoteVisibility(){
 try{ window.updateCreateExpireNoteVisibility = updateCreateExpireNoteVisibility; }catch(_){}
 
 document.addEventListener('DOMContentLoaded', initAuthGate);
-
 function initAuthGate() {
   const uid = localStorage.getItem('pp_uid');
   const signed = !!uid;
 
   let statusEl = document.querySelector('#signedStatus, .signed-status, [data-signed-status]');
   if (!statusEl) {
-    try{
-      statusEl = Array.from(document.querySelectorAll('span,div,b,strong,em'))
-        .find(el => (el.textContent||'').trim() === '');
-    }catch(_){}
+    statusEl = Array.from(document.querySelectorAll('span,div,b,strong,em'))
+      .find(el => el.textContent.trim() === '' || el.textContent.trim() === '');
   }
-  if (statusEl){ try{ statusEl.textContent = signed ? '' : ''; }catch(_){ } }
-
-  const signInBtn  = document.querySelector('[data-action="signin"], #btnSignIn');
-  const signOutBtn = document.querySelector('[data-action="signout"], #btnSignOut');
-  if (signInBtn){  try{ signInBtn.style.display  = signed ? 'none' : ''; }catch(_){ } }
-  if (signOutBtn){ try{ signOutBtn.style.display = signed ? '' : 'none'; }catch(_){ } }
-  if (!signed) localStorage.removeItem('pp_admin');
-
-  // Filters for Active Tournaments continue below in existing code (unchanged)
-}
-if (statusEl){ try{ statusEl.textContent=''; statusEl.style.display='none'; }catch(_){}}const signOutBtn = document.querySelector('[data-action=\"signout\"], #btnSignOut');
+  if (statusEl){ try{ statusEl.textContent=''; statusEl.style.display='none'; }catch(_){}}const signOutBtn = document.querySelector('[data-action=\"signout\"], #btnSignOut');
 if (signOutBtn){ try{ signOutBtn.style.display='none'; }catch(_){} }
 if (!signed) localStorage.removeItem('pp_admin');
 
@@ -144,10 +131,27 @@ if (!signed) localStorage.removeItem('pp_admin');
 let ORG_SUB = { active:false, until:null };
 function hasOrganizerSub(){ return !!ORG_SUB.active; }
 
+
 async function loadOrganizerSubStatus(){
   try{
     const uid = firebase.auth().currentUser?.uid;
-    if(!uid){ ORG_SUB = {active:false, until:null}; return ORG_SUB; }
+    if (!uid){ ORG_SUB = {active:false, until:null}; return ORG_SUB; }
+    const doc = await db.collection('organizer_subs').doc(uid).get();
+    if (!doc.exists){ ORG_SUB = {active:false, until:null}; return ORG_SUB; }
+    const d = doc.data() || {};
+    const untilMs = d.current_period_end?.toMillis ? d.current_period_end.toMillis()
+                    : (typeof d.current_period_end === 'number' ? d.current_period_end : null);
+    const now = Date.now();
+    const active = (d.status === 'active') && (!!untilMs ? untilMs > now : true);
+    ORG_SUB = { active, until: untilMs };
+    return ORG_SUB;
+  } catch(err){
+    console.error('[Sub] Failed to load organizer subscription status', err);
+    ORG_SUB = { active:false, until:null };
+    return ORG_SUB;
+  }
+}
+
     const doc = await db.collection('organizer_subs').doc(uid).get();
     if(!doc.exists){ ORG_SUB = {active:false, until:null}; return ORG_SUB; }
     const d = doc.data() || {};
