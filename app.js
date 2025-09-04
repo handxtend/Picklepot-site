@@ -100,6 +100,18 @@ function recomputeJoinDisabled(){
 try{ window.recomputeJoinDisabled = recomputeJoinDisabled; }catch(_){}
 
 /* Update “Signed In/Out” label and buttons */
+
+/* ===== Create Expiry Note Visibility ===== */
+function updateCreateExpireNoteVisibility(){
+  try{
+    var note = document.getElementById('create-expire-note');
+    if (!note) return;
+    var admin = (typeof isSiteAdmin==='function' && isSiteAdmin());
+    note.style.display = admin ? 'none' : '';
+  }catch(_){}
+}
+try{ window.updateCreateExpireNoteVisibility = updateCreateExpireNoteVisibility; }catch(_){}
+
 document.addEventListener('DOMContentLoaded', initAuthGate);
 function initAuthGate() {
   const uid = localStorage.getItem('pp_uid');
@@ -2105,7 +2117,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
       catch(_){ location.hash = '#pot-detail-section'; }
     });
   }
-  document.addEventListener('DOMContentLoaded', function(){
+  document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
     try{ wireHowTo(); wireShowDetail(); }catch(_){}
   });
   // Also attempt late-binding in case DOM is injected later
