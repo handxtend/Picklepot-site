@@ -202,10 +202,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // Force Create button to use Stripe Checkout
   try{
     const _btn = document.getElementById('btn-create');
-if (_btn && !_btn.__boundCreate) {
-  _btn.addEventListener('click', onCreateClick);
-  _btn.__boundCreate = true;
-}
+    if (_btn){
+      const _clone = _btn.cloneNode(true);
+      _btn.parentNode.replaceChild(_clone, _btn);
+      _clone.addEventListener('click', onCreateClick);
+    }
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
   handleSubscriptionReturn();
@@ -342,9 +343,9 @@ if (_btn && !_btn.__boundCreate) {
 /* ---------- Utility: payment methods map ---------- */
 function getPaymentMethods(p){
   const pm = p?.payment_methods || {};
-  const has = v => (v === true) || v === 1 || v === '1' || v === 'true' || v === 'yes';
+  const has = v => v === true;
   return {
-    stripe: has(pm.stripe) || has(p?.allowStripe) || has(p?.allow_stripe) || has(p?.stripe) || false,
+    stripe: has(pm.stripe) || false,
     zelle:  has(pm.zelle)  || (!!p?.pay_zelle),
     cashapp:has(pm.cashapp)|| (!!p?.pay_cashapp),
     onsite: has(pm.onsite) || (!!p?.pay_onsite)
@@ -859,6 +860,15 @@ function renderRegistrations(entries){
   const tbody = document.querySelector('#adminTable tbody');
   if(!tbody) return;
   const showEmail = isSiteAdmin();
+  const stripeOk = (function(){
+    try{
+      const p = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
+      if (!p) return false;
+      if (typeof getPaymentMethods==='function'){ const pm = getPaymentMethods(p); if (pm && pm.stripe) return true; }
+      const booly = v => (v===true)||v===1||v==='1'||String(v||'').toLowerCase()==='true'||String(v||'').toLowerCase()==='yes';
+      return booly(p.allowStripe)||booly(p.allow_stripe)||booly(p.stripe)||booly(p.pay_stripe)||booly(p.accept_stripe)||false;
+    }catch(_){ return false; }
+  })();
   const canAdmin  = isSiteAdmin();
 
   if(!entries || !entries.length){
@@ -890,7 +900,7 @@ function renderRegistrations(entries){
 
     return `
       <tr>
-        <td>${escapeHtml(name)}</td>
+        <td>${(function(){ const paidBool = (e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; return (!paidBool && stripeOk) ? (`<a href="#" data-act="pay" data-id="${e.id}" title="Pay now">${escapeHtml(name)}</a>`) : escapeHtml(name); })()}</td>
         <td>${escapeHtml(email)}</td>
         <td>${escapeHtml(type)}</td>
         <td>${buyin}</td>
@@ -901,6 +911,19 @@ function renderRegistrations(entries){
   }).join('');
 
   tbody.innerHTML = html;
+  if(!tbody.__payBind){
+    tbody.addEventListener('click', function(ev){
+      const a = ev.target.closest('a[data-act="pay"]');
+      if(!a) return;
+      ev.preventDefault();
+      try{
+        const id = a.getAttribute('data-id');
+        const entry = (entries||[]).find(x=>x.id===id);
+        if(entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
+      }catch(err){ console.error('entry pay click failed', err); }
+    });
+    tbody.__payBind = true;
+  }
 }
 
 /* ---------- Admin utilities ---------- */
@@ -2239,10 +2262,6 @@ function toggleAddressForLocation(){
 }
 
 function onCreateClick(e){
-  if (window.__creatingPot) { e && e.preventDefault && e.preventDefault(); return; }
-  window.__creatingPot = true;
-  try {
-
   try{
     e && e.preventDefault && e.preventDefault();
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
@@ -2251,8 +2270,6 @@ function onCreateClick(e){
       return startCreatePotCheckout();
     }
   }catch(err){ console.error('Create click failed', err); }
-
-  } finally { window.__creatingPot = false; }
 }
 
 
@@ -2626,7 +2643,7 @@ document.addEventListener('DOMContentLoaded', function(){
   var btnCreateCollapse = document.getElementById('btn-create-collapse');
   var btnJoinCollapse   = document.getElementById('btn-join-collapse');
 
-  function show(el){ if(el){ el.style.display=''; el.scrollIntoView({behavior:'smooth', block:'start'});} try{ var note=document.getElementById('create-expire-note'); if(note){ note.style.display = (typeof isSiteAdmin==='function' && isSiteAdmin()) ? 'none' : ''; } }catch(_){} }
+  function show(el){ if(el){ el.style.display=''; el.scrollIntoView({behavior:'smooth', block:'start'});} }
   function hide(el){ if(el){ el.style.display='none'; } }
 
   if (btnStartCreate && createCard){
@@ -2706,3 +2723,41 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(_){}
   }catch(err){ console.error('join binder bootstrap error', err); }
 })();
+
+/* ===== Entry-specific Stripe Checkout ===== */
+async function startEntryCheckout(entry){
+  try{
+    const pot = (typeof CURRENT_DETAIL_POT !== 'undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
+    if (!pot) { alert('No pot selected.'); return; }
+    const pm = (typeof getPaymentMethods==='function') ? getPaymentMethods(pot) : null;
+    if (!(pm && pm.stripe)) { alert('Stripe payment is not available for this pot.'); return; }
+    if (!entry || (entry.paid===true || entry.paid===1 || String(entry.paid).toLowerCase()==='yes' || String(entry.paid).toLowerCase()==='true')) { alert('This entry is already paid or invalid.'); return; }
+
+    const amountDollars = Number(entry.applied_buyin || entry.buyin || 0);
+    if (!amountDollars || isNaN(amountDollars)) { alert('No amount to charge for this entry.'); return; }
+
+    const payload = {
+      pot_id: pot.id || byId('v-pot')?.value?.trim() || '',
+      entry_id: entry.id || ('e_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7)),
+      amount_cents: toCents(amountDollars),
+      player_name: entry.name || 'Player',
+      player_email: entry.email || ''
+    };
+
+    setBusy && setBusy(true, 'Redirecting…');
+    const r = await fetch((window.API_BASE||'') + '/create-checkout-session', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    });
+    const data = await r.json().catch(()=>null);
+    if (!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
+    location.href = data.url;
+  }catch(e){
+    console.error('[ENTRY PAY]', e);
+    alert(e.message || String(e));
+  }finally{
+    setBusy && setBusy(false, '');
+  }
+}
+try{ window.startEntryCheckout = startEntryCheckout; }catch(_){}
