@@ -2851,3 +2851,18 @@ document.addEventListener('DOMContentLoaded', function(){
   });
   try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ }
 });
+
+
+/* Inline pay-link click handler (minimal) */
+function handleEntryPayClick(ev){
+  try{
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var a = (ev && (ev.currentTarget || (ev.target && ev.target.closest && ev.target.closest('a[data-act="pay"]')))) || null;
+    var id = a ? a.getAttribute('data-id') : null;
+    var entries = (typeof LAST_DETAIL_ENTRIES !== 'undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : [];
+    var entry = entries.find(function(x){ return x && x.id === id; });
+    if (entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
+  }catch(e){ console.error('handleEntryPayClick failed', e); }
+  return false;
+}
+try{ window.handleEntryPayClick = handleEntryPayClick; }catch(_){}
