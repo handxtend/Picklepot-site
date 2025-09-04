@@ -132,11 +132,6 @@
   .foot .admin-foot-btn:hover,
   .foot .admin-foot-status:hover { color: rgba(255,255,255,.48) !important; }
 </style>
-
-<style>
-  #j-warn { color:#b91c1c; font-weight:700; }
-  #join-msg.error { color:#b91c1c; font-weight:700; }
-</style>
 </head>
 <body>
 <div class="alert success" id="pay-banner" style="display:none"></div>
@@ -177,6 +172,9 @@
 <!-- ======= CREATE POT ======= -->
 <section class="card admin-only" id="create-card" style="display:none">
 <h2 class="section-header">Create a Pot</h2>
+<div class="section-header" id="create-expire-note" style="display:none; margin-top:6px;">
+  Note: Organizer-created pots expire 3 months after creation.
+</div>
 <div class="row">
 <div><label>Tournament Name</label><select id="c-name-select"></select></div>
 <div id="c-name-other-wrap" style="display:none"><label>Other Tournament Name</label><input id="c-name-other" placeholder="Enter tournament name"/></div>
@@ -209,6 +207,19 @@
 <div><label>CashApp Info (optional)</label><input id="c-pay-cashapp" placeholder="$YourCashtag"/></div>
 <div><label>Onsite Payment</label><select id="c-pay-onsite"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 </div>
+
+<!-- Member verification (CSV) -->
+<div id="c-members-csv-wrap" style="margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:8px">
+  <label style="display:flex;gap:8px;align-items:center">
+    <input type="checkbox" id="c-members-csv-toggle">
+    <span>Enable member verification from CSV</span>
+  </label>
+  <div id="c-members-csv-controls" style="margin-top:8px;display:none">
+    <input type="file" id="c-members-csv-file" accept=".csv" />
+    <div id="c-members-csv-status" class="muted" style="font-size:12px;margin-top:6px"></div>
+  </div>
+</div>
+
 <div class="inline" style="margin-top:12px">
 <button class="btn primary" id="btn-create">Create Pot</button>
 <div class="muted" id="create-result"></div>
@@ -248,8 +259,9 @@
 <div><label>Organizer</label><input id="j-filter-org" placeholder="Organizer name"/></div>
 <div><label>City</label><input id="j-filter-city" placeholder="City"/></div>
 </div>
-<div class="row">
+<div class="row" style="margin-top:10px">
 <div style="flex:1">
+<div class="muted" style="font-weight:700;margin:8px 0 6px">Select Tournament</div>
 <label style="display:none">Active Tournaments</label>
 <select id="j-pot-select" size="12"></select>
 <div class="muted" style="margin-top:6px">Summary: <span class="soft-blue-box" id="j-pot-summary-brief">—</span></div>
@@ -269,7 +281,7 @@
 <div class="alert" id="j-pay-notes" style="display:none"></div>
 <p class="muted" style="margin:8px 0 0">Note: Lower-skilled players can play up, but higher-skilled players <b>CANNOT</b> play down.</p>
 <p class="muted" style="margin:4px 0 0">When paying, please put your <b>FULL NAME</b> in the payment notes.</p>
-<div class="muted" id="j-warn" style="margin-top:8px;display:none"></div>
+<div class="warn" id="j-warn" style="margin-top:8px;display:none"></div>
 <div class="inline" style="margin-top:12px">
 <button class="btn xl primary" disabled="" id="btn-join">Join</button>
 <span class="muted" id="join-msg"></span>
@@ -294,6 +306,13 @@
 <span class="pill status-chip" id="pi-status"></span>
 <span class="pill soft-blue-box admin-only" id="pi-id" style="display:none"></span>
 </div>
+
+<!-- Organizer contact (auto-hidden if empty) -->
+<div id="pot-contact" style="margin:6px 0 10px;display:none" class="muted">
+  <div id="j-organizer-email"></div>
+  <div id="j-organizer-phone"></div>
+</div>
+
 <h3 style="margin:14px 0 6px">Registrations</h3>
 <div style="overflow:auto">
 <table id="adminTable">
@@ -348,6 +367,19 @@
 <div><label>Onsite Payment</label><select id="f-pay-onsite"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 <div><label>Status</label><select id="f-status"><option value="open">open</option><option value="hold">hold</option><option value="closed">closed</option></select></div>
 </div>
+
+<!-- Member verification (CSV) - Edit -->
+<div id="f-members-csv-wrap" style="margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:8px">
+  <label style="display:flex;gap:8px;align-items:center">
+    <input type="checkbox" id="f-members-csv-toggle">
+    <span>Enable member verification from CSV</span>
+  </label>
+  <div id="f-members-csv-controls" style="margin-top:8px;display:none">
+    <input type="file" id="f-members-csv-file" accept=".csv" />
+    <div id="f-members-csv-status" class="muted" style="font-size:12px;margin-top:6px"></div>
+  </div>
+</div>
+
 <div class="inline" style="margin-top:10px">
 <button class="btn primary" id="btn-save-pot" type="button">Save Changes</button>
 <button class="btn" id="btn-cancel-edit" type="button">Cancel</button>
