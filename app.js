@@ -600,8 +600,7 @@ function onJoinPotChange(){
   updatePaymentNotes();
   watchPotTotals(p.id);
 
-    try{ applyMemberCsvLock(); }catch(_){}
-autoLoadDetailFromSelection();
+  autoLoadDetailFromSelection();
 
   try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ }
 }
@@ -718,105 +717,15 @@ function updatePaymentNotes(){
 }
 
 /* ---------- Join (Stripe + others) ---------- */
-
-/* === Member CSV Verification (helpers) === */
-window.CREATE_MEMBERS_ALLOWED = window.CREATE_MEMBERS_ALLOWED || [];
-window.EDIT_MEMBERS_ALLOWED   = window.EDIT_MEMBERS_ALLOWED   || [];
-
-function normalizeName(first, last){
-  const f = String(first||'').trim().toLowerCase();
-  const l = String(last||'').trim().toLowerCase();
-  return (f + ' ' + l).replace(/\s+/g,' ').trim();
-}
-
-async function readCsvAsMemberNames(file){
-  if (!file) return [];
-  const text = await file.text();
-  const lines = text.split(/\r?\n/).filter(Boolean);
-  if (!lines.length) return [];
-  const header = lines[0].split(',').map(s=>s.trim().toLowerCase());
-  const firstIdx = header.findIndex(h => /^(first|first name|fname)$/.test(h));
-  const lastIdx  = header.findIndex(h => /^(last|last name|lname|surname)$/.test(h));
-  const rows = (firstIdx>=0 && lastIdx>=0) ? lines.slice(1) : lines;
-  const out = [];
-  for (const line of rows){
-    const cols = line.split(',');
-    const first = (firstIdx>=0) ? cols[firstIdx] : (cols[0] || '');
-    const last  = (lastIdx>=0)  ? cols[lastIdx]  : (cols[1] || '');
-    const norm = normalizeName(first, last);
-    if (norm) out.push(norm);
-  }
-  return Array.from(new Set(out)).sort();
-}
-
-function isCsvMember(pot, first, last){
-  if (!pot || pot.members_check_mode !== 'csv' || !Array.isArray(pot.members_allowed)) return null; // feature off
-  const norm = normalizeName(first, last);
-  return norm ? pot.members_allowed.includes(norm) : null;
-}
-
-function applyMemberCsvLock(){
+function setJoinMsg(text, isError){
   try{
-    const p = window.CURRENT_JOIN_POT; if(!p) return;
-    const memberOpt = document.querySelector('#j-mtype option[value="Member"]');
-    const select = document.getElementById('j-mtype');
-    if (!memberOpt || !select) return;
-    const fname = document.getElementById('j-fname')?.value || '';
-    const lname = document.getElementById('j-lname')?.value || '';
-    const allowed = isCsvMember(p, fname, lname);
-    if (allowed === null){
-      memberOpt.disabled = false;
-      return;
-    }
-    memberOpt.disabled = (allowed === false);
-    if (allowed === false && select.value === 'Member'){
-      select.value = 'Guest';
-      if (typeof updateJoinCost === 'function') updateJoinCost();
-    }
-  }catch(_){}
+    const jm = document.getElementById('join-msg');
+    if (!jm) return;
+    if (isError) jm.classList.add('error'); else jm.classList.remove('error');
+    jm.textContent = text || '';
+  }catch(_){ }
 }
 
-document.addEventListener('DOMContentLoaded', function(){
-  ['j-fname','j-lname'].forEach(function(id){
-    const el = document.getElementById(id);
-    if (el && !el.__csvBind){
-      el.addEventListener('input', applyMemberCsvLock);
-      el.__csvBind = true;
-    }
-  });
-  (function(){
-    const tgl = document.getElementById('c-members-csv-toggle');
-    const ctr = document.getElementById('c-members-csv-controls');
-    const file = document.getElementById('c-members-csv-file');
-    const status = document.getElementById('c-members-csv-status');
-    if (tgl){
-      tgl.addEventListener('change', ()=>{ if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
-    }
-    if (file){
-      file.addEventListener('change', async ()=>{
-        if (status) status.textContent = 'Parsing…';
-        window.CREATE_MEMBERS_ALLOWED = await readCsvAsMemberNames(file.files?.[0]);
-        if (status) status.textContent = (window.CREATE_MEMBERS_ALLOWED.length ? ('Loaded ' + window.CREATE_MEMBERS_ALLOWED.length + ' name(s)') : 'No names found');
-      });
-    }
-  })();
-  (function(){
-    const tgl = document.getElementById('f-members-csv-toggle');
-    const ctr = document.getElementById('f-members-csv-controls');
-    const file = document.getElementById('f-members-csv-file');
-    const status = document.getElementById('f-members-csv-status');
-    if (tgl){
-      tgl.addEventListener('change', ()=>{ if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
-    }
-    if (file){
-      file.addEventListener('change', async ()=>{
-        if (status) status.textContent = 'Parsing…';
-        window.EDIT_MEMBERS_ALLOWED = await readCsvAsMemberNames(file.files?.[0]);
-        if (status) status.textContent = (window.EDIT_MEMBERS_ALLOWED.length ? ('Loaded ' + window.EDIT_MEMBERS_ALLOWED.length + ' name(s)') : 'No names found');
-      });
-    }
-  })();
-});
 async function joinPot(){
   const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
@@ -846,13 +755,6 @@ async function joinPot(){
   const playerSkill=$('#j-skill').value;
   const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
-  let effectiveMemberType = member_type;
-  try{
-    if (CURRENT_JOIN_POT?.members_check_mode === 'csv'){
-      const allowed = isCsvMember(CURRENT_JOIN_POT, $('#j-fname').value, $('#j-lname').value);
-      if (allowed === false) effectiveMemberType = 'Guest';
-    }
-  }catch(_){ }
   const __admin = (typeof isSiteAdmin==='function' ? !!isSiteAdmin() : false);
   let __effective_pay_type = (__admin && pay_type==='Stripe') ? 'Onsite' : pay_type;
 
@@ -868,7 +770,7 @@ async function joinPot(){
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin=(effectiveMemberType==='Member'? (p.buyin_member||0) : (p.buyin_guest||0));
+  const applied_buyin=(member_type==='Member'? (p.buyin_member||0) : (p.buyin_guest||0));
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
@@ -885,7 +787,7 @@ async function joinPot(){
 
     const entry = {
       name, name_lc:nameLC, email, email_lc:emailLC,
-      member_type: effectiveMemberType, player_skill:playerSkill, pay_type: __effective_pay_type,
+      member_type, player_skill:playerSkill, pay_type: __effective_pay_type,
       applied_buyin, paid:false, status: (__effective_pay_type==='Stripe' ? 'draft' : 'active'),
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
@@ -1209,9 +1111,7 @@ async function savePotEdits(){
         zelle: !!zelleInfo,
         cashapp: !!cashInfo,
         onsite: onsiteYes
-      },
-      members_check_mode: (document.getElementById('f-members-csv-toggle')?.checked && (window.EDIT_MEMBERS_ALLOWED||[]).length) ? 'csv' : firebase.firestore.FieldValue.delete(),
-      members_allowed: (document.getElementById('f-members-csv-toggle')?.checked && (window.EDIT_MEMBERS_ALLOWED||[]).length) ? window.EDIT_MEMBERS_ALLOWED : firebase.firestore.FieldValue.delete()
+      }
     });
     $('#pot-edit-form').style.display = 'none';
     alert('Saved.');
@@ -2508,8 +2408,6 @@ async function createPotDirect(){
       pay_cashapp: cashInfo,
       pay_onsite: onsiteYes,
       payment_methods: { stripe: allowStripe, zelle: !!zelleInfo, cashapp: !!cashInfo, onsite: onsiteYes },
-      members_check_mode: (document.getElementById('c-members-csv-toggle')?.checked && (window.CREATE_MEMBERS_ALLOWED||[]).length) ? 'csv' : undefined,
-      members_allowed: (document.getElementById('c-members-csv-toggle')?.checked && (window.CREATE_MEMBERS_ALLOWED||[]).length) ? window.CREATE_MEMBERS_ALLOWED : undefined,
       pot_share_pct,
       start_at, end_at,
       org_email: orgEmail
@@ -2684,7 +2582,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
       window.location.assign(data.url);
     }catch(e){
       console.error('[JOIN]', e);
-      alert('Join failed: ' + (e.message || e));
+      setJoinMsg('Join failed: ' + (e.message || e), true);
     }
   }
   if (typeof window.startJoinCheckout !== 'function') window.startJoinCheckout = startJoinCheckout;
