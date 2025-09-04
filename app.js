@@ -2812,7 +2812,19 @@ function startEntryCheckout(entry){
     if (!entry || paid){ alert('This entry is already paid or invalid.'); return; }
     if (!pm.stripe){ alert('Stripe payment is not available for this pot.'); return; }
 
-    var amountDollars = Number(entry.applied_buyin || entry.buyin || 0);
+    var amountDollars = (function(){ 
+      function num(v){ try{ return Number(String(v||'').replace(/[^0-9.\-]/g,'')) || 0; }catch(_){ return 0; } }
+      var pot = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
+      var isGuest = /guest/i.test(String(entry.member_type||entry.type||entry.mtype||''));
+      // Prefer pot pricing by role when available
+      if (pot){
+        var candidate = isGuest ? num(pot.buyin_guest) : num(pot.buyin_member);
+        if (candidate > 0) return candidate;
+      }
+      // Fallbacks to entry fields if pot pricing not available
+      var fromEntry = num(entry.applied_buyin)||num(entry.buyin);
+      return fromEntry;
+    })();
     if (!amountDollars || !isFinite(amountDollars)){ alert('No amount to charge for this entry.'); return; }
 
     var payload = {
