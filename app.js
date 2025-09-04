@@ -41,9 +41,8 @@ function clearClientSession() {
   }
 })();
 
-/* Update “Signed In/Out” label and buttons */
 
-/* ===== Enforce Join Button Disable Rules ===== */
+/* ===== Enforce Join Button Disable Rules (skill play-down + dup email + dup name) ===== */
 function recomputeJoinDisabled(){
   try{
     var btn = document.getElementById('btn-join');
@@ -51,64 +50,45 @@ function recomputeJoinDisabled(){
     var p = (typeof CURRENT_JOIN_POT!=='undefined' && CURRENT_JOIN_POT) ? CURRENT_JOIN_POT : null;
     if (!p){ btn.disabled = true; return; }
 
+    var fnameEl = document.getElementById('j-fname');
+    var lnameEl = document.getElementById('j-lname');
+    var nameEl  = document.getElementById('j-name'); // fallback single-field
+    var emailEl = document.getElementById('j-email');
+    var skillEl = document.getElementById('j-skill');
+
+    var fname = (fnameEl && fnameEl.value || '').trim();
+    var lname = (lnameEl && lnameEl.value || '').trim();
+    var full  = (nameEl  && nameEl.value  || '').trim();
+    var email = (emailEl && emailEl.value || '').trim();
+    var skill = (skillEl && skillEl.value || 'Any');
+
+    var playerName = (fname || lname) ? (fname + ' ' + lname).trim() : full;
+    var entries = (window.LAST_JOIN_ENTRIES && Array.isArray(window.LAST_JOIN_ENTRIES)) ? window.LAST_JOIN_ENTRIES : [];
+
     // Rule 1: higher-skilled cannot play down
-    var selSkill = document.getElementById('j-skill');
-    var skillOk = true;
-    try{
-      if (selSkill){
-        var m = {"Any":0,"2.5 - 3.0":1,"3.25+":2};
-        var player = m[selSkill.value] ?? 0;
-        var potSkill = m[p.skill] ?? 0;
-        skillOk = (p.skill==='Any') || (player <= potSkill);
-      }
-    }catch(_){ skillOk = true; }
+    var rank = function(s){ return ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] || 0); };
+    var skillOk = (p.skill==='Any') || (rank(skill) <= rank(p.skill));
 
-    // Prepare typed accessors
-    var safeStr = function(v){ return (typeof v==='string' ? v : (v==null?'':String(v))).trim(); };
-    var playerFirst = safeStr(document.getElementById('j-first')?.value || document.getElementById('j-name')?.value || '');
-    var playerLast  = safeStr(document.getElementById('j-last')?.value || '');
-    var playerEmail = safeStr(document.getElementById('j-email')?.value || '');
-
-    // Current entries list
-    var entries = (typeof LAST_DETAIL_ENTRIES!=='undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : (p.entries || []);
-
-    // Rule 2: existing email already in list
+    // Rule 2: duplicate email
     var dupEmail = false;
-    if (playerEmail){
-      var eml = playerEmail.toLowerCase();
-      dupEmail = entries.some(function(e){
-        var ee = safeStr(e.email).toLowerCase();
-        return ee && ee === eml;
-      });
+    if (email){
+      var eml = email.toLowerCase();
+      dupEmail = entries.some(function(e){ return (e.email||'').toLowerCase() === eml; });
     }
 
-    // Rule 3: existing first+last already in list
+    // Rule 3: duplicate first+last
     var dupName = false;
-    if (playerFirst || playerLast){
-      var fn = playerFirst.toLowerCase();
-      var ln = playerLast.toLowerCase();
-      dupName = entries.some(function(e){
-        var nm = safeStr(e.name);
-        if (nm && nm.includes(' ')){
-          var parts = nm.split(/\s+/);
-          var ef = parts[0] ? parts[0].toLowerCase() : '';
-          var el = parts.slice(1).join(' ').toLowerCase();
-          return ef===fn && el===ln;
-        } else {
-          // If we only have a single "name" field, compare case-insensitively to "First Last"
-          var combo = (playerFirst + ' ' + playerLast).trim().toLowerCase();
-          return combo && (safeStr(e.name).toLowerCase() === combo);
-        }
-      });
+    if (playerName){
+      var combo = playerName.toLowerCase().replace(/\s+/g,' ').trim();
+      dupName = entries.some(function(e){ return ((e.name||'').toLowerCase().replace(/\s+/g,' ').trim() === combo); });
     }
 
     var shouldDisable = (!skillOk) || dupEmail || dupName;
     btn.disabled = !!shouldDisable;
 
-    // Optional visible warning
     var warn = document.getElementById('j-warn');
     if (warn){
-      var msgs = [];
+      var msgs=[];
       if (!skillOk) msgs.push('Higher skill level cannot play down');
       if (dupEmail) msgs.push('Email already registered');
       if (dupName) msgs.push('Name already registered');
@@ -119,6 +99,7 @@ function recomputeJoinDisabled(){
 }
 try{ window.recomputeJoinDisabled = recomputeJoinDisabled; }catch(_){}
 
+/* Update “Signed In/Out” label and buttons */
 document.addEventListener('DOMContentLoaded', initAuthGate);
 function initAuthGate() {
   const uid = localStorage.getItem('pp_uid');
@@ -580,7 +561,6 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
 }
 
 function onJoinPotChange(){
-  try{ recomputeJoinDisabled(); }catch(_){ }
   const sel = $('#j-pot-select');
   CURRENT_JOIN_POT = JOIN_POTS_CACHE.find(p=>p.id === sel.value) || null;
 
@@ -618,7 +598,10 @@ function onJoinPotChange(){
   watchPotTotals(p.id);
 
   autoLoadDetailFromSelection();
+
+  try{ if (window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){}
 }
+
 
 function autoLoadDetailFromSelection(){
   const selId = $('#j-pot-select')?.value;
@@ -642,9 +625,11 @@ function watchPotTotals(potId){
 
   JOIN_ENTRIES_UNSUB = db.collection('pots').doc(potId).collection('entries')
     .onSnapshot(snap=>{
+      var __list = [];
       let totalAll=0, totalPaid=0, countAll=0, countPaid=0;
 
       snap.forEach(doc=>{
+        try{ __list.push(Object.assign({id:doc.id}, doc.data()||{})); }catch(_){ }
         const d = doc.data();
         const isActive = !d.status || d.status === 'active';
         if (!isActive) return;
@@ -655,6 +640,9 @@ function watchPotTotals(potId){
           if (d.paid) { totalPaid += amt; countPaid++; }
         }
       });
+
+      try{ window.LAST_JOIN_ENTRIES = __list; }catch(_){}
+      try{ if (window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){}
 
       totalEl.innerHTML =
         `Total Pot (All): <b>${dollars(totalAll)}</b> (${countAll} entr${countAll===1?'y':'ies'}) • ` +
@@ -686,9 +674,7 @@ function evaluateJoinEligibility(){
   const p=CURRENT_JOIN_POT; if(!p) return;
   const warn = $('#j-warn');
   const playerSkill = $('#j-skill').value;
-  const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2
-  try{ recomputeJoinDisabled(); }catch(_){ }
-}[playerSkill]??0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill]??0) );
+  const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[playerSkill]??0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill]??0) );
   warn.style.display = allow ? 'none' : 'block';
   warn.textContent = allow ? '' : 'Higher skill level cannot play down';
 }
@@ -2277,11 +2263,10 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
-    btn.addEventListener('click', function(e){ e.preventDefault(); onCreateClick(e); });
+    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
     btn.__stripeBound = true;
   }
 });
-
 
 function fillStateAndCity(){
   const stSel = document.getElementById('c-addr-state');
@@ -2784,14 +2769,14 @@ document.addEventListener('DOMContentLoaded', function(){
 
 
 document.addEventListener('DOMContentLoaded', function(){
-  ['j-first','j-last','j-name','j-email','j-skill','j-paytype'].forEach(function(id){
+  ['j-fname','j-lname','j-name','j-email','j-skill'].forEach(function(id){
     var el = document.getElementById(id);
     if (el && !el.__eligBind){
-      el.addEventListener('input', function(){ try{ recomputeJoinDisabled(); }catch(_){ } });
-      el.addEventListener('change', function(){ try{ recomputeJoinDisabled(); }catch(_){ } });
+      el.addEventListener('input', function(){ try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ } });
+      el.addEventListener('change', function(){ try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ } });
       el.__eligBind = true;
     }
   });
-  try{ recomputeJoinDisabled(); }catch(_){ }
+  try{ if (window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ }
 });
 
