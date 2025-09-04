@@ -2826,6 +2826,14 @@ function startEntryCheckout(entry){
       return fromEntry;
     })();
     if (!amountDollars || !isFinite(amountDollars)){ alert('No amount to charge for this entry.'); return; }
+    // Sync entry amount to Firestore so backend reads correct value
+    try{
+      if (window.db){
+        window.db.collection('pots').doc(pot.id)
+          .collection('entries').doc(entry.id)
+          .update({ applied_buyin: amountDollars, buyin: amountDollars }).catch(function(){});
+      }
+    }catch(_){ /* non-fatal */ }
 
     var payload = {
       pot_id: pot.id || '',
