@@ -66,8 +66,9 @@ try{ window.recomputeJoinDisabled = recomputeJoinDisabled; }catch(_){}
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
   try{
-    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || __capturedPayType() || '';
+    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || '';
   }catch(_){ return ''; }
+}catch(_){ return ''; }
 }
 
 
@@ -89,7 +90,7 @@ function isSiteAdmin(){ return localStorage.getItem('site_admin') === '1'; }
 function setSiteAdmin(on){ on?localStorage.setItem('site_admin','1'):localStorage.removeItem('site_admin'); }
 
 const $  = (s,el=document)=>el.querySelector(s);
-const $$ = (s,el=document)=>[el.querySelectorAll(s)];
+const $$ = (s,el=document)=>Array.from(el.querySelectorAll(s));
 const dollars = n => '$' + Number(n||0).toFixed(2);
 
 /* --- session helpers --- */
@@ -506,7 +507,7 @@ function attachActivePotsListener(){
     const now = Date.now();
     const pots = [];
     snap.forEach(d => {
-      const x = { id: d.id, d.data() };
+      const x = { id: d.id, ...d.data() };
       
       const createdMs = x.created_at?.toMillis ? x.created_at.toMillis() : (typeof x.created_at === 'number' ? x.created_at : null);
       const startMs   = x.start_at?.toMillis ? x.start_at.toMillis()   : (typeof x.start_at === 'number' ? x.start_at   : null);
@@ -569,7 +570,7 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (typeof onJoinPotChange === 'function') onJoinPotChange();
     };
     const onSnap = (snap) => {
-      snap.forEach(d=>{ buffer.set(d.id, { id:d.id, d.data() }); });
+      snap.forEach(d=>{ buffer.set(d.id, { id: d.id, ...d.data() }); });
       mergeApply();
     };
     unsubs.push(db.collection('pots').where('status','==','open').onSnapshot(onSnap, onError));
@@ -878,114 +879,7 @@ async function joinPot(){
       const allowed = isCsvMember(CURRENT_JOIN_POT, $('#j-fname').value, $('#j-lname').value);
       if (allowed === false) effectiveMemberType = 'Guest';
     }
-  }catch(_){ }
-  const __admin = (typeof isSiteAdmin==='function' ? !!isSiteAdmin() : false);
-  let __effective_pay_type = (__admin && pay_type==='Stripe') ? 'Onsite' : pay_type;
-
-  try{ window.__joinPayMethod = pay_type; sessionStorage.setItem('JOIN_PAY_METHOD', String(pay_type||'')); }catch(_){}
-
-  if(!fname){ msg.textContent='First name is required.'; return; }
-  if(!__effective_pay_type){ msg.textContent='Choose a payment method.'; return; }
-
-  const rank = s => ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] || 0);
-  if(p.skill!=='Any' && rank(playerSkill) > rank(p.skill)){
-    msg.textContent='Selected skill is higher than pot skill — joining is not allowed.'; 
-    return;
-  }
-
-  const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin=(effectiveMemberType==='Member'? (p.buyin_member||0) : (p.buyin_guest||0));
-  const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
-
-  try{
-    setBusy(true, (__effective_pay_type==='Stripe' ? 'Redirecting to Stripe…' : 'Joining…'));
-    msg.textContent = '';
-
-    const entriesRef = db.collection('pots').doc(p.id).collection('entries');
-
-    const dupEmail = emailLC ? await entriesRef.where('email_lc','==', emailLC).limit(1).get() : { empty:true };
-    const dupName  = nameLC  ? await entriesRef.where('name_lc','==', nameLC).limit(1).get()  : { empty:true };
-    if(!dupEmail.empty || !dupName.empty){ 
-      return fail('Duplicate registration: this name or email already joined this event.');
-    }
-
-    const entry = {
-      name, name_lc:nameLC, email, email_lc:emailLC,
-      member_type: effectiveMemberType, player_skill:playerSkill, pay_type: __effective_pay_type,
-      applied_buyin, paid:false, status: (__effective_pay_type==='Stripe' ? 'draft' : 'active'),
-      created_at: firebase.firestore.FieldValue.serverTimestamp()
-    };
-    const docRef = await entriesRef.add(entry);
-    const entryId = docRef.id;
-    console.log('[JOIN] Entry created', { potId: p.id, entryId });
-
-    if (__effective_pay_type === 'Stripe'){
-      const pm = getPaymentMethods(p);
-      if (!pm.stripe){
-        return fail('Stripe is disabled for this event.');
-      }
-
-      const amount_cents = Math.round(Number(applied_buyin || 0) * 100);
-      if (!Number.isFinite(amount_cents) || amount_cents < 50){
-        return fail('Stripe requires a fee of at least $0.50.');
-      }
-
-      // Use HTTPS origin if page was opened as file://
-      const origin =
-        window.location.protocol === 'file:'
-          ? 'https://pickleballcompete.com'
-          : window.location.origin;
-
-      const payload = {
-        pot_id: p.id,
-        entry_id: entryId,
-        amount_cents,
-        player_name: name || 'Player',
-        player_email: email || undefined,
-        success_url: origin + '/success.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
-        cancel_url: origin + '/cancel.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
-        method: 'stripe'
-      };
-
-      console.log('[JOIN] Creating checkout session…', payload);
-
-      let res, data;
-      try{
-        res = await fetch(`${window.API_BASE}/create-checkout-session`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-      }catch(networkErr){
-        return fail('Network error contacting payment server. Check your internet or CORS.');
-      }
-
-      try { data = await res.json(); }
-      catch(parseErr){ return fail('Bad response from payment server.'); }
-
-      if (!res.ok || !data?.url){
-        const errMsg = data?.error || `Payment server error (${res.status}).`;
-        return fail(errMsg);
-      }
-
-      // Keep IDs for success page UX
-      sessionStorage.setItem('potId', p.id);
-      sessionStorage.setItem('entryId', entryId);
-
-      try { window.window.location.assign(data.url); }
-      catch { window.open(data.url, '_blank', 'noopener'); }
-      return;
-    }
-
-    // Non-Stripe:
-    setBusy(false);
-    msg.textContent='Joined! Complete payment using the selected method.';
-    updatePaymentNotes();
-    try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
-  }catch(e){
-    console.error('[JOIN] Unexpected failure:', e);
-    fail('Join failed (check Firebase rules and your network).');
-  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
+  } catch(e){ console.error('[JOIN] Unexpected failure:', e); fail('Join failed (check Firebase rules and your network).'); } finally { try{ window.__creatingPot=false; }catch(_){ } }catch(_){} }
 }
 
 /* ---------- Pot Detail loader + registrations subscription ---------- */
@@ -997,7 +891,7 @@ async function onLoadPotClicked(){
   const snap = await db.collection('pots').doc(id).get();
   if(!snap.exists){ alert('Pot not found'); return; }
 
-  const pot = { id:snap.id, snap.data() };
+  const pot = { id: snap.id, ...snap.data() };
   CURRENT_DETAIL_POT = pot;
 
   if($('#v-pot')) $('#v-pot').value = pot.id;
