@@ -839,7 +839,7 @@ async function joinPot(){
       sessionStorage.setItem('potId', p.id);
       sessionStorage.setItem('entryId', entryId);
 
-      try { window.location.href = data.url; }
+      try { window.window.location.assign(data.url); }
       catch { window.open(data.url, '_blank', 'noopener'); }
       return;
     }
@@ -966,7 +966,7 @@ function renderRegistrations(entries){
 
     return `
       <tr>
-        <td>${(function(){ const paid=(e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; if(!paid && stripeOk){ return `<a href=\"javascript:void(0)\" data-act=\"pay\" data-id=\"${e.id}\">${escapeHtml(name)}</a>`;} return escapeHtml(name); })()}</td>
+        <td>${(function(){ const paid=(e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; if(!paid && stripeOk){ return `<a href=\"#\" data-act=\"pay\" data-id=\"${e.id}\">${escapeHtml(name)}</a>`;} return escapeHtml(name); })()}</td>
         <td>${escapeHtml(email)}</td>
         <td>${escapeHtml(type)}</td>
         <td>${buyin}</td>
@@ -1470,7 +1470,7 @@ async function onOrganizerSubscribe(){
       alert(data?.error || 'Subscription server error.'); 
       return;
     }
-    try{ window.location.href = data.url; }
+    try{ window.window.location.assign(data.url); }
     catch{ window.open(data.url, '_blank', 'noopener'); }
   }catch(e){
     console.error('[Sub] Failed to start organizer subscription', e);
@@ -1847,7 +1847,7 @@ async function warmApi() {
       });
       const data = await res.json().catch(()=>null);
       if (!res.ok || !data?.url) throw new Error((data&&data.error)||'Service error');
-      window.location.href = data.url;
+      window.window.location.assign(data.url);
     }catch(e){
       alert(e.message||'Could not start subscription.');
       btn.disabled = false; btn.textContent = 'Organizer Subscription';
@@ -2527,7 +2527,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
       });
       const data = await r.json().catch(()=>null);
       if (!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
-      location.href = data.url;
+      window.location.assign(data.url);
     }catch(e){
       console.error('[CREATE]', e);
       show(e.message||String(e));
@@ -2561,7 +2561,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
       });
       const data = await r.json().catch(()=>null);
       if(!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
-      location.href = data.url;
+      window.location.assign(data.url);
     }catch(e){
       console.error('[JOIN]', e);
       alert('Join failed: ' + (e.message || e));
@@ -2833,7 +2833,7 @@ function startEntryCheckout(entry){
         alert((res.data && (res.data.error||res.data.message)) || ('Payment server error ('+res.status+')'));
         return;
       }
-      location.href = res.data.url;
+      window.location.assign(res.data.url);
     })
     .catch(err => { console.error('[ENTRY PAY]', err); alert('Network error.'); });
   }catch(e){ console.error('[ENTRY PAY]', e); alert(e.message || String(e)); }
