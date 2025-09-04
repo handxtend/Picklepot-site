@@ -2531,7 +2531,7 @@ async function createPotDirect(){
       org_email: orgEmail
     };
 
-    const ref = await db.collection('pots').add(pot);
+    const ref = await db.collection('pots').add(sanitizeDoc(pot));
     const resultEl = document.getElementById('create-result');
     if (resultEl) resultEl.textContent = `Created (ID: ${ref.id}).`;
     alert('Pot created.');
