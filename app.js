@@ -667,8 +667,8 @@ function updateBigTotals(paidShare, totalShare){
 /* ---------- Join helpers ---------- */
 function updateJoinCost(){
   const p = CURRENT_JOIN_POT; if(!p) return;
-  const mtype = $('#j-mtype').value; const isGuest = /guest/i.test(String(mtype));
-  const amt = isGuest ? Number(p.buyin_guest||0) : Number(p.buyin_member||0);
+  const mtype = $('#j-mtype').value;
+  const amt = (mtype==='Member'? Number(p.buyin_member||0) : Number(p.buyin_guest||0));
   $('#j-cost').textContent = 'Cost: ' + dollars(amt);
 }
 function evaluateJoinEligibility(){
@@ -741,11 +741,10 @@ async function joinPot(){
   }
 
   const fname=$('#j-fname').value.trim();
-  function __numBuyin(v){ try{ return Number(String(v||'').replace(/[^0-9.\-]/g,''))||0; }catch(_){ return 0; } }
   const lname=$('#j-lname').value.trim();
   const email=$('#j-email').value.trim();
   const playerSkill=$('#j-skill').value;
-  const member_type=$('#j-mtype').value; const __isGuest = /guest/i.test(String(member_type));
+  const member_type=$('#j-mtype').value;
   const pay_type=$('#j-paytype').value;
   const __admin = (typeof isSiteAdmin==='function' ? !!isSiteAdmin() : false);
   let __effective_pay_type = (__admin && pay_type==='Stripe') ? 'Onsite' : pay_type;
@@ -762,11 +761,11 @@ async function joinPot(){
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin = __numBuyin(__isGuest ? (p.buyin_guest||0) : (p.buyin_member||0));
+  const applied_buyin=(member_type==='Member'? (p.buyin_member||0) : (p.buyin_guest||0));
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
-    setBusy(true, (__effective_pay_type==='Stripe' ? undefined : 'Joining…'));
+    setBusy(true, (__effective_pay_type==='Stripe' ? 'Redirecting to Stripe…' : 'Joining…'));
     msg.textContent = '';
 
     const entriesRef = db.collection('pots').doc(p.id).collection('entries');
@@ -780,7 +779,7 @@ async function joinPot(){
     const entry = {
       name, name_lc:nameLC, email, email_lc:emailLC,
       member_type, player_skill:playerSkill, pay_type: __effective_pay_type,
-      applied_buyin, buyin: applied_buyin, paid:false, status: (__effective_pay_type==='Stripe' ? 'draft' : 'active'),
+      applied_buyin, paid:false, status: (__effective_pay_type==='Stripe' ? 'draft' : 'active'),
       created_at: firebase.firestore.FieldValue.serverTimestamp()
     };
     const docRef = await entriesRef.add(entry);
@@ -807,9 +806,7 @@ async function joinPot(){
       const payload = {
         pot_id: p.id,
         entry_id: entryId,
-        amount_cents: amount_cents,
-        member_type: member_type,
-        applied_buyin: applied_buyin,
+        amount_cents,
         player_name: name || 'Player',
         player_email: email || undefined,
         success_url: origin + '/success.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
@@ -2541,7 +2538,16 @@ cancel_url: originHost() + '/cancel.html?flow=create',
   async function startJoinCheckout(){
     if ((String(__capturedPayType()).toLowerCase()||'') !== 'stripe' && (String(__capturedPayType()).toLowerCase()||'') !== 'stripe (card)') { console.warn('[JOIN] hard-stop startJoinCheckout: method is', __capturedPayType()); return; }
 const potId = byId('v-pot')?.value?.trim() || '';
-    const amountDollars = byId('j-cost')?.value || byId('j-amount')?.value || '10';
+    const p = (window.CURRENT_JOIN_POT || {});
+    const mtype = (byId('j-mtype')?.value || 'Member').toLowerCase();
+    let amountDollars = (mtype === 'guest'
+      ? Number(p.buyin_guest ?? p.guest_buyin ?? 0)
+      : Number(p.buyin_member ?? p.member_buyin ?? 0));
+    if (!amountDollars) {
+      const t = byId('j-cost')?.textContent || byId('j-amount')?.value || '0';
+      const m = String(t).match(/[\d.]+/);
+      amountDollars = m ? Number(m[0]) : 0;
+    }
     const playerName = byId('j-name')?.value || byId('j-player')?.value || 'Player';
     const playerEmail= byId('j-email')?.value || '';
     const entryId = 'e_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
@@ -2815,28 +2821,8 @@ function startEntryCheckout(entry){
     if (!entry || paid){ alert('This entry is already paid or invalid.'); return; }
     if (!pm.stripe){ alert('Stripe payment is not available for this pot.'); return; }
 
-    var amountDollars = (function(){ 
-      function num(v){ try{ return Number(String(v||'').replace(/[^0-9.\-]/g,'')) || 0; }catch(_){ return 0; } }
-      var pot = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
-      var isGuest = /guest/i.test(String(entry.member_type||entry.type||entry.mtype||''));
-      // Prefer pot pricing by role when available
-      if (pot){
-        var candidate = isGuest ? num(pot.buyin_guest) : num(pot.buyin_member);
-        if (candidate > 0) return candidate;
-      }
-      // Fallbacks to entry fields if pot pricing not available
-      var fromEntry = num(entry.applied_buyin)||num(entry.buyin);
-      return fromEntry;
-    })();
+    var amountDollars = Number(entry.applied_buyin || entry.buyin || 0);
     if (!amountDollars || !isFinite(amountDollars)){ alert('No amount to charge for this entry.'); return; }
-    // Sync entry amount to Firestore so backend reads correct value
-    try{
-      if (window.db){
-        window.db.collection('pots').doc(pot.id)
-          .collection('entries').doc(entry.id)
-          .update({ applied_buyin: amountDollars, buyin: amountDollars }).catch(function(){});
-      }
-    }catch(_){ /* non-fatal */ }
 
     var payload = {
       pot_id: pot.id || '',
