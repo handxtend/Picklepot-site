@@ -121,7 +121,7 @@ if (!signed) localStorage.removeItem('pp_admin');
   ['j-filter-name','j-filter-org','j-filter-city'].forEach(function(id){
     var el = document.getElementById(id);
     if (el && !el.__filterBound){
-      el.addEventListener('input', function(){ try{ renderJoinPotSelectFromCache(); }catch(e){} });
+      el.addEventListener('input', async function(){ try{ renderJoinPotSelectFromCache(); }catch(e){} });
       el.__filterBound = true;
     }
   });
@@ -131,27 +131,10 @@ if (!signed) localStorage.removeItem('pp_admin');
 let ORG_SUB = { active:false, until:null };
 function hasOrganizerSub(){ return !!ORG_SUB.active; }
 
-
 async function loadOrganizerSubStatus(){
   try{
     const uid = firebase.auth().currentUser?.uid;
-    if (!uid){ ORG_SUB = {active:false, until:null}; return ORG_SUB; }
-    const doc = await db.collection('organizer_subs').doc(uid).get();
-    if (!doc.exists){ ORG_SUB = {active:false, until:null}; return ORG_SUB; }
-    const d = doc.data() || {};
-    const untilMs = d.current_period_end?.toMillis ? d.current_period_end.toMillis()
-                    : (typeof d.current_period_end === 'number' ? d.current_period_end : null);
-    const now = Date.now();
-    const active = (d.status === 'active') && (!!untilMs ? untilMs > now : true);
-    ORG_SUB = { active, until: untilMs };
-    return ORG_SUB;
-  } catch(err){
-    console.error('[Sub] Failed to load organizer subscription status', err);
-    ORG_SUB = { active:false, until:null };
-    return ORG_SUB;
-  }
-}
-
+    if(!uid){ ORG_SUB = {active:false, until:null}; return ORG_SUB; }
     const doc = await db.collection('organizer_subs').doc(uid).get();
     if(!doc.exists){ ORG_SUB = {active:false, until:null}; return ORG_SUB; }
     const d = doc.data() || {};
@@ -276,7 +259,7 @@ let db = null;
 })();
 
 /* ---------- UI bootstrap ---------- */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // Force Create button to use Stripe Checkout
   try{
     const _btn = document.getElementById('btn-create');
@@ -793,7 +776,7 @@ function applyMemberCsvLock(){
   }catch(_){}
 }
 
-document.addEventListener('DOMContentLoaded', function(){
+document.addEventListener('DOMContentLoaded', async function(){
   ['j-fname','j-lname'].forEach(function(id){
     const el = document.getElementById(id);
     if (el && !el.__csvBind){
@@ -807,7 +790,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const file = document.getElementById('c-members-csv-file');
     const status = document.getElementById('c-members-csv-status');
     if (tgl){
-      tgl.addEventListener('change', ()=>{ if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
+      tgl.addEventListener('change', async () => { if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
     }
     if (file){
       file.addEventListener('change', async ()=>{
@@ -823,7 +806,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const file = document.getElementById('f-members-csv-file');
     const status = document.getElementById('f-members-csv-status');
     if (tgl){
-      tgl.addEventListener('change', ()=>{ if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
+      tgl.addEventListener('change', async () => { if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
     }
     if (file){
       file.addEventListener('change', async ()=>{
@@ -1102,7 +1085,7 @@ function renderRegistrations(entries){
 
   tbody.innerHTML = html;
   if(!tbody.__payBind){
-    tbody.addEventListener('click', function(ev){
+    tbody.addEventListener('click', async function(ev){
       var a = ev.target.closest && ev.target.closest('a[data-act="pay"]');
       if(!a) return;
       ev.preventDefault();
@@ -1697,7 +1680,7 @@ async function handleSubscriptionReturn(){
   }catch(_){}
 
   // Also run on DOM ready (covers reload after return)
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     ensureOrganizerFlag();
   });
 
@@ -1994,7 +1977,7 @@ async function warmApi() {
   }
 
   // 8) Bind once DOM is ready
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     // Add PRICE_MAP if missing
     if (!window.PRICE_MAP) {
       window.PRICE_MAP = {
@@ -2076,7 +2059,7 @@ try{
 
 
 /* ===== TEMP: Disable Organizer Subscription button ===== */
-document.addEventListener('DOMContentLoaded', ()=>{
+document.addEventListener('DOMContentLoaded', async () => {
   const btn = document.getElementById('btn-subscribe-organizer');
   if (!btn) return;
   // disable visually and functionally
@@ -2230,7 +2213,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     if (!btn || !panel) return;
     if (btn.dataset._howto_wired === '1') return;
     btn.dataset._howto_wired = '1';
-    btn.addEventListener('click', function(){
+    btn.addEventListener('click', async function(){
       var open = panel.style.display !== 'none';
       panel.style.display = open ? 'none' : '';
       btn.setAttribute('aria-expanded', String(!open));
@@ -2394,7 +2377,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     }catch(e){ console.warn('[Create Checkout Return] error', e); }
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
+  document.addEventListener('DOMContentLoaded', async function(){
     // Rebind after other scripts run, to override any createPot binding
     try{ rebindCreateToCheckout(); setTimeout(rebindCreateToCheckout, 0); setTimeout(rebindCreateToCheckout, 300); }catch(_){}
     handleCreateCheckoutReturn();
@@ -2438,7 +2421,7 @@ function fillStateAndCity(){
   }
   const citySel = document.getElementById('c-addr-city');
   if (citySel){
-    citySel.addEventListener('change', ()=>{
+    citySel.addEventListener('change', async () => {
       const otherWrap = document.getElementById('c-addr-city-other-wrap');
       if (typeof toggleOther === 'function') toggleOther(citySel, otherWrap);
     });
@@ -2550,7 +2533,7 @@ async function createPotDirect(){
 
 
 /* Collapse Create-a-Pot section (arrows) */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const btn = document.getElementById('btn-create-collapse');
   if (btn && !btn.__bound){
     btn.addEventListener('click', () => {
@@ -2710,7 +2693,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
     const el = byId(id);
     if (el && !el.dataset.wired){
       el.dataset.wired='1';
-      el.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
+      el.addEventListener('click', async function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
     }
   }
 
@@ -2758,7 +2741,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
     if(signOut && !signOut.dataset.wired){ signOut.dataset.wired='1'; signOut.addEventListener('click', adminLogout); }
   }
 
-  document.addEventListener('DOMContentLoaded', ()=>{
+  document.addEventListener('DOMContentLoaded', async () => {
     populateCreate();
     bindAll();
     if (typeof checkStripeReturn==='function') try{ checkStripeReturn(); }catch(_){}
