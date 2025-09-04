@@ -860,14 +860,6 @@ function renderRegistrations(entries){
   if(!tbody) return;
   const showEmail = isSiteAdmin();
   const canAdmin  = isSiteAdmin();
-  const stripeOk = (function(){
-    try{
-      var p = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
-      if (!p) return false;
-      var pm = (typeof getPaymentMethods==='function') ? getPaymentMethods(p) : {stripe:false};
-      return !!pm.stripe;
-    }catch(_){ return false; }
-  })();
 
   if(!entries || !entries.length){
     tbody.innerHTML = `<tr><td colspan="7" class="muted">No registrations yet.</td></tr>`;
@@ -898,7 +890,7 @@ function renderRegistrations(entries){
 
     return `
       <tr>
-        <td>${(!e.paid && stripeOk) ? (`<a href="#" data-act="pay" data-id="${e.id}" title="Pay now">${escapeHtml(name)}</a>`) : escapeHtml(name)}</td>
+        <td>${escapeHtml(name)}</td>
         <td>${escapeHtml(email)}</td>
         <td>${escapeHtml(type)}</td>
         <td>${buyin}</td>
@@ -909,19 +901,6 @@ function renderRegistrations(entries){
   }).join('');
 
   tbody.innerHTML = html;
-  if(!tbody.__payBind){
-    tbody.addEventListener('click', function(ev){
-      var a = ev.target.closest('a[data-act="pay"]');
-      if(!a) return;
-      ev.preventDefault();
-      try{
-        var id = a.getAttribute('data-id');
-        var entry = (entries||[]).find(function(x){ return x.id===id; });
-        if(entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
-      }catch(err){ console.error('entry pay click failed', err); }
-    });
-    tbody.__payBind = true;
-  }
 }
 
 /* ---------- Admin utilities ---------- */
@@ -2741,54 +2720,18 @@ function toCents(val){
 try{ window.toCents = toCents; }catch(_){}
 
 
-
-/* ====== Entry-specific Stripe Checkout ====== */
-function startEntryCheckout(entry){
+/* ===== Inline fallback: handleEntryPayClick ===== */
+function handleEntryPayClick(ev){
   try{
-    var pot = (typeof CURRENT_DETAIL_POT !== 'undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
-    if (!pot) { alert('No pot selected.'); return; }
-    if (!entry || entry.paid === true) { alert('This entry is already paid or invalid.'); return; }
-    var pm = (typeof getPaymentMethods==='function') ? getPaymentMethods(pot) : { stripe:false };
-    if (!pm.stripe){ alert('Stripe payment is not available for this tournament.'); return; }
-
-    var amountDollars = Number(entry.applied_buyin || entry.buyin || 0);
-    if (!amountDollars || !isFinite(amountDollars)){ alert('No amount to charge for this entry.'); return; }
-    var amount_cents = Math.round(amountDollars * 100);
-
-    // Use HTTPS origin if page was opened as file://
-    var origin =
-      window.location.protocol === 'file:'
-        ? 'https://pickleballcompete.com'
-        : window.location.origin;
-
-    var payload = {
-      pot_id: pot.id || '',
-      entry_id: entry.id || '',
-      amount_cents: amount_cents,
-      player_name: entry.name || 'Player',
-      player_email: entry.email || undefined,
-      success_url: origin + '/success.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + (pot.id||'') + '&entry_id=' + (entry.id||''),
-      cancel_url: origin + '/cancel.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + (pot.id||'') + '&entry_id=' + (entry.id||'')
-    };
-
-    var url = (window.API_BASE || 'https://picklepot-stripe.onrender.com') + '/create-checkout-session';
-    fetch(url, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    })
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, status:r.status, data:d}; }); })
-    .then(function(res){
-      if (!res.ok || !(res.data && res.data.url)){
-        alert((res.data && (res.data.error||res.data.message)) || ('Payment server error ('+res.status+')')); 
-        return;
-      }
-      try{ window.location.href = res.data.url; }catch(_){ window.open(res.data.url, '_blank', 'noopener'); }
-    })
-    .catch(function(err){ console.error('[ENTRY PAY]', err); alert('Network error contacting payment server.'); });
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var a = (ev && (ev.currentTarget || (ev.target && ev.target.closest && ev.target.closest('a[data-act="pay"]')))) || null;
+    var id = a ? a.getAttribute('data-id') : null;
+    var entries = (typeof LAST_DETAIL_ENTRIES !== 'undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : [];
+    var entry = entries.find(function(x){ return x && x.id === id; });
+    if (entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
   }catch(e){
-    console.error('[ENTRY PAY]', e);
-    alert(e.message || String(e));
+    console.error('handleEntryPayClick failed', e);
   }
+  return false;
 }
-try{ window.startEntryCheckout = startEntryCheckout; }catch(_){}
+try{ window.handleEntryPayClick = handleEntryPayClick; }catch(_){}
