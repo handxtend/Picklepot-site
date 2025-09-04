@@ -879,8 +879,10 @@ async function joinPot(){
 
     const dupEmail = emailLC ? await entriesRef.where('email_lc','==', emailLC).limit(1).get() : { empty:true };
     const dupName  = nameLC  ? await entriesRef.where('name_lc','==', nameLC).limit(1).get()  : { empty:true };
-    if(!dupEmail.empty || !dupName.empty){ 
-      return fail('Duplicate registration: this name or email already joined this event.');
+    if(!dupEmail.empty || !dupName.empty){
+      if (msg){ msg.classList.add('error'); msg.textContent = 'Duplicate registration: this name or email already joined this event.'; }
+      setBusy(false);
+      return;
     }
 
     const entry = {
@@ -953,6 +955,7 @@ async function joinPot(){
 
     // Non-Stripe:
     setBusy(false);
+    msg.classList.remove('error');
     msg.textContent='Joined! Complete payment using the selected method.';
     updatePaymentNotes();
     try{ $('#j-fname').value=''; $('#j-lname').value=''; $('#j-email').value=''; }catch(_){}
