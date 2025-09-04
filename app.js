@@ -121,7 +121,7 @@ if (!signed) localStorage.removeItem('pp_admin');
   ['j-filter-name','j-filter-org','j-filter-city'].forEach(function(id){
     var el = document.getElementById(id);
     if (el && !el.__filterBound){
-      el.addEventListener('input', async function(){ try{ renderJoinPotSelectFromCache(); }catch(e){} });
+      el.addEventListener('input', function(){ try{ renderJoinPotSelectFromCache(); }catch(e){} });
       el.__filterBound = true;
     }
   });
@@ -259,7 +259,7 @@ let db = null;
 })();
 
 /* ---------- UI bootstrap ---------- */
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   // Force Create button to use Stripe Checkout
   try{
     const _btn = document.getElementById('btn-create');
@@ -295,7 +295,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   if (db) attachActivePotsListener();
 
-  $('#j-refresh').addEventListener('click', ()=>{ if (db) attachActivePotsListener(); onJoinPotChange(); });
+  $('#j-refresh').addEventListener('click', ()=>{ if (db) attachActivePotsListener(); onJoinPotChange(); 
+  try{ handleEntryCheckoutReturn(); }catch(_){}
+});
   $('#j-pot-select').addEventListener('change', onJoinPotChange);
   $('#j-skill').addEventListener('change', evaluateJoinEligibility);
   $('#j-mtype').addEventListener('change', ()=>{ updateJoinCost(); evaluateJoinEligibility(); });
@@ -776,7 +778,7 @@ function applyMemberCsvLock(){
   }catch(_){}
 }
 
-document.addEventListener('DOMContentLoaded', async function(){
+document.addEventListener('DOMContentLoaded', function(){
   ['j-fname','j-lname'].forEach(function(id){
     const el = document.getElementById(id);
     if (el && !el.__csvBind){
@@ -790,7 +792,7 @@ document.addEventListener('DOMContentLoaded', async function(){
     const file = document.getElementById('c-members-csv-file');
     const status = document.getElementById('c-members-csv-status');
     if (tgl){
-      tgl.addEventListener('change', async () => { if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
+      tgl.addEventListener('change', ()=>{ if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
     }
     if (file){
       file.addEventListener('change', async ()=>{
@@ -806,7 +808,7 @@ document.addEventListener('DOMContentLoaded', async function(){
     const file = document.getElementById('f-members-csv-file');
     const status = document.getElementById('f-members-csv-status');
     if (tgl){
-      tgl.addEventListener('change', async () => { if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
+      tgl.addEventListener('change', ()=>{ if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
     }
     if (file){
       file.addEventListener('change', async ()=>{
@@ -1085,7 +1087,7 @@ function renderRegistrations(entries){
 
   tbody.innerHTML = html;
   if(!tbody.__payBind){
-    tbody.addEventListener('click', async function(ev){
+    tbody.addEventListener('click', function(ev){
       var a = ev.target.closest && ev.target.closest('a[data-act="pay"]');
       if(!a) return;
       ev.preventDefault();
@@ -1680,7 +1682,7 @@ async function handleSubscriptionReturn(){
   }catch(_){}
 
   // Also run on DOM ready (covers reload after return)
-  document.addEventListener('DOMContentLoaded', async () => {
+  document.addEventListener('DOMContentLoaded', () => {
     ensureOrganizerFlag();
   });
 
@@ -1977,7 +1979,7 @@ async function warmApi() {
   }
 
   // 8) Bind once DOM is ready
-  document.addEventListener('DOMContentLoaded', async () => {
+  document.addEventListener('DOMContentLoaded', () => {
     // Add PRICE_MAP if missing
     if (!window.PRICE_MAP) {
       window.PRICE_MAP = {
@@ -2059,7 +2061,7 @@ try{
 
 
 /* ===== TEMP: Disable Organizer Subscription button ===== */
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', ()=>{
   const btn = document.getElementById('btn-subscribe-organizer');
   if (!btn) return;
   // disable visually and functionally
@@ -2154,7 +2156,8 @@ try{ const _oldGate = gateUI; window.gateUI = async function(){ try{ await _oldG
     if (typeof orig === 'function'){
       window.startCreatePotCheckout = async function(){
         try{
-          if (!_isAdmin()){
+          if (typeof isSiteAdmin==='function' && isSiteAdmin()) { return createPotDirect(); }
+      if (!_isAdmin()){
             const sel = document.getElementById('c-allow-stripe');
             if (sel){ try{ sel.value = 'no'; }catch(_){ } }
           }
@@ -2213,7 +2216,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     if (!btn || !panel) return;
     if (btn.dataset._howto_wired === '1') return;
     btn.dataset._howto_wired = '1';
-    btn.addEventListener('click', async function(){
+    btn.addEventListener('click', function(){
       var open = panel.style.display !== 'none';
       panel.style.display = open ? 'none' : '';
       btn.setAttribute('aria-expanded', String(!open));
@@ -2322,7 +2325,55 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
   }
 
   // Handle returns specifically for Create-Pot flow
-  async function handleCreateCheckoutReturn(){
+  async 
+function handleEntryCheckoutReturn(){
+  try{
+    var isCancel = /cancel\.html$/i.test(location.pathname) || /[?&](?:canceled|cancel|status=cancel)\b/i.test(location.search);
+    if (!isCancel) return;
+    var potId = null, entryId = null;
+    try{
+      potId = sessionStorage.getItem('joinDraftPotId'); 
+      entryId = sessionStorage.getItem('joinDraftEntryId');
+    }catch(_){}
+    if (!potId || !entryId) return;
+
+    // Try to delete the draft entry; if that fails, mark it as draft
+    var ref = null;
+    try{
+      ref = (window.db || (window.firebase && firebase.firestore && firebase.firestore()))?.collection('pots').doc(potId).collection('entries').doc(entryId);
+    }catch(_){}
+    (async function(){
+      try{
+        if (ref && ref.delete) {
+          await ref.delete();
+          var banner = document.getElementById('pay-banner');
+          if (banner){ banner.style.display=''; banner.textContent='Checkout canceled. Draft removed.'; }
+        } else {
+          throw new Error('No ref.delete');
+        }
+      }catch(e){
+        try{
+          if (ref && ref.update){
+            await ref.update({ status: 'draft', canceled: true });
+            var banner2 = document.getElementById('pay-banner');
+            if (banner2){ banner2.style.display=''; banner2.textContent='Checkout canceled. Marked as draft.'; }
+          }
+        }catch(_){}
+      }finally{
+        try{ sessionStorage.removeItem('joinDraftPotId'); }catch(_){}
+        try{ sessionStorage.removeItem('joinDraftEntryId'); }catch(_){}
+        if (history.replaceState){
+          try{
+            var clean = location.pathname + location.search.replace(/([?&])(canceled|cancel|status=cancel)=[^&]*/ig, '').replace(/[?&]$/,'') + location.hash;
+            history.replaceState({}, '', clean);
+          }catch(_){}
+        }
+      }
+    })();
+  }catch(e){ console.warn('[Join Cancel handler]', e); }
+}
+
+function handleCreateCheckoutReturn(){
     try{
       var params = new URLSearchParams(location.search);
       var flow = params.get('flow');
@@ -2377,7 +2428,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     }catch(e){ console.warn('[Create Checkout Return] error', e); }
   }
 
-  document.addEventListener('DOMContentLoaded', async function(){
+  document.addEventListener('DOMContentLoaded', function(){
     // Rebind after other scripts run, to override any createPot binding
     try{ rebindCreateToCheckout(); setTimeout(rebindCreateToCheckout, 0); setTimeout(rebindCreateToCheckout, 300); }catch(_){}
     handleCreateCheckoutReturn();
@@ -2421,7 +2472,7 @@ function fillStateAndCity(){
   }
   const citySel = document.getElementById('c-addr-city');
   if (citySel){
-    citySel.addEventListener('change', async () => {
+    citySel.addEventListener('change', ()=>{
       const otherWrap = document.getElementById('c-addr-city-other-wrap');
       if (typeof toggleOther === 'function') toggleOther(citySel, otherWrap);
     });
@@ -2533,7 +2584,7 @@ async function createPotDirect(){
 
 
 /* Collapse Create-a-Pot section (arrows) */
-document.addEventListener('DOMContentLoaded', async () => {
+document.addEventListener('DOMContentLoaded', () => {
   const btn = document.getElementById('btn-create-collapse');
   if (btn && !btn.__bound){
     btn.addEventListener('click', () => {
@@ -2693,7 +2744,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
     const el = byId(id);
     if (el && !el.dataset.wired){
       el.dataset.wired='1';
-      el.addEventListener('click', async function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
+      el.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
     }
   }
 
@@ -2741,7 +2792,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
     if(signOut && !signOut.dataset.wired){ signOut.dataset.wired='1'; signOut.addEventListener('click', adminLogout); }
   }
 
-  document.addEventListener('DOMContentLoaded', async () => {
+  document.addEventListener('DOMContentLoaded', ()=>{
     populateCreate();
     bindAll();
     if (typeof checkStripeReturn==='function') try{ checkStripeReturn(); }catch(_){}
@@ -2927,6 +2978,11 @@ function startEntryCheckout(entry){
   try{
     var pot = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
     if (!pot) { alert('No pot selected.'); return; }
+    // Store draft markers so cancel.html can clean up
+    try{
+      sessionStorage.setItem('joinDraftPotId', pot.id || '');
+      sessionStorage.setItem('joinDraftEntryId', entry && entry.id ? entry.id : '');
+    }catch(_){}
     var pm = (typeof getPaymentMethods==='function') ? getPaymentMethods(pot) : {stripe:false};
     var paid = (entry && (entry.paid===true || entry.paid===1 || String(entry.paid||'').toLowerCase()==='true' || String(entry.paid||'').toLowerCase()==='yes'));
     if (!entry || paid){ alert('This entry is already paid or invalid.'); return; }
