@@ -99,13 +99,13 @@ function clearClientSession() {
 }
 
 (function forceLogoutViaURL(){
-  if (new URLSearchParams(location.search).has('logout')) {
-    clearClientSession();
-    history.replaceState({}, '', location.pathname);
-  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){} }
+  try{
+    if (new URLSearchParams(location.search).has('logout')) {
+      clearClientSession();
+      history.replaceState({}, '', location.pathname);
+    }
+  } catch(e){ console.error(e); } finally { try{ window.__creatingPot=false; }catch(_){ } }
 })();
-
-/* Update “Signed In/Out” label and buttons */
 
 /* ===== Create Expiry Note Visibility ===== */
 function updateCreateExpireNoteVisibility(){
