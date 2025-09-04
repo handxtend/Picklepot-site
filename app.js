@@ -43,16 +43,81 @@ function clearClientSession() {
 
 /* Update “Signed In/Out” label and buttons */
 
-/* ===== Create Expiry Note Visibility ===== */
-function updateCreateExpireNoteVisibility(){
+/* ===== Enforce Join Button Disable Rules ===== */
+function recomputeJoinDisabled(){
   try{
-    var note = document.getElementById('create-expire-note');
-    if (!note) return;
-    var admin = (typeof isSiteAdmin==='function' && isSiteAdmin());
-    note.style.display = admin ? 'none' : '';
-  }catch(_){}
+    var btn = document.getElementById('btn-join');
+    if (!btn) return;
+    var p = (typeof CURRENT_JOIN_POT!=='undefined' && CURRENT_JOIN_POT) ? CURRENT_JOIN_POT : null;
+    if (!p){ btn.disabled = true; return; }
+
+    // Rule 1: higher-skilled cannot play down
+    var selSkill = document.getElementById('j-skill');
+    var skillOk = true;
+    try{
+      if (selSkill){
+        var m = {"Any":0,"2.5 - 3.0":1,"3.25+":2};
+        var player = m[selSkill.value] ?? 0;
+        var potSkill = m[p.skill] ?? 0;
+        skillOk = (p.skill==='Any') || (player <= potSkill);
+      }
+    }catch(_){ skillOk = true; }
+
+    // Prepare typed accessors
+    var safeStr = function(v){ return (typeof v==='string' ? v : (v==null?'':String(v))).trim(); };
+    var playerFirst = safeStr(document.getElementById('j-first')?.value || document.getElementById('j-name')?.value || '');
+    var playerLast  = safeStr(document.getElementById('j-last')?.value || '');
+    var playerEmail = safeStr(document.getElementById('j-email')?.value || '');
+
+    // Current entries list
+    var entries = (typeof LAST_DETAIL_ENTRIES!=='undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : (p.entries || []);
+
+    // Rule 2: existing email already in list
+    var dupEmail = false;
+    if (playerEmail){
+      var eml = playerEmail.toLowerCase();
+      dupEmail = entries.some(function(e){
+        var ee = safeStr(e.email).toLowerCase();
+        return ee && ee === eml;
+      });
+    }
+
+    // Rule 3: existing first+last already in list
+    var dupName = false;
+    if (playerFirst || playerLast){
+      var fn = playerFirst.toLowerCase();
+      var ln = playerLast.toLowerCase();
+      dupName = entries.some(function(e){
+        var nm = safeStr(e.name);
+        if (nm && nm.includes(' ')){
+          var parts = nm.split(/\s+/);
+          var ef = parts[0] ? parts[0].toLowerCase() : '';
+          var el = parts.slice(1).join(' ').toLowerCase();
+          return ef===fn && el===ln;
+        } else {
+          // If we only have a single "name" field, compare case-insensitively to "First Last"
+          var combo = (playerFirst + ' ' + playerLast).trim().toLowerCase();
+          return combo && (safeStr(e.name).toLowerCase() === combo);
+        }
+      });
+    }
+
+    var shouldDisable = (!skillOk) || dupEmail || dupName;
+    btn.disabled = !!shouldDisable;
+
+    // Optional visible warning
+    var warn = document.getElementById('j-warn');
+    if (warn){
+      var msgs = [];
+      if (!skillOk) msgs.push('Higher skill level cannot play down');
+      if (dupEmail) msgs.push('Email already registered');
+      if (dupName) msgs.push('Name already registered');
+      warn.textContent = msgs.join(' · ');
+      warn.style.display = msgs.length ? 'block' : 'none';
+    }
+  }catch(e){ console.error('recomputeJoinDisabled failed', e); }
 }
-try{ window.updateCreateExpireNoteVisibility = updateCreateExpireNoteVisibility; }catch(_){}
+try{ window.recomputeJoinDisabled = recomputeJoinDisabled; }catch(_){}
 
 document.addEventListener('DOMContentLoaded', initAuthGate);
 function initAuthGate() {
@@ -515,6 +580,7 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
 }
 
 function onJoinPotChange(){
+  try{ recomputeJoinDisabled(); }catch(_){ }
   const sel = $('#j-pot-select');
   CURRENT_JOIN_POT = JOIN_POTS_CACHE.find(p=>p.id === sel.value) || null;
 
@@ -620,7 +686,9 @@ function evaluateJoinEligibility(){
   const p=CURRENT_JOIN_POT; if(!p) return;
   const warn = $('#j-warn');
   const playerSkill = $('#j-skill').value;
-  const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[playerSkill]??0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill]??0) );
+  const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2
+  try{ recomputeJoinDisabled(); }catch(_){ }
+}[playerSkill]??0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill]??0) );
   warn.style.display = allow ? 'none' : 'block';
   warn.textContent = allow ? '' : 'Higher skill level cannot play down';
 }
@@ -873,17 +941,6 @@ function renderRegistrations(entries){
   if(!tbody) return;
   const showEmail = isSiteAdmin();
   const canAdmin  = isSiteAdmin();
-  const stripeOk = (function(){
-    try{
-      var p = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
-      if (!p) return false;
-      var pm = (typeof getPaymentMethods==='function') ? getPaymentMethods(p) : {stripe:false};
-      if (pm && pm.stripe) return true;
-      var sel = document.getElementById('j-paytype');
-      if (sel){ return Array.from(sel.options||[]).some(function(o){ return /stripe/i.test((o.value||o.textContent||'')); }); }
-      return false;
-    }catch(_){ return false; }
-  })();
 
   if(!entries || !entries.length){
     tbody.innerHTML = `<tr><td colspan="7" class="muted">No registrations yet.</td></tr>`;
@@ -914,7 +971,7 @@ function renderRegistrations(entries){
 
     return `
       <tr>
-        <td>${(function(){ const paid=(e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; if(!paid && stripeOk){ return `<a href=\"javascript:void(0)\" data-act=\"pay\" data-id=\"${e.id}\" onclick=\"return window.handleEntryPayClick && window.handleEntryPayClick(event);\">${escapeHtml(name)}</a>`;} return escapeHtml(name); })()}</td>
+        <td>${escapeHtml(name)}</td>
         <td>${escapeHtml(email)}</td>
         <td>${escapeHtml(type)}</td>
         <td>${buyin}</td>
@@ -925,19 +982,6 @@ function renderRegistrations(entries){
   }).join('');
 
   tbody.innerHTML = html;
-  if(!tbody.__payBind){
-    tbody.addEventListener('click', function(ev){
-      var a = ev.target.closest && ev.target.closest('a[data-act="pay"]');
-      if(!a) return;
-      ev.preventDefault();
-      try{
-        var id = a.getAttribute('data-id');
-        var entry = (entries||[]).find(function(x){ return x.id===id; });
-        if(entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
-      }catch(err){ console.error('entry pay click failed', err); }
-    });
-    tbody.__payBind = true;
-  }
 }
 
 /* ---------- Admin utilities ---------- */
@@ -2075,7 +2119,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
       catch(_){ location.hash = '#pot-detail-section'; }
     });
   }
-  document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
+  document.addEventListener('DOMContentLoaded', function(){
     try{ wireHowTo(); wireShowDetail(); }catch(_){}
   });
   // Also attempt late-binding in case DOM is injected later
@@ -2216,7 +2260,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     }catch(e){ console.warn('[Create Checkout Return] error', e); }
   }
 
-  document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
+  document.addEventListener('DOMContentLoaded', function(){
     // Rebind after other scripts run, to override any createPot binding
     try{ rebindCreateToCheckout(); setTimeout(rebindCreateToCheckout, 0); setTimeout(rebindCreateToCheckout, 300); }catch(_){}
     handleCreateCheckoutReturn();
@@ -2230,13 +2274,14 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
 
 // Ensure Create button triggers Stripe checkout (idempotent binding)
-document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
+document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
-    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
+    btn.addEventListener('click', function(e){ e.preventDefault(); onCreateClick(e); });
     btn.__stripeBound = true;
   }
 });
+
 
 function fillStateAndCity(){
   const stSel = document.getElementById('c-addr-state');
@@ -2648,7 +2693,7 @@ if (location.pathname.endsWith('/manage.html') || location.pathname.endsWith('ma
 
 
 // --- Simple show/hide for Create/Join cards ---
-document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
+document.addEventListener('DOMContentLoaded', function(){
   var createCard = document.getElementById('create-card');
   var joinCard   = document.getElementById('join-card');
   var btnStartCreate = document.getElementById('btn-start-create');
@@ -2738,75 +2783,15 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
 })();
 
 
-/* Utility: toCents (global fallback) */
-function toCents(val){
-  try{
-    var s = String(val == null ? '' : val).replace(/[^0-9.\-]/g, '');
-    var n = parseFloat(s);
-    if (!isFinite(n)) n = 0;
-    return Math.round(n * 100);
-  }catch(_){ return 0; }
-}
-try{ window.toCents = toCents; }catch(_){}
+document.addEventListener('DOMContentLoaded', function(){
+  ['j-first','j-last','j-name','j-email','j-skill','j-paytype'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el && !el.__eligBind){
+      el.addEventListener('input', function(){ try{ recomputeJoinDisabled(); }catch(_){ } });
+      el.addEventListener('change', function(){ try{ recomputeJoinDisabled(); }catch(_){ } });
+      el.__eligBind = true;
+    }
+  });
+  try{ recomputeJoinDisabled(); }catch(_){ }
+});
 
-
-/* Entry-specific Stripe Checkout */
-function startEntryCheckout(entry){
-  try{
-    var pot = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
-    if (!pot) { alert('No pot selected.'); return; }
-    if (!entry) { alert('No entry.'); return; }
-
-    var paid = (entry.paid===true)||entry.paid===1||String(entry.paid||'').toLowerCase()==='true'||String(entry.paid||'').toLowerCase()==='yes';
-    if (paid){ alert('This entry is already paid.'); return; }
-
-    var pm = (typeof getPaymentMethods==='function') ? getPaymentMethods(pot) : {stripe:false};
-    if (!pm.stripe){ alert('Stripe is not enabled for this tournament.'); return; }
-
-    var amountDollars = Number(entry.applied_buyin || entry.buyin || 0);
-    if (!amountDollars || !isFinite(amountDollars)){ alert('No amount to charge for this entry.'); return; }
-
-    var payload = {
-      pot_id: pot.id || '',
-      entry_id: entry.id || '',
-      amount_cents: toCents(amountDollars),
-      player_name: entry.name || 'Player',
-      player_email: entry.email || undefined,
-      success_url: (window.location.origin||'') + '/success.html?flow=join',
-      cancel_url: (window.location.origin||'') + '/cancel.html?flow=join',
-      method: 'stripe'
-    };
-
-    var url = (window.API_BASE||'') + '/create-checkout-session';
-    fetch(url, {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    })
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,status:r.status,data:d}; }); })
-    .then(function(res){
-      if(!res.ok || !(res.data && res.data.url)){
-        alert((res.data && (res.data.error||res.data.message)) || ('Payment server error ('+res.status+')'));
-        return;
-      }
-      try{ window.location.href = res.data.url; }catch(_){ window.open(res.data.url, '_blank', 'noopener'); }
-    })
-    .catch(function(err){ console.error('[ENTRY PAY]', err); alert('Network error.'); });
-  }catch(e){ console.error('[ENTRY PAY]', e); alert(e.message || String(e)); }
-}
-try{ window.startEntryCheckout = startEntryCheckout; }catch(_){}
-
-
-/* Inline click fallback */
-function handleEntryPayClick(ev){
-  try{
-    if(ev && ev.preventDefault) ev.preventDefault();
-    var a = (ev && (ev.currentTarget || (ev.target && ev.target.closest && ev.target.closest('a[data-act="pay"]')))) || null;
-    var id = a ? a.getAttribute('data-id') : null;
-    var entries = (typeof LAST_DETAIL_ENTRIES!=='undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : [];
-    var entry = entries.find(function(x){ return x && x.id===id; });
-    if(entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
-  }catch(e){ console.error('handleEntryPayClick failed', e); }
-  return false;
-}
-try{ window.handleEntryPayClick = handleEntryPayClick; }catch(_){}
