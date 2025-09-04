@@ -207,6 +207,19 @@
 <div><label>CashApp Info (optional)</label><input id="c-pay-cashapp" placeholder="$YourCashtag"/></div>
 <div><label>Onsite Payment</label><select id="c-pay-onsite"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 </div>
+
+<!-- Member verification (CSV) -->
+<div id="c-members-csv-wrap" style="margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:8px">
+  <label style="display:flex;gap:8px;align-items:center">
+    <input type="checkbox" id="c-members-csv-toggle">
+    <span>Enable member verification from CSV</span>
+  </label>
+  <div id="c-members-csv-controls" style="margin-top:8px;display:none">
+    <input type="file" id="c-members-csv-file" accept=".csv" />
+    <div id="c-members-csv-status" class="muted" style="font-size:12px;margin-top:6px"></div>
+  </div>
+</div>
+
 <div class="inline" style="margin-top:12px">
 <button class="btn primary" id="btn-create">Create Pot</button>
 <div class="muted" id="create-result"></div>
@@ -354,6 +367,19 @@
 <div><label>Onsite Payment</label><select id="f-pay-onsite"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 <div><label>Status</label><select id="f-status"><option value="open">open</option><option value="hold">hold</option><option value="closed">closed</option></select></div>
 </div>
+
+<!-- Member verification (CSV) - Edit -->
+<div id="f-members-csv-wrap" style="margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:8px">
+  <label style="display:flex;gap:8px;align-items:center">
+    <input type="checkbox" id="f-members-csv-toggle">
+    <span>Enable member verification from CSV</span>
+  </label>
+  <div id="f-members-csv-controls" style="margin-top:8px;display:none">
+    <input type="file" id="f-members-csv-file" accept=".csv" />
+    <div id="f-members-csv-status" class="muted" style="font-size:12px;margin-top:6px"></div>
+  </div>
+</div>
+
 <div class="inline" style="margin-top:10px">
 <button class="btn primary" id="btn-save-pot" type="button">Save Changes</button>
 <button class="btn" id="btn-cancel-edit" type="button">Cancel</button>
