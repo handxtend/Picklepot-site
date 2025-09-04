@@ -1,4 +1,18 @@
 
+// --- helper: remove undefined / NaN so Firestore accepts the payload ---
+function sanitizeDoc(obj){
+  const out = {};
+  if (!obj || typeof obj !== 'object') return out;
+  for (const k of Object.keys(obj)){
+    const v = obj[k];
+    if (v === undefined) continue;
+    if (typeof v === 'number' && Number.isNaN(v)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+
 /* ===== Enforce Join Button Disable Rules (skill play-down + dup email + dup name) ===== */
 function recomputeJoinDisabled(){
   try{
