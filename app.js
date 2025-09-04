@@ -16,13 +16,13 @@ function recomputeJoinDisabled(){
     var playerName = (fname || lname) ? (fname + ' ' + lname).trim() : full;
     var entries = (window.LAST_JOIN_ENTRIES && Array.isArray(window.LAST_JOIN_ENTRIES)) ? window.LAST_JOIN_ENTRIES : [];
 
-    var rank = function(s){ return ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] || 0); };
+    var rank = async function(s){ return ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] || 0); };
     var skillOk = (p.skill==='Any') || (rank(skill) <= rank(p.skill));
 
     var dupEmail = false;
     if (email){
       var eml = email.toLowerCase();
-      dupEmail = entries.some(function(e){ return (String(e.email||'').toLowerCase() === eml); });
+      dupEmail = entries.some(async function(e){ return (String(e.email||'').toLowerCase() === eml); });
     }
 
     var dupName = false;
@@ -121,7 +121,7 @@ if (!signed) localStorage.removeItem('pp_admin');
   ['j-filter-name','j-filter-org','j-filter-city'].forEach(function(id){
     var el = document.getElementById(id);
     if (el && !el.__filterBound){
-      el.addEventListener('input', function(){ try{ renderJoinPotSelectFromCache(); }catch(e){} });
+      el.addEventListener('input', async function(){ try{ renderJoinPotSelectFromCache(); }catch(e){} });
       el.__filterBound = true;
     }
   });
@@ -259,8 +259,8 @@ let db = null;
 })();
 
 /* ---------- UI bootstrap ---------- */
-document.addEventListener('DOMContentLoaded', () => {
-  // Force Create button to use Stripe Checkout
+document.addEventListener('DOMContentLoaded', async () => {
+  try{ handleEntryCheckoutReturn(); }catch(_){}; // Force Create button to use Stripe Checkout
   try{
     const _btn = document.getElementById('btn-create');
     if (_btn){
@@ -295,9 +295,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   if (db) attachActivePotsListener();
 
-  $('#j-refresh').addEventListener('click', ()=>{ if (db) attachActivePotsListener(); onJoinPotChange(); 
-  try{ handleEntryCheckoutReturn(); }catch(_){}
-});
+  $('#j-refresh').addEventListener('click', ()=>{ if (db) attachActivePotsListener(); onJoinPotChange(); });
   $('#j-pot-select').addEventListener('change', onJoinPotChange);
   $('#j-skill').addEventListener('change', evaluateJoinEligibility);
   $('#j-mtype').addEventListener('change', ()=>{ updateJoinCost(); evaluateJoinEligibility(); });
@@ -305,7 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
   $('#btn-create').addEventListener('click', onCreateClick);
-(function(){ 
+(async function(){ 
   const old = document.getElementById('btn-join');
   if (old){
     const fresh = old.cloneNode(false);
@@ -731,7 +729,7 @@ function normalizeName(first, last){
   return (f + ' ' + l).replace(/\s+/g,' ').trim();
 }
 
-async function readCsvAsMemberNames(file){
+async async function readCsvAsMemberNames(file){
   if (!file) return [];
   const text = await file.text();
   const lines = text.split(/\r?\n/).filter(Boolean);
@@ -778,7 +776,7 @@ function applyMemberCsvLock(){
   }catch(_){}
 }
 
-document.addEventListener('DOMContentLoaded', function(){
+document.addEventListener('DOMContentLoaded', async function(){
   ['j-fname','j-lname'].forEach(function(id){
     const el = document.getElementById(id);
     if (el && !el.__csvBind){
@@ -792,7 +790,7 @@ document.addEventListener('DOMContentLoaded', function(){
     const file = document.getElementById('c-members-csv-file');
     const status = document.getElementById('c-members-csv-status');
     if (tgl){
-      tgl.addEventListener('change', ()=>{ if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
+      tgl.addEventListener('change', async () => { if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
     }
     if (file){
       file.addEventListener('change', async ()=>{
@@ -802,13 +800,13 @@ document.addEventListener('DOMContentLoaded', function(){
       });
     }
   })();
-  (function(){
+  (async function(){
     const tgl = document.getElementById('f-members-csv-toggle');
     const ctr = document.getElementById('f-members-csv-controls');
     const file = document.getElementById('f-members-csv-file');
     const status = document.getElementById('f-members-csv-status');
     if (tgl){
-      tgl.addEventListener('change', ()=>{ if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
+      tgl.addEventListener('change', async () => { if(ctr) ctr.style.display = tgl.checked ? '' : 'none'; });
     }
     if (file){
       file.addEventListener('change', async ()=>{
@@ -1037,7 +1035,7 @@ function renderRegistrations(entries){
   if(!tbody) return;
   const showEmail = isSiteAdmin();
   const canAdmin  = isSiteAdmin();
-  const stripeOk = (function(){
+  const stripeOk = (async function(){
     try{
       var p = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
       if (!p) return false;
@@ -1087,7 +1085,7 @@ function renderRegistrations(entries){
 
   tbody.innerHTML = html;
   if(!tbody.__payBind){
-    tbody.addEventListener('click', function(ev){
+    tbody.addEventListener('click', async function(ev){
       var a = ev.target.closest && ev.target.closest('a[data-act="pay"]');
       if(!a) return;
       ev.preventDefault();
@@ -1221,7 +1219,7 @@ async function savePotEdits(){
   }catch(e){ console.error(e); alert('Failed to save changes.'); }
 }
 
-async function updatePotStatus(newStatus){
+async async function updatePotStatus(newStatus){
   if(!requireAdmin()) return;
   try{
     await db.collection('pots').doc(CURRENT_DETAIL_POT.id).update({ status: newStatus });
@@ -1230,7 +1228,7 @@ async function updatePotStatus(newStatus){
   }catch(e){ console.error(e); alert('Failed to update status.'); }
 }
 
-async function deleteCurrentPot(){
+async async function deleteCurrentPot(){
   if(!requireAdmin()) return;
   const go = confirm('This deletes the pot document. Continue?');
   if(!go) return;
@@ -1411,7 +1409,7 @@ PiCo Pickle Pot`;
     let i = 0;
     const swap = () => {
       imgEl.style.opacity = '0';
-      setTimeout(() => {
+      setTimeout(async ()=>{
         const banner = banners[i % banners.length];
         imgEl.src = banner.src;
         if (banner.url) {
@@ -1465,7 +1463,7 @@ function checkStripeReturn(){
             const amt = (typeof d.paid_amount === 'number') ? (d.paid_amount/100) : (d.applied_buyin||0);
             banner.textContent = `Payment successful: ${dollars(amt)} received. Enjoy the event! 🎉`;
             // Auto-hide after a bit
-            setTimeout(()=>{ try{ banner.style.display='none'; }catch{} }, 8000);
+            setTimeout(async ()=>{ try{ banner.style.display='none'; }catch{} }, 8000);
           } else {
             banner.textContent = 'Payment completed. Waiting for confirmation…';
           }
@@ -1589,7 +1587,7 @@ async function onOrganizerSubscribe(){
   }
 }
 
-async function handleSubscriptionReturn(){
+async async function handleSubscriptionReturn(){
   try{
     const params = new URLSearchParams(window.location.search);
     const sub = params.get('sub');
@@ -1623,7 +1621,7 @@ async function handleSubscriptionReturn(){
 
 
 /* ====== ORGANIZER VISIBILITY FIX (non-breaking) ====== */
-(function(){
+(async function(){
   const ACTIVE_STATUSES = ['active','trialing','past_due'];
 
   async function readOrganizerActive(uid, email){
@@ -1660,7 +1658,7 @@ async function handleSubscriptionReturn(){
     return false;
   }
 
-  async function ensureOrganizerFlag(){
+  async async function ensureOrganizerFlag(){
     try{
       const u = (firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser : null;
       const ok = u ? await readOrganizerActive(u.uid, u.email) : false;
@@ -1682,7 +1680,7 @@ async function handleSubscriptionReturn(){
   }catch(_){}
 
   // Also run on DOM ready (covers reload after return)
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     ensureOrganizerFlag();
   });
 
@@ -1692,7 +1690,7 @@ async function handleSubscriptionReturn(){
 
 
 // ===== Organizer UI Fix (drop-in addon; safe to append at end of app.js) =====
-(function(){
+(async function(){
   const ACTIVE = ['active','trialing','past_due'];
 
   // If API_BASE isn't defined in the page, set it here (adjust if yours differs)
@@ -1708,7 +1706,7 @@ async function handleSubscriptionReturn(){
   // Ensure Firebase auth persists across reloads
   try { firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL); } catch(_){}
 
-  async function getEmailActive(email){
+  async async function getEmailActive(email){
     if (!email || !window.db) return false;
     try{
       const snap = await db.collection('organizer_subs_emails').doc(email.toLowerCase()).get();
@@ -1718,7 +1716,7 @@ async function handleSubscriptionReturn(){
     }catch(_){ return false; }
   }
 
-  async function getUidActive(uid){
+  async async function getUidActive(uid){
     if (!uid || !window.db) return false;
     try{
       const snap = await db.collection('organizer_subs').doc(uid).get();
@@ -1728,7 +1726,7 @@ async function handleSubscriptionReturn(){
     }catch(_){ return false; }
   }
 
-  async function claim(uid, email){
+  async async function claim(uid, email){
     try{
       const res = await fetch(`${API_BASE}/activate-subscription-for-uid`, {
         method: 'POST',
@@ -1825,7 +1823,7 @@ async function handleSubscriptionReturn(){
    - Shows Create-a-Pot when active; hides Subscribe strip
    This block APPENDS behavior; it does NOT modify existing code.
 ======================================================================================= */
-(function(){
+(async function(){
   const ACTIVE = ['active','trialing','past_due'];
   const API_BASE = (typeof window.API_BASE !== 'undefined' && window.API_BASE) ? window.API_BASE : 'https://picklepot-stripe.onrender.com';
 
@@ -1855,7 +1853,7 @@ async function warmApi() {
   function setText(el, t){ if(el){ el.textContent = t; el.style.display=''; } }
 
   // 3) Detect subscription state
-  async function hasActiveUid(uid){
+  async async function hasActiveUid(uid){
     try{
       const snap = await firebase.firestore().collection('organizer_subs').doc(uid).get();
       if (!snap.exists) return false;
@@ -1863,7 +1861,7 @@ async function warmApi() {
       return ACTIVE.includes(String(s));
     }catch(_){ return false; }
   }
-  async function hasActiveEmail(email){
+  async async function hasActiveEmail(email){
     if (!email) return false;
     try{
       const snap = await firebase.firestore().collection('organizer_subs_emails').doc(email.toLowerCase()).get();
@@ -1979,7 +1977,7 @@ async function warmApi() {
   }
 
   // 8) Bind once DOM is ready
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('DOMContentLoaded', async () => {
     // Add PRICE_MAP if missing
     if (!window.PRICE_MAP) {
       window.PRICE_MAP = {
@@ -2016,7 +2014,7 @@ async function warmApi() {
 
   // Update gate on auth state
   try{
-    ((window.firebase && firebase.auth) ? firebase.auth() : { onAuthStateChanged: function(){} }).onAuthStateChanged(()=>{
+    ((window.firebase && firebase.auth) ? firebase.auth() : { onAuthStateChanged: function(){} }).onAuthStateChanged(async ()=>{
       // reflect label
       const user = firebase.auth().currentUser;
       const label = document.getElementById('auth-user');
@@ -2061,7 +2059,7 @@ try{
 
 
 /* ===== TEMP: Disable Organizer Subscription button ===== */
-document.addEventListener('DOMContentLoaded', ()=>{
+document.addEventListener('DOMContentLoaded', async () => {
   const btn = document.getElementById('btn-subscribe-organizer');
   if (!btn) return;
   // disable visually and functionally
@@ -2150,7 +2148,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 try{ const _oldGate = gateUI; window.gateUI = async function(){ try{ await _oldGate(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
 
 // If create flow exists, force allowed_stripe false for non-admins before posting
-(function(){
+(async function(){
   try{
     const orig = window.startCreatePotCheckout;
     if (typeof orig === 'function'){
@@ -2216,7 +2214,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     if (!btn || !panel) return;
     if (btn.dataset._howto_wired === '1') return;
     btn.dataset._howto_wired = '1';
-    btn.addEventListener('click', function(){
+    btn.addEventListener('click', async function(){
       var open = panel.style.display !== 'none';
       panel.style.display = open ? 'none' : '';
       btn.setAttribute('aria-expanded', String(!open));
@@ -2337,7 +2335,6 @@ function handleEntryCheckoutReturn(){
     }catch(_){}
     if (!potId || !entryId) return;
 
-    // Try to delete the draft entry; if that fails, mark it as draft
     var ref = null;
     try{
       ref = (window.db || (window.firebase && firebase.firestore && firebase.firestore()))?.collection('pots').doc(potId).collection('entries').doc(entryId);
@@ -2416,7 +2413,7 @@ function handleCreateCheckoutReturn(){
         if (banner2){
           banner2.style.display='';
           banner2.textContent='Payment successful! Finalizing your tournament…';
-          setTimeout(()=>{ try{ banner2.style.display='none'; }catch(_){ } }, 8000);
+          setTimeout(async ()=>{ try{ banner2.style.display='none'; }catch(_){ } }, 8000);
         }
         // Clean query
         if (history.replaceState){
@@ -2428,7 +2425,7 @@ function handleCreateCheckoutReturn(){
     }catch(e){ console.warn('[Create Checkout Return] error', e); }
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
+  document.addEventListener('DOMContentLoaded', async function(){
     // Rebind after other scripts run, to override any createPot binding
     try{ rebindCreateToCheckout(); setTimeout(rebindCreateToCheckout, 0); setTimeout(rebindCreateToCheckout, 300); }catch(_){}
     handleCreateCheckoutReturn();
@@ -2472,7 +2469,7 @@ function fillStateAndCity(){
   }
   const citySel = document.getElementById('c-addr-city');
   if (citySel){
-    citySel.addEventListener('change', ()=>{
+    citySel.addEventListener('change', async () => {
       const otherWrap = document.getElementById('c-addr-city-other-wrap');
       if (typeof toggleOther === 'function') toggleOther(citySel, otherWrap);
     });
@@ -2584,7 +2581,7 @@ async function createPotDirect(){
 
 
 /* Collapse Create-a-Pot section (arrows) */
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   const btn = document.getElementById('btn-create-collapse');
   if (btn && !btn.__bound){
     btn.addEventListener('click', () => {
@@ -2598,7 +2595,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /* =================== Global UI Init & Wiring (All-Fix v2) =================== */
-(function(){
+(async function(){
   const $ = (s,el=document)=>el.querySelector(s);
   const byId = id => document.getElementById(id);
   const originHost = () => (location.protocol==='file:' ? 'https://pickleballcompete.com' : location.origin);
@@ -2744,7 +2741,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
     const el = byId(id);
     if (el && !el.dataset.wired){
       el.dataset.wired='1';
-      el.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
+      el.addEventListener('click', async function(ev){ ev.preventDefault(); ev.stopPropagation(); fn.call(el, ev); });
     }
   }
 
@@ -2792,7 +2789,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
     if(signOut && !signOut.dataset.wired){ signOut.dataset.wired='1'; signOut.addEventListener('click', adminLogout); }
   }
 
-  document.addEventListener('DOMContentLoaded', ()=>{
+  document.addEventListener('DOMContentLoaded', async () => {
     populateCreate();
     bindAll();
     if (typeof checkStripeReturn==='function') try{ checkStripeReturn(); }catch(_){}
@@ -2831,7 +2828,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
 
 
 /* ===== Manage page helpers: auto-resolve pot by owner code ===== */
-async function resolvePotByOwnerCode(ownerCode) {
+async async function resolvePotByOwnerCode(ownerCode) {
   try {
     if (!ownerCode || ownerCode.trim().length < 4) return null;
     const res = await fetch(API_BASE + '/owner/resolve', {
@@ -2844,7 +2841,7 @@ async function resolvePotByOwnerCode(ownerCode) {
   } catch (e) { console.error('[MANAGE] resolve error', e); return null; }
 }
 
-function initManageAutoFill() {
+async function initManageAutoFill() {
   const potInput = document.querySelector('input[name="pot-id"], #pot-id, input[placeholder^="pot_"]');
   const codeInput = document.querySelector('input[name="owner-code"], #owner-code, input[placeholder*="code"], input[placeholder*="Code"]');
   if (!potInput || !codeInput) return;
