@@ -741,6 +741,7 @@ async function joinPot(){
   }
 
   const fname=$('#j-fname').value.trim();
+  function __numBuyin(v){ try{ return Number(String(v||'').replace(/[^0-9.\-]/g,''))||0; }catch(_){ return 0; } }
   const lname=$('#j-lname').value.trim();
   const email=$('#j-email').value.trim();
   const playerSkill=$('#j-skill').value;
@@ -761,11 +762,11 @@ async function joinPot(){
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin = Number(__isGuest ? (p.buyin_guest||0) : (p.buyin_member||0));
+  const applied_buyin = __numBuyin(__isGuest ? (p.buyin_guest||0) : (p.buyin_member||0));
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
-    setBusy(true, (__effective_pay_type==='Stripe' ? 'Redirecting to Stripe…' : 'Joining…'));
+    setBusy(true, (__effective_pay_type==='Stripe' ? undefined : 'Joining…'));
     msg.textContent = '';
 
     const entriesRef = db.collection('pots').doc(p.id).collection('entries');
@@ -806,7 +807,7 @@ async function joinPot(){
       const payload = {
         pot_id: p.id,
         entry_id: entryId,
-        amount_cents,
+        amount_cents: amount_cents,
         player_name: name || 'Player',
         player_email: email || undefined,
         success_url: origin + '/success.html?flow=join&session_id={CHECKOUT_SESSION_ID}&pot_id=' + p.id + '&entry_id=' + entryId,
