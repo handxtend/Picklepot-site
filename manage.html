@@ -53,6 +53,9 @@
       <h1>Organizer — Manage Pot</h1>
       <p class="muted">Unlock with the Owner Link or Owner Code. Update pot fields and manage entries below.</p>
     </header>
+<div class="section-header" id="manage-expire-note" style="background-color:#003366;color:#ffffff;padding:10px 15px;border-radius:5px 5px 0 0;font-size:1.2em;font-weight:700;margin:12px 22px 0;">
+  Note: Organizer-created pots expire 3 months after creation.
+</div>
 
     <div class="sec">
       <label>Pot ID</label>
@@ -134,14 +137,6 @@
             <input id="f_pot_share_pct" type="number" step="1" min="0" max="100" placeholder="100">
           </div>
         </div>
-        <div class="row" style="margin-top:8px">
-          <div>
-            <label>Member Roster (CSV)</label>
-            <input id="c-roster-csv" type="file" accept=".csv">
-          </div>
-          <div class="muted" id="csv-status" style="align-self:flex-end">No roster loaded</div>
-        </div>
-
 
         <div class="row" style="margin-top:12px">
           <label><input type="checkbox" id="f_pay_cashapp"> Allow Cash App</label>
