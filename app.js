@@ -2446,37 +2446,8 @@ document.addEventListener('DOMContentLoaded', () => {
       success_url: originHost() + '/success.html?flow=join',
       cancel_url: originHost() + '/cancel.html?flow=create',
     };
-    setBusy(true, 'Redirecting…');
-    return fetch((window.API_BASE||'') + '/create-pot-session', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(payload)
-    })
-    .then(function(r){ return r.json().then(function(data){ return {ok:r.ok, status:r.status, data:data}; }); })
-    .then(function(res){
-      if (!res.ok || !res.data || !res.data.url){
-        throw new Error((res.data && (res.data.error||res.data.message)) || ('Payment server error ('+res.status+')'));
-      }
-      window.location.assign(res.data.url);
-    })
-    .catch(function(e){
-      console.error('[CREATE]', e);
-      show(e && e.message ? e.message : String(e));
-    })
-    .finally(function(){ setBusy(false, 'Create Pot'); });
-  }catch(e){
-    console.error('[CREATE][outer]', e);
-    show(e && e.message ? e.message : String(e));
-    setBusy(false, 'Create Pot');
-  }
-};
-      setBusy(true, 'Redirecting…');
-      const r = await fetch((window.API_BASE||'') + '/create-pot-session', {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-      });
-      const data = await r.json().catch(()=>null);
-      if (!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
-      location.href = data.url;
+    
+
     }catch(e){
       console.error('[CREATE]', e);
       show(e.message||String(e));
