@@ -661,10 +661,15 @@ async function joinPot(){
     btn.textContent = on ? (text || 'Working…') : 'Join';
   }
   function fail(message){
-    console.error('[JOIN] Error:', message);
-    msg.textContent = message || 'Something went wrong.';
-    setBusy(false);
-  }
+  console.error('[JOIN] Error:', message);
+  msg.textContent = message || 'Something went wrong.';
+  try{
+    msg.classList.add('error-strong');
+    msg.style.color = '#b91c1c';
+    msg.style.fontWeight = '800';
+  }catch(_){ }
+  setBusy(false);
+}
 
   if(!p){ msg.textContent='Select a pot to join.'; return; }
 
@@ -908,6 +913,12 @@ function renderRegistrations(entries){
   }).join('');
 
   tbody.innerHTML = html;
+  try{
+    tbody.querySelectorAll('td').forEach(function(td){
+      var t = td.textContent && td.textContent.trim();
+      if(t && /^<a\s+[^>]*>/.test(t)) { td.innerHTML = t; }
+    });
+  }catch(_){ }
 }
 
 /* ---------- Admin utilities ---------- */
