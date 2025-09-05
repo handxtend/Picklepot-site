@@ -858,6 +858,7 @@ function subscribeDetailEntries(potId){
 
 function renderRegistrations(entries){
   const tbody = document.querySelector('#adminTable tbody');
+  window.__LAST_ENTRIES = Array.isArray(entries) ? entries.slice() : [];
   if(!tbody) return;
   const showEmail = isSiteAdmin();
   const canAdmin  = isSiteAdmin();
@@ -868,7 +869,12 @@ function renderRegistrations(entries){
   }
 
   const html = entries.map(e=>{
-    const name = e.name || '—';
+    const pm = getPaymentMethods(CURRENT_DETAIL_POT||{});
+    const canStripe = !!pm.stripe;
+    const showLink = canStripe && !e.paid;
+    const name = showLink
+      ? `<a href="#" class="entry-pay" data-entry-id="${e.id}">${escapeHtml(e.name||"—")}</a>`
+      : (e.name || '—');
     const email = showEmail ? (e.email || '—') : '';
     const type = e.member_type || '—';
     const buyin = dollars(e.applied_buyin || 0);
@@ -2708,3 +2714,66 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(_){}
   }catch(err){ console.error('join binder bootstrap error', err); }
 })();
+
+
+// Show/Hide the 3‑month expiry note (hide for admins)
+(function(){
+  try{
+    const el = document.getElementById('expiry-note');
+    if (el){
+      const hide = (typeof isSiteAdmin==='function' && isSiteAdmin());
+      el.style.display = hide ? 'none' : '';
+    }
+  }catch(_){}
+})();
+
+
+// Checkout for an existing entry from Pot Details
+async function startExistingEntryCheckout(entry){
+  try{
+    const p = CURRENT_DETAIL_POT;
+    if (!p) { alert('No pot loaded.'); return; }
+    const isGuest = /guest/i.test(String(entry.member_type||entry.type||''));
+    function num(v){ try{ return Number(String(v||'').replace(/[^0-9.\-]/g,''))||0; }catch(_){ return 0; } }
+    const potAmt = isGuest ? num(p.buyin_guest) : num(p.buyin_member);
+    const amountDollars = potAmt || num(entry.applied_buyin) || num(entry.buyin);
+    if (!amountDollars) { alert('No amount to charge for this entry.'); return; }
+
+    const payload = {
+      pot_id: p.id,
+      entry_id: entry.id,
+      amount_cents: Math.round(amountDollars * 100),
+      member_type: entry.member_type || entry.type || '',
+      applied_buyin: amountDollars,
+      success_url: originHost() + '/success.html?flow=join&pot_id=' + p.id + '&entry_id=' + entry.id,
+      cancel_url: originHost()  + '/cancel.html?flow=join&pot_id=' + p.id + '&entry_id=' + entry.id,
+      method: 'stripe'
+    };
+
+    const r = await fetch((window.API_BASE||'') + '/create-checkout-session', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+    });
+    const data = await r.json().catch(()=>null);
+    if(!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
+    location.href = data.url;
+  }catch(e){
+    console.error('[ENTRY PAY]', e);
+    alert('Entry pay click failed: ' + (e.message||e));
+  }
+}
+
+// Delegate click on names
+(function(){
+  const tbody = document.querySelector('#adminTable tbody');
+  if (!tbody) return;
+  tbody.addEventListener('click', function(ev){
+    const a = ev.target.closest('a.entry-pay');
+    if (!a) return;
+    ev.preventDefault();
+    const id = a.getAttribute('data-entry-id');
+    const entries = Array.isArray(window.__LAST_ENTRIES) ? window.__LAST_ENTRIES : [];
+    const entry = entries.find(x=>x && x.id === id);
+    if (entry) startExistingEntryCheckout(entry);
+  });
+})();
+
