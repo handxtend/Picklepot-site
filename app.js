@@ -2532,7 +2532,7 @@ document.addEventListener('DOMContentLoaded', () => {
         draft: collectCreateDraft(),
         count,
         success_url: originHost() + '/success.html?flow=join',
-cancel_url: originHost() + '/cancel.html?flow=create',
+cancel_url: originHost() + '/cancel.html?flow=join',
 
       };
       setBusy(true, 'Redirecting…');
@@ -2575,7 +2575,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
       player_name: playerName,
       player_email: playerEmail,
      success_url: originHost() + '/success.html?flow=join',
-  cancel_url: originHost() + '/cancel.html?flow=create'
+  cancel_url: originHost() + '/cancel.html?flow=join'
 
     };
     try{
