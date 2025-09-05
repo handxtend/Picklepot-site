@@ -663,12 +663,6 @@ async function joinPot(){
   function fail(message){
     console.error('[JOIN] Error:', message);
     msg.textContent = message || 'Something went wrong.';
-    try{
-      // style duplicate messages bold red
-      const isDup = /duplicate/i.test(String(message||''));
-      msg.style.color = isDup ? '#b91c1c' : '';
-      msg.style.fontWeight = isDup ? '800' : '';
-    }catch(_){}
     setBusy(false);
   }
 
@@ -2424,23 +2418,58 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
-  async async function startCreatePotCheckout(){
-    const btn = byId('btn-create');
-    const msg = byId('create-msg') || byId('create-result');
-    const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
-    const show=(t)=>{ if(msg){ msg.textContent=t; msg.style.display=''; } };
+  function startCreatePotCheckout(){
+  const btn = byId('btn-create');
+  const msg = byId('create-msg') || byId('create-result');
+  const setBusy = (on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
+  const show   = (t)=>{ if(msg){ msg.textContent=t; msg.style.display=''; } };
 
+  try{
+    // ADMIN BYPASS: create immediately without Stripe
     try{
-      // Admin bypass: create immediately without Stripe
-      try{ if (typeof isSiteAdmin==='function' && isSiteAdmin()) { await createPotDirect(); setBusy(false, 'Create Pot'); return; } }catch(_){}
-      const count = Math.max(1, parseInt(byId('c-count')?.value || '1', 10));
-      const payload = {
-        draft: collectCreateDraft(),
-        count,
-        success_url: originHost() + '/success.html?flow=join',
-cancel_url: originHost() + '/cancel.html?flow=create',
+      if (typeof isSiteAdmin==='function' && isSiteAdmin()){
+        setBusy(true, 'Creating…');
+        return createPotDirect().then(function(){
+          setBusy(false, 'Create Pot');
+        }).catch(function(err){
+          console.error('[CREATE][admin-direct]', err);
+          setBusy(false, 'Create Pot');
+          show(err && err.message ? err.message : String(err));
+        });
+      }
+    }catch(_){}
 
-      };
+    const count = Math.max(1, parseInt(byId('c-count')?.value || '1', 10));
+    const payload = {
+      draft: collectCreateDraft(),
+      count: count,
+      success_url: originHost() + '/success.html?flow=join',
+      cancel_url: originHost() + '/cancel.html?flow=create',
+    };
+    setBusy(true, 'Redirecting…');
+    return fetch((window.API_BASE||'') + '/create-pot-session', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(payload)
+    })
+    .then(function(r){ return r.json().then(function(data){ return {ok:r.ok, status:r.status, data:data}; }); })
+    .then(function(res){
+      if (!res.ok || !res.data || !res.data.url){
+        throw new Error((res.data && (res.data.error||res.data.message)) || ('Payment server error ('+res.status+')'));
+      }
+      window.location.assign(res.data.url);
+    })
+    .catch(function(e){
+      console.error('[CREATE]', e);
+      show(e && e.message ? e.message : String(e));
+    })
+    .finally(function(){ setBusy(false, 'Create Pot'); });
+  }catch(e){
+    console.error('[CREATE][outer]', e);
+    show(e && e.message ? e.message : String(e));
+    setBusy(false, 'Create Pot');
+  }
+};
       setBusy(true, 'Redirecting…');
       const r = await fetch((window.API_BASE||'') + '/create-pot-session', {
         method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
