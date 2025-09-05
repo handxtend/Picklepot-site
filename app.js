@@ -2715,8 +2715,8 @@ document.addEventListener('DOMContentLoaded', function(){
         Array.from(sel.options||[]).forEach(o=>o.disabled=false);
         if(!hasRoster){ return; }
         const names = new Set(p.roster_names.map(s=>String(s||'').trim().toLowerCase()));
-        const fn = (document.getElementById('j-fname')?.value||'').trim().toLowerCase();
-        const ln = (document.getElementById('j-lname')?.value||'').trim().toLowerCase();
+        const fn = (((document.getElementById('j-fname')||{}).value)||'').trim().toLowerCase();
+        const ln = (((document.getElementById('j-lname')||{}).value)||'').trim().toLowerCase();
         const key = fn && ln ? (fn+' '+ln) : '';
         const isMember = key && names.has(key);
         if (isMember){
