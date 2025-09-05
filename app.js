@@ -2334,11 +2334,7 @@ function onCreateClick(e){
   try{
     e && e.preventDefault && e.preventDefault();
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
-      const cEl = document.getElementById('c-count');
-      const count = Math.max(1, parseInt(cEl && cEl.value ? cEl.value : '1', 10));
-      const wasQuiet = window.__quietCreate || false; window.__quietCreate = count>1;
-      (async ()=>{ for (let i=0;i<count;i++){ await createPotDirect(); } window.__quietCreate = wasQuiet; })();
-      return;
+      return createPotDirect();
     } else {
       return startCreatePotCheckout();
     }
