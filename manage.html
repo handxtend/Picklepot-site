@@ -53,9 +53,6 @@
       <h1>Organizer — Manage Pot</h1>
       <p class="muted">Unlock with the Owner Link or Owner Code. Update pot fields and manage entries below.</p>
     </header>
-<div class="section-header" id="manage-expire-note" style="background-color:#003366;color:#ffffff;padding:10px 15px;border-radius:5px 5px 0 0;font-size:1.2em;font-weight:700;margin:12px 22px 0;">
-  Note: Organizer-created pots expire 3 months after creation.
-</div>
 
     <div class="sec">
       <label>Pot ID</label>
@@ -137,6 +134,21 @@
             <input id="f_pot_share_pct" type="number" step="1" min="0" max="100" placeholder="100">
           </div>
         </div>
+        <!-- Member Roster (CSV) -->
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>Member Roster (CSV)</label>
+            <input id="m_csv_file" type="file" accept=".csv,text/csv">
+            <div class="muted small" id="m_csv_status">No roster loaded</div>
+          </div>
+          <div style="align-self:flex-end">
+            <label style="display:inline-flex;align-items:center;gap:.5rem;">
+              <input type="checkbox" id="m_csv_toggle">
+              <span>Use this roster to validate members</span>
+            </label>
+          </div>
+        </div>
+
 
         <div class="row" style="margin-top:12px">
           <label><input type="checkbox" id="f_pay_cashapp"> Allow Cash App</label>
@@ -170,6 +182,52 @@
 </div>
 
 <script>
+
+  // === Roster CSV (Manage) ===
+  let mCsvAllowed = [];
+  const $mFile   = ()=>document.getElementById('m_csv_file');
+  const $mTgl    = ()=>document.getElementById('m_csv_toggle');
+  const $mStatus = ()=>document.getElementById('m_csv_status');
+
+  function normalizeName(s){
+    return (s||'').trim().replace(/\s+/g,' ').toLowerCase();
+  }
+  function parseRosterCSV(text){
+    const out = [];
+    const lines = String(text||'').split(/\r?\n/);
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      const parts = line.split(',');
+      if (parts.length >= 2){
+        const first = normalizeName(parts[0]);
+        const last  = normalizeName(parts.slice(1).join(' '));
+        const full  = normalizeName(first + ' ' + last);
+        if (full.replace(/\s/g,'')) out.push(full);
+        continue;
+      }
+      const sp = line.split(/\s+/);
+      if (sp.length >= 2){
+        out.push(normalizeName(sp[0] + ' ' + sp.slice(1).join(' ')));
+      }
+    }
+    return Array.from(new Set(out));
+  }
+
+  function wireRosterPickers(){
+    const f = $mFile(); if (!f || f._wired) return;
+    f.addEventListener('change', async (ev)=>{
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      const text = await file.text().catch(()=> '');
+      mCsvAllowed = parseRosterCSV(text);
+      if ($mStatus()) $mStatus().textContent =
+        mCsvAllowed.length ? `Roster loaded (${mCsvAllowed.length})` : 'No roster loaded';
+      if ($mTgl()) $mTgl().checked = mCsvAllowed.length > 0;
+    });
+    f._wired = true;
+  }
+
 (function(){
   const API = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/,'');
   const $ = (id)=>document.getElementById(id);
@@ -256,6 +314,14 @@
       var _cashStr = document.getElementById('f_pay_cashapp_str'); if(_cashStr) _cashStr.value = d.pay_cashapp_str || d.pay_cashapp || '';
       var _zelleStr = document.getElementById('f_pay_zelle_str'); if(_zelleStr) _zelleStr.value = d.pay_zelle_str || d.pay_zelle || '';
       togglePayInfo();
+    // Roster state -> UI
+    try{
+      wireRosterPickers();
+      mCsvAllowed = Array.isArray(d.members_allowed) ? d.members_allowed.map(normalizeName) : [];
+      if ($mTgl())    $mTgl().checked = (d.members_check_mode === 'csv') && mCsvAllowed.length > 0;
+      if ($mStatus()) $mStatus().textContent = mCsvAllowed.length ? `Roster loaded (${mCsvAllowed.length})` : 'No roster loaded';
+    }catch(_){}
+
     });
   }
 

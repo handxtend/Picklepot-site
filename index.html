@@ -172,9 +172,6 @@
 <!-- ======= CREATE POT ======= -->
 <section class="card admin-only" id="create-card" style="display:none">
 <h2 class="section-header">Create a Pot</h2>
-<div class="section-header" id="create-expire-note" style="display:none; margin-top:6px;">
-  Note: Organizer-created pots expire 3 months after creation.
-</div>
 <div class="row">
 <div><label>Tournament Name</label><select id="c-name-select"></select></div>
 <div id="c-name-other-wrap" style="display:none"><label>Other Tournament Name</label><input id="c-name-other" placeholder="Enter tournament name"/></div>
@@ -207,7 +204,6 @@
 <div><label>CashApp Info (optional)</label><input id="c-pay-cashapp" placeholder="$YourCashtag"/></div>
 <div><label>Onsite Payment</label><select id="c-pay-onsite"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 </div>
-<div class="row" style="margin-top:8px"><div><label>Member Roster (CSV)</label><input id="c-roster-csv" type="file" accept=".csv"/></div><div class="muted" id="csv-status" style="align-self:flex-end">No roster loaded</div></div>
 <div class="inline" style="margin-top:12px">
 <button class="btn primary" id="btn-create">Create Pot</button>
 <div class="muted" id="create-result"></div>
