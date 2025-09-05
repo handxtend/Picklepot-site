@@ -2971,3 +2971,66 @@ try{ window.__payClick = __payClick; }catch(_){}
   setTimeout(()=>window.applyRosterEligibility(), 0);
 })();
 
+// === Bind roster CSV on Admin & Organizer Edit pages ===
+(function(){
+  function normalize(first,last){
+    const f=String(first||'').trim().toLowerCase();
+    const l=String(last||'').trim().toLowerCase();
+    return (f && l) ? (f+' '+l) : '';
+  }
+  function parseCSV(text){
+    const lines=String(text||'').split(/\r?\n/).filter(Boolean);
+    if(!lines.length) return [];
+    const header=lines[0].split(',').map(s=>s.trim().toLowerCase());
+    let fi=header.findIndex(h=>/^first/.test(h));
+    let li=header.findIndex(h=>/^last/.test(h));
+    let start=1;
+    if(fi===-1||li===-1){ fi=0; li=1; start=0; }
+    const out=[];
+    for(let i=start;i<lines.length;i++){
+      const cols=lines[i].split(',');
+      const key=normalize(cols[fi]||'', cols[li]||'');
+      if(key) out.push(key);
+    }
+    return out;
+  }
+  async function loadRoster(file, statusEl){
+    try{
+      const txt = await file.text();
+      const names = parseCSV(txt);
+      window.__ROSTER_SET = new Set(names);
+      if(statusEl) statusEl.textContent = names.length ? ('Roster loaded: ' + names.length + ' names') : 'No roster loaded';
+      if(typeof window.applyRosterEligibility==='function') window.applyRosterEligibility();
+    }catch(e){
+      console.error('CSV load failed', e);
+      if(statusEl) statusEl.textContent = 'Failed to load CSV';
+    }
+  }
+  function statusFor(inputId){
+    const map = {
+      'admin-roster-csv':'admin-csv-status',
+      'org-roster-csv':'org-csv-status',
+      'c-roster-csv':'csv-status',
+      'm-roster-csv':'m-csv-status',
+      'e-roster-csv':'e-csv-status'
+    };
+    return map[inputId] ? document.getElementById(map[inputId]) : null;
+  }
+  function bindOnce(){
+    const ids = ['admin-roster-csv','org-roster-csv','c-roster-csv','m-roster-csv','e-roster-csv'];
+    ids.forEach(id=>{
+      const el = document.getElementById(id);
+      if(el && !el.__rosterBound){
+        el.addEventListener('change', (ev)=>{
+          const f = ev.target.files && ev.target.files[0];
+          const statusEl = statusFor(id);
+          if(f) loadRoster(f, statusEl);
+        });
+        el.__rosterBound = true;
+      }
+    });
+  }
+  try{ bindOnce(); }catch(_){}
+  document.addEventListener('DOMContentLoaded', bindOnce, {once:true});
+})();
+
