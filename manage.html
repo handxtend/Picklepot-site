@@ -83,6 +83,14 @@
       </div>
 
       <div id="potMeta" class="row" style="margin-top:8px;flex-wrap:wrap"></div>
+      <div class="row" style="margin-top:12px">
+        <div>
+          <label>Member Roster (CSV)</label>
+          <input id="m-roster-csv" type="file" accept=".csv">
+        </div>
+        <div class="muted" id="m-csv-status" style="align-self:flex-end">No roster loaded</div>
+      </div>
+
 
       <div id="editForm" class="hidden" style="margin-top:14px">
         <div class="grid">
@@ -146,6 +154,14 @@
           <span class="note">Stripe is disabled here as requested.</span>
         </div>
         <!-- Payment destination inputs (shown only when enabled) -->
+        <div class="row" style="margin-top:12px">
+          <div>
+            <label>Member Roster (CSV)</label>
+            <input id="e-roster-csv" type="file" accept=".csv">
+          </div>
+          <div class="muted" id="e-csv-status" style="align-self:flex-end">No roster loaded</div>
+        </div>
+
         <div id="cashapp_info_wrap" class="row" style="margin-top:8px; display:none; flex-direction:column; align-items:flex-start">
           <label>Cash App Handle</label>
           <input id="f_pay_cashapp_str" placeholder="$YourCashtag (e.g., $PicklePotters)">
