@@ -172,6 +172,9 @@
 <!-- ======= CREATE POT ======= -->
 <section class="card admin-only" id="create-card" style="display:none">
 <h2 class="section-header">Create a Pot</h2>
+<div class="section-header" id="create-expire-note" style="display:none; margin-top:6px;">
+  Note: Organizer-created pots expire 3 months after creation.
+</div>
 <div class="row">
 <div><label>Tournament Name</label><select id="c-name-select"></select></div>
 <div id="c-name-other-wrap" style="display:none"><label>Other Tournament Name</label><input id="c-name-other" placeholder="Enter tournament name"/></div>
@@ -204,6 +207,7 @@
 <div><label>CashApp Info (optional)</label><input id="c-pay-cashapp" placeholder="$YourCashtag"/></div>
 <div><label>Onsite Payment</label><select id="c-pay-onsite"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 </div>
+<div class="row" style="margin-top:8px"><div><label>Member Roster (CSV)</label><input id="c-roster-csv" type="file" accept=".csv"/></div><div class="muted" id="csv-status" style="align-self:flex-end">No roster loaded</div></div>
 <div class="inline" style="margin-top:12px">
 <button class="btn primary" id="btn-create">Create Pot</button>
 <div class="muted" id="create-result"></div>
@@ -325,18 +329,6 @@
 <button class="btn" id="btn-admin-grant">Grant this device co-admin</button>
 <button class="btn" id="btn-admin-revoke">Revoke this device</button>
 </div>
-<div id="admin-roster-ui" class="admin-only" style="margin-top:8px; display:none">
-  <label>Member Roster (CSV)</label>
-  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-    <input id="admin_csv_file" type="file" accept=".csv,text/csv">
-    <span id="admin_csv_status" class="muted small">No roster loaded</span>
-    <label style="display:inline-flex; align-items:center; gap:.4rem;">
-      <input type="checkbox" id="admin_csv_toggle">
-      <span>Use this roster to validate members</span>
-    </label>
-  </div>
-</div>
-
 <div class="muted" id="admin-uids" style="margin-top:6px;"></div>
 <!-- Edit form -->
 <form id="pot-edit-form" style="display:none; margin-top:12px; border:1px solid var(--border);padding:12px;border-radius:8px;">
