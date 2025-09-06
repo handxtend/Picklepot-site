@@ -163,8 +163,6 @@
 <button class="btn primary xl" id="btn-start-create" type="button">Create A Pot</button>
 <a class="btn secondary xl" href="manage.html" role="button" style="text-decoration:none">Organizer: Manage a Pot</a>
 </div>
-<div class="sponsored-tag" id="expiry-note" style="text-align:center; margin-top:4px;"><b>Organizer-created pots automatically expire 3 months after creation.</b></div>
-
 <div class="sponsored-tag" style="text-align:center; margin-top:-6px;">
   Note: if you want to edit your Pot, contact <a href="mailto:admin@pickleballcompete.com">admin@pickleballcompete.com</a>.
 </div>
@@ -209,19 +207,6 @@
 <div><label>CashApp Info (optional)</label><input id="c-pay-cashapp" placeholder="$YourCashtag"/></div>
 <div><label>Onsite Payment</label><select id="c-pay-onsite"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 </div>
-
-<!-- Member verification (CSV) -->
-<div id="c-members-csv-wrap" style="margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:8px">
-  <label style="display:flex;gap:8px;align-items:center">
-    <input type="checkbox" id="c-members-csv-toggle">
-    <span>Enable member verification from CSV</span>
-  </label>
-  <div id="c-members-csv-controls" style="margin-top:8px;display:none">
-    <input type="file" id="c-members-csv-file" accept=".csv" />
-    <div id="c-members-csv-status" class="muted" style="font-size:12px;margin-top:6px"></div>
-  </div>
-</div>
-
 <div class="inline" style="margin-top:12px">
 <button class="btn primary" id="btn-create">Create Pot</button>
 <div class="muted" id="create-result"></div>
@@ -283,7 +268,7 @@
 <div class="alert" id="j-pay-notes" style="display:none"></div>
 <p class="muted" style="margin:8px 0 0">Note: Lower-skilled players can play up, but higher-skilled players <b>CANNOT</b> play down.</p>
 <p class="muted" style="margin:4px 0 0">When paying, please put your <b>FULL NAME</b> in the payment notes.</p>
-<div class="warn" id="j-warn" style="margin-top:8px;display:none"></div>
+<div class="muted" id="j-warn" style="margin-top:8px;display:none"></div>
 <div class="inline" style="margin-top:12px">
 <button class="btn xl primary" disabled="" id="btn-join">Join</button>
 <span class="muted" id="join-msg"></span>
@@ -343,18 +328,6 @@
 <button class="btn" id="btn-admin-grant">Grant this device co-admin</button>
 <button class="btn" id="btn-admin-revoke">Revoke this device</button>
 </div>
-<div id="admin-roster-ui" class="admin-only" style="margin-top:8px; display:none">
-  <label>Member Roster (CSV)</label>
-  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-    <input id="admin_csv_file" type="file" accept=".csv,text/csv">
-    <span id="admin_csv_status" class="muted small">No roster loaded</span>
-    <label style="display:inline-flex; align-items:center; gap:.4rem;">
-      <input type="checkbox" id="admin_csv_toggle">
-      <span>Use this roster to validate members</span>
-    </label>
-  </div>
-</div>
-
 <div class="muted" id="admin-uids" style="margin-top:6px;"></div>
 <!-- Edit form -->
 <form id="pot-edit-form" style="display:none; margin-top:12px; border:1px solid var(--border);padding:12px;border-radius:8px;">
@@ -381,19 +354,6 @@
 <div><label>Onsite Payment</label><select id="f-pay-onsite"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 <div><label>Status</label><select id="f-status"><option value="open">open</option><option value="hold">hold</option><option value="closed">closed</option></select></div>
 </div>
-
-<!-- Member verification (CSV) - Edit -->
-<div id="f-members-csv-wrap" style="margin-top:10px;padding:10px;border:1px dashed var(--border);border-radius:8px">
-  <label style="display:flex;gap:8px;align-items:center">
-    <input type="checkbox" id="f-members-csv-toggle">
-    <span>Enable member verification from CSV</span>
-  </label>
-  <div id="f-members-csv-controls" style="margin-top:8px;display:none">
-    <input type="file" id="f-members-csv-file" accept=".csv" />
-    <div id="f-members-csv-status" class="muted" style="font-size:12px;margin-top:6px"></div>
-  </div>
-</div>
-
 <div class="inline" style="margin-top:10px">
 <button class="btn primary" id="btn-save-pot" type="button">Save Changes</button>
 <button class="btn" id="btn-cancel-edit" type="button">Cancel</button>
