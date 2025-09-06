@@ -42,6 +42,7 @@ function recomputeJoinDisabled(){
       if (dupName) msgs.push('Name already registered');
       warn.textContent = msgs.join(' · ');
       warn.style.display = msgs.length ? 'block' : 'none';
+      try{ if (msgs.length){ warn.style.color='#b91c1c'; warn.style.fontWeight='800'; } else { warn.style.color=''; warn.style.fontWeight=''; } }catch(_){ }
     }
   }catch(e){ console.error('recomputeJoinDisabled failed', e); }
 }
@@ -267,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const _clone = _btn.cloneNode(true);
       _btn.parentNode.replaceChild(_clone, _btn);
       _clone.addEventListener('click', onCreateClick);
+      _clone.__bound = true;
     }
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
@@ -302,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
-  $('#btn-create').addEventListener('click', onCreateClick);
+  (()=>{ const b=document.getElementById('btn-create'); if(b && !b.__bound){ b.addEventListener('click', onCreateClick); b.__bound=true; } })();
 (function(){ 
   const old = document.getElementById('btn-join');
   if (old){
@@ -728,6 +730,8 @@ async function joinPot(){
     btn.textContent = on ? (text || 'Working…') : 'Join';
   }
   function fail(message){
+    try{ msg.style.color='#b91c1c'; msg.style.fontWeight='800'; }catch(_){ }
+
     console.error('[JOIN] Error:', message);
     msg.textContent = message || 'Something went wrong.';
     setBusy(false);
@@ -2407,7 +2411,7 @@ async function createPotDirect(){
     const ref = await db.collection('pots').add(pot);
     const resultEl = document.getElementById('create-result');
     if (resultEl) resultEl.textContent = `Created (ID: ${ref.id}).`;
-    alert('Pot created.');
+    if(!window.__quietCreate){ alert('Pot created.'); }
     // optional: auto-load details
     if (document.getElementById('v-pot')){
       document.getElementById('v-pot').value = ref.id;
@@ -2513,6 +2517,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const show=(t)=>{ if(msg){ msg.textContent=t; msg.style.display=''; } };
 
     try{
+      // Admin bypass: create pot immediately without Stripe
+      try{
+        if (typeof isSiteAdmin==='function' && isSiteAdmin()){
+          const btn = byId('btn-create'); if(btn) { btn.disabled=true; btn.textContent='Creating…'; }
+          await createPotDirect();
+          if(btn){ btn.disabled=false; btn.textContent='Create Pot'; }
+          return; // no Stripe for admin
+        }
+      }catch(_){/* ignore */}
+
       const count = Math.max(1, parseInt(byId('c-count')?.value || '1', 10));
       const payload = {
         draft: collectCreateDraft(),
@@ -2888,3 +2902,72 @@ function __payClick(ev, id){
   return false;
 }
 try{ window.__payClick = __payClick; }catch(_){}
+
+// --- Member roster CSV import & join gating ---
+(function(){
+  const statusEl = document.getElementById('csv-status');
+  function normalizeName(first, last){
+    const f = String(first||'').trim().toLowerCase();
+    const l = String(last||'').trim().toLowerCase();
+    return (f && l) ? (f + ' ' + l) : '';
+  }
+  function parseCSV(text){
+    const lines = String(text||'').split(/\r?\n/).filter(Boolean);
+    if (!lines.length) return [];
+    const header = lines.shift().split(',').map(s=>s.trim().toLowerCase());
+    let fi = header.findIndex(h=>/^first/.test(h));
+    let li = header.findIndex(h=>/^last/.test(h));
+    if (fi === -1 || li === -1){ fi = 0; li = 1; }
+    const names = [];
+    for (const line of lines){
+      const cols = line.split(',');
+      const first = cols[fi]||''; const last = cols[li]||'';
+      const key = normalizeName(first,last);
+      if (key) names.push(key);
+    }
+    return names;
+  }
+  async function handleCSVFile(file){
+    try{
+      const text = await file.text();
+      const names = parseCSV(text);
+      window.__ROSTER_SET = new Set(names);
+      if (statusEl) statusEl.textContent = names.length ? ('Roster loaded: ' + names.length + ' names') : 'No names found';
+      applyRosterEligibility();
+    }catch(e){
+      console.error('CSV parse failed', e);
+      if (statusEl) statusEl.textContent = 'Failed to load CSV';
+    }
+  }
+  const input = document.getElementById('c-roster-csv');
+  if (input){
+    input.addEventListener('change', (e)=>{
+      const f = e.target.files && e.target.files[0];
+      if (f) handleCSVFile(f);
+    });
+  }
+  window.applyRosterEligibility = function(){
+    try{
+      const set = window.__ROSTER_SET;
+      const fname = document.getElementById('j-fname')?.value || '';
+      const lname = document.getElementById('j-lname')?.value || '';
+      const key = normalizeName(fname, lname);
+      const sel = document.getElementById('j-mtype');
+      if (!sel) return;
+      if (set && key && set.has(key)){
+        sel.innerHTML = '<option value="Member">Member</option>';
+        sel.value = 'Member';
+      } else {
+        sel.innerHTML = '<option value="Guest">Guest</option>';
+        sel.value = 'Guest';
+      }
+      if (typeof updateJoinCost === 'function') updateJoinCost();
+    }catch(_){}
+  };
+  ['j-fname','j-lname'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el){ el.addEventListener('input', ()=> window.applyRosterEligibility()); }
+  });
+  setTimeout(()=>window.applyRosterEligibility(), 0);
+})();
+
