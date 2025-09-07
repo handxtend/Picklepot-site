@@ -401,5 +401,59 @@
 
 })();
 </script>
+<script>
+(() => {
+  // Quick helpers
+  const $ = sel => document.querySelector(sel);
+  const db = firebase.firestore();
+
+  async function sha256Hex(s){
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  async function verifyOwnerAccess() {
+    try {
+      const potId = ($('#pot-id')?.value || '').trim();
+      const ownerCode = ($('#owner-code')?.value || '').trim();
+      if (!potId || !ownerCode) { $('#status').textContent = 'Enter Pot ID and Owner Code.'; return; }
+
+      const doc = await db.collection('pots').doc(potId).get();
+      if (!doc.exists) { $('#status').textContent = 'Unknown pot.'; return; }
+
+      const data = doc.data();
+      const salt = data.owner_token_salt || '';
+      const want = data.owner_code_hash || '';
+      const got  = await sha256Hex(ownerCode + salt);
+
+      if (want && got === want) {
+        $('#status').textContent = 'Access granted.';
+        document.getElementById('tools')?.classList.remove('hidden');
+        // Fill the UI header lines etc., if you have helpers for that.
+      } else {
+        $('#status').textContent = 'Access denied. Check credentials.';
+      }
+    } catch (e) {
+      console.error('[MANAGE] verify error', e);
+      $('#status').textContent = 'Access error.';
+    }
+  }
+
+  // Wire the Verify button
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('verify')?.addEventListener('click', (e) => {
+      e.preventDefault();
+      verifyOwnerAccess();
+    });
+
+    // Autofill from ?pot= & ?oc= and verify immediately
+    const qs = new URLSearchParams(location.search);
+    if (qs.get('pot'))  $('#pot-id').value = qs.get('pot');
+    if (qs.get('oc'))   $('#owner-code').value = qs.get('oc');
+    if (qs.get('pot') && qs.get('oc')) verifyOwnerAccess();
+  });
+})();
+</script>
+
 </body>
 </html>
