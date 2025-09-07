@@ -1,4 +1,54 @@
 
+/* ===== Enforce Join Button Disable Rules (skill play-down + dup email + dup name) ===== */
+function recomputeJoinDisabled(){
+  try{
+    var btn = document.getElementById('btn-join');
+    if (!btn) return;
+    var p = (typeof CURRENT_JOIN_POT!=='undefined' && CURRENT_JOIN_POT) ? CURRENT_JOIN_POT : null;
+    if (!p){ btn.disabled = true; return; }
+
+    var fname = (document.getElementById('j-fname')?.value || '').trim();
+    var lname = (document.getElementById('j-lname')?.value || '').trim();
+    var full  = (document.getElementById('j-name') ?.value || '').trim();
+    var email = (document.getElementById('j-email')?.value || '').trim();
+    var skill = (document.getElementById('j-skill')?.value || 'Any');
+
+    var playerName = (fname || lname) ? (fname + ' ' + lname).trim() : full;
+    var entries = (window.LAST_JOIN_ENTRIES && Array.isArray(window.LAST_JOIN_ENTRIES)) ? window.LAST_JOIN_ENTRIES : [];
+
+    var rank = function(s){ return ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] || 0); };
+    var skillOk = (p.skill==='Any') || (rank(skill) <= rank(p.skill));
+
+    var dupEmail = false;
+    if (email){
+      var eml = email.toLowerCase();
+      dupEmail = entries.some(function(e){ return (String(e.email||'').toLowerCase() === eml); });
+    }
+
+    var dupName = false;
+    if (playerName){
+      var combo = playerName.toLowerCase().replace(/\s+/g,' ').trim();
+      dupName = entries.some(function(e){ return (String(e.name||'').toLowerCase().replace(/\s+/g,' ').trim() === combo); });
+    }
+
+    var shouldDisable = (!skillOk) || dupEmail || dupName;
+    btn.disabled = !!shouldDisable;
+
+    var warn = document.getElementById('j-warn');
+    if (warn){
+      var msgs=[];
+      if (!skillOk) msgs.push('Higher skill level cannot play down');
+      if (dupEmail) msgs.push('Email already registered');
+      if (dupName) msgs.push('Name already registered');
+      warn.textContent = msgs.join(' · ');
+      warn.style.display = msgs.length ? 'block' : 'none';
+      try{ if (msgs.length){ warn.style.color='#b91c1c'; warn.style.fontWeight='800'; } else { warn.style.color=''; warn.style.fontWeight=''; } }catch(_){ }
+    }
+  }catch(e){ console.error('recomputeJoinDisabled failed', e); }
+}
+try{ window.recomputeJoinDisabled = recomputeJoinDisabled; }catch(_){}
+
+
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
   try{
@@ -218,6 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const _clone = _btn.cloneNode(true);
       _btn.parentNode.replaceChild(_clone, _btn);
       _clone.addEventListener('click', onCreateClick);
+      _clone.__bound = true;
     }
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
@@ -253,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
-  $('#btn-create').addEventListener('click', onCreateClick);
+  (()=>{ const b=document.getElementById('btn-create'); if(b && !b.__bound){ b.addEventListener('click', onCreateClick); b.__bound=true; } })();
 (function(){ 
   const old = document.getElementById('btn-join');
   if (old){
@@ -552,7 +603,10 @@ function onJoinPotChange(){
   watchPotTotals(p.id);
 
   autoLoadDetailFromSelection();
+
+  try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ }
 }
+
 
 function autoLoadDetailFromSelection(){
   const selId = $('#j-pot-select')?.value;
@@ -575,10 +629,10 @@ function watchPotTotals(potId){
   if(!potId){ totalEl.style.display='none'; updateBigTotals(0,0); return; }
 
   JOIN_ENTRIES_UNSUB = db.collection('pots').doc(potId).collection('entries')
-    .onSnapshot(snap=>{
+    .onSnapshot(snap=>{ var __list=[];
       let totalAll=0, totalPaid=0, countAll=0, countPaid=0;
 
-      snap.forEach(doc=>{
+      snap.forEach(doc=>{ try{ __list.push(Object.assign({id:doc.id}, doc.data()||{})); }catch(_){ }
         const d = doc.data();
         const isActive = !d.status || d.status === 'active';
         if (!isActive) return;
@@ -589,6 +643,9 @@ function watchPotTotals(potId){
           if (d.paid) { totalPaid += amt; countPaid++; }
         }
       });
+
+      try{ window.LAST_JOIN_ENTRIES = __list; }catch(_){}
+try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){}
 
       totalEl.innerHTML =
         `Total Pot (All): <b>${dollars(totalAll)}</b> (${countAll} entr${countAll===1?'y':'ies'}) • ` +
@@ -620,7 +677,7 @@ function evaluateJoinEligibility(){
   const p=CURRENT_JOIN_POT; if(!p) return;
   const warn = $('#j-warn');
   const playerSkill = $('#j-skill').value;
-  const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[playerSkill]??0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill]??0) );
+  const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[playerSkill] || 0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill] || 0) );
   warn.style.display = allow ? 'none' : 'block';
   warn.textContent = allow ? '' : 'Higher skill level cannot play down';
 }
@@ -673,6 +730,8 @@ async function joinPot(){
     btn.textContent = on ? (text || 'Working…') : 'Join';
   }
   function fail(message){
+    try{ msg.style.color='#b91c1c'; msg.style.fontWeight='800'; }catch(_){ }
+
     console.error('[JOIN] Error:', message);
     msg.textContent = message || 'Something went wrong.';
     setBusy(false);
@@ -699,14 +758,14 @@ async function joinPot(){
   if(!fname){ msg.textContent='First name is required.'; return; }
   if(!__effective_pay_type){ msg.textContent='Choose a payment method.'; return; }
 
-  const rank = s => ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] ?? 0);
+  const rank = s => ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] || 0);
   if(p.skill!=='Any' && rank(playerSkill) > rank(p.skill)){
     msg.textContent='Selected skill is higher than pot skill — joining is not allowed.'; 
     return;
   }
 
   const name=[fname,lname].filter(Boolean).join(' ').trim();
-  const applied_buyin=(member_type==='Member'? (p.buyin_member??0) : (p.buyin_guest??0));
+  const applied_buyin=(member_type==='Member'? (p.buyin_member||0) : (p.buyin_guest||0));
   const emailLC = (email||'').toLowerCase(), nameLC = name.toLowerCase();
 
   try{
@@ -784,7 +843,7 @@ async function joinPot(){
       sessionStorage.setItem('potId', p.id);
       sessionStorage.setItem('entryId', entryId);
 
-      try { window.location.href = data.url; }
+      try { window.window.location.assign(data.url); }
       catch { window.open(data.url, '_blank', 'noopener'); }
       return;
     }
@@ -873,6 +932,14 @@ function renderRegistrations(entries){
   if(!tbody) return;
   const showEmail = isSiteAdmin();
   const canAdmin  = isSiteAdmin();
+  const stripeOk = (function(){
+    try{
+      var p = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
+      if (!p) return false;
+      var pm = (typeof getPaymentMethods==='function') ? getPaymentMethods(p) : {stripe:false};
+      return !!pm.stripe;
+    }catch(_){ return false; }
+  })();
 
   if(!entries || !entries.length){
     tbody.innerHTML = `<tr><td colspan="7" class="muted">No registrations yet.</td></tr>`;
@@ -903,7 +970,7 @@ function renderRegistrations(entries){
 
     return `
       <tr>
-        <td>${escapeHtml(name)}</td>
+        <td>${(function(){ const paid=(e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; if(!paid && stripeOk){ return `<a href=\"#\" data-act=\"pay\" data-id=\"${e.id}\" onclick=\"return window.__payClick && window.__payClick(event, '${e.id}');\">${escapeHtml(name)}</a>`;} return escapeHtml(name); })()}</td>
         <td>${escapeHtml(email)}</td>
         <td>${escapeHtml(type)}</td>
         <td>${buyin}</td>
@@ -914,6 +981,19 @@ function renderRegistrations(entries){
   }).join('');
 
   tbody.innerHTML = html;
+  if(!tbody.__payBind){
+    tbody.addEventListener('click', function(ev){
+      var a = ev.target.closest && ev.target.closest('a[data-act="pay"]');
+      if(!a) return;
+      ev.preventDefault();
+      try{
+        var id = a.getAttribute('data-id');
+        var entry = (entries||[]).find(function(x){ return x.id===id; });
+        if(entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
+      }catch(err){ console.error('entry pay click failed', err); }
+    });
+    tbody.__payBind = true;
+  }
 }
 
 /* ---------- Admin utilities ---------- */
@@ -1394,7 +1474,7 @@ async function onOrganizerSubscribe(){
       alert(data?.error || 'Subscription server error.'); 
       return;
     }
-    try{ window.location.href = data.url; }
+    try{ window.window.location.assign(data.url); }
     catch{ window.open(data.url, '_blank', 'noopener'); }
   }catch(e){
     console.error('[Sub] Failed to start organizer subscription', e);
@@ -1771,7 +1851,7 @@ async function warmApi() {
       });
       const data = await res.json().catch(()=>null);
       if (!res.ok || !data?.url) throw new Error((data&&data.error)||'Service error');
-      window.location.href = data.url;
+      window.window.location.assign(data.url);
     }catch(e){
       alert(e.message||'Could not start subscription.');
       btn.disabled = false; btn.textContent = 'Organizer Subscription';
@@ -2192,7 +2272,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     }catch(e){ console.warn('[Create Checkout Return] error', e); }
   }
 
-  document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
+  document.addEventListener('DOMContentLoaded', function(){
     // Rebind after other scripts run, to override any createPot binding
     try{ rebindCreateToCheckout(); setTimeout(rebindCreateToCheckout, 0); setTimeout(rebindCreateToCheckout, 300); }catch(_){}
     handleCreateCheckoutReturn();
@@ -2206,7 +2286,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
 
 // Ensure Create button triggers Stripe checkout (idempotent binding)
-document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
+document.addEventListener('DOMContentLoaded', function(){
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
     btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
@@ -2331,7 +2411,7 @@ async function createPotDirect(){
     const ref = await db.collection('pots').add(pot);
     const resultEl = document.getElementById('create-result');
     if (resultEl) resultEl.textContent = `Created (ID: ${ref.id}).`;
-    alert('Pot created.');
+    if(!window.__quietCreate){ alert('Pot created.'); }
     // optional: auto-load details
     if (document.getElementById('v-pot')){
       document.getElementById('v-pot').value = ref.id;
@@ -2437,6 +2517,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const show=(t)=>{ if(msg){ msg.textContent=t; msg.style.display=''; } };
 
     try{
+      // Admin bypass: create pot immediately without Stripe
+      try{
+        if (typeof isSiteAdmin==='function' && isSiteAdmin()){
+          const btn = byId('btn-create'); if(btn) { btn.disabled=true; btn.textContent='Creating…'; }
+          await createPotDirect();
+          if(btn){ btn.disabled=false; btn.textContent='Create Pot'; }
+          return; // no Stripe for admin
+        }
+      }catch(_){/* ignore */}
+
       const count = Math.max(1, parseInt(byId('c-count')?.value || '1', 10));
       const payload = {
         draft: collectCreateDraft(),
@@ -2451,7 +2541,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
       });
       const data = await r.json().catch(()=>null);
       if (!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
-      location.href = data.url;
+      window.location.assign(data.url);
     }catch(e){
       console.error('[CREATE]', e);
       show(e.message||String(e));
@@ -2462,7 +2552,16 @@ cancel_url: originHost() + '/cancel.html?flow=create',
   async function startJoinCheckout(){
     if ((String(__capturedPayType()).toLowerCase()||'') !== 'stripe' && (String(__capturedPayType()).toLowerCase()||'') !== 'stripe (card)') { console.warn('[JOIN] hard-stop startJoinCheckout: method is', __capturedPayType()); return; }
 const potId = byId('v-pot')?.value?.trim() || '';
-    const amountDollars = byId('j-cost')?.value || byId('j-amount')?.value || '10';
+    const p = (window.CURRENT_JOIN_POT || {});
+    const mtype = (byId('j-mtype')?.value || 'Member').toLowerCase();
+    let amountDollars = (mtype === 'guest'
+      ? Number(p.buyin_guest ?? p.guest_buyin ?? 0)
+      : Number(p.buyin_member ?? p.member_buyin ?? 0));
+    if (!amountDollars) {
+      const t = byId('j-cost')?.textContent || byId('j-amount')?.value || '0';
+      const m = String(t).match(/[\d.]+/);
+      amountDollars = m ? Number(m[0]) : 0;
+    }
     const playerName = byId('j-name')?.value || byId('j-player')?.value || 'Player';
     const playerEmail= byId('j-email')?.value || '';
     const entryId = 'e_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
@@ -2485,7 +2584,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
       });
       const data = await r.json().catch(()=>null);
       if(!r.ok || !data?.url) throw new Error((data && (data.error||data.message)) || ('Payment server error ('+r.status+')'));
-      location.href = data.url;
+      window.location.assign(data.url);
     }catch(e){
       console.error('[JOIN]', e);
       alert('Join failed: ' + (e.message || e));
@@ -2624,7 +2723,7 @@ if (location.pathname.endsWith('/manage.html') || location.pathname.endsWith('ma
 
 
 // --- Simple show/hide for Create/Join cards ---
-document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
+document.addEventListener('DOMContentLoaded', function(){
   var createCard = document.getElementById('create-card');
   var joinCard   = document.getElementById('join-card');
   var btnStartCreate = document.getElementById('btn-start-create');
@@ -2636,7 +2735,7 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
   function hide(el){ if(el){ el.style.display='none'; } }
 
   if (btnStartCreate && createCard){
-    btnStartCreate.addEventListener('click', function(){ show(createCard); hide(joinCard); });
+    btnStartCreate.addEventListener('click', function(){ show(createCard); hide(joinCard); try{ updateCreateExpireNoteVisibility(); }catch(_){ } });
   }
   if (btnCreateCollapse && createCard){
     btnCreateCollapse.addEventListener('click', function(){ hide(createCard); window.scrollTo({top:0, behavior:'smooth'}); });
@@ -2714,45 +2813,161 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
 })();
 
 
+/* Utility: toCents (global) */
+function toCents(val){
+  try{
+    var s = String(val == null ? '' : val).replace(/[^0-9.\-]/g, '');
+    var n = parseFloat(s);
+    if (!isFinite(n)) n = 0;
+    return Math.round(n * 100);
+  }catch(_){ return 0; }
+}
+try{ window.toCents = toCents; }catch(_){}
 
-// === Admin Owner/Organizer tools (rotate + show link) ===
+
+/* Entry-specific Stripe Checkout */
+function startEntryCheckout(entry){
+  try{
+    var pot = (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT) ? CURRENT_DETAIL_POT : null;
+    if (!pot) { alert('No pot selected.'); return; }
+    var pm = (typeof getPaymentMethods==='function') ? getPaymentMethods(pot) : {stripe:false};
+    var paid = (entry && (entry.paid===true || entry.paid===1 || String(entry.paid||'').toLowerCase()==='true' || String(entry.paid||'').toLowerCase()==='yes'));
+    if (!entry || paid){ alert('This entry is already paid or invalid.'); return; }
+    if (!pm.stripe){ alert('Stripe payment is not available for this pot.'); return; }
+
+    var amountDollars = Number(entry.applied_buyin || entry.buyin || 0);
+    if (!amountDollars || !isFinite(amountDollars)){ alert('No amount to charge for this entry.'); return; }
+
+    var payload = {
+      pot_id: pot.id || '',
+      entry_id: entry.id || '',
+      amount_cents: toCents(amountDollars),
+      player_name: entry.name || 'Player',
+      player_email: entry.email || '',
+      success_url: (window.location.origin||'') + '/success.html?flow=join',
+      cancel_url: (window.location.origin||'') + '/cancel.html?flow=join'
+    };
+
+    var url = (window.API_BASE||'') + '/create-checkout-session';
+    fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) })
+    .then(r => r.json().then(d => ({ok:r.ok,status:r.status,data:d})))
+    .then(res => {
+      if(!res.ok || !(res.data && res.data.url)){
+        alert((res.data && (res.data.error||res.data.message)) || ('Payment server error ('+res.status+')'));
+        return;
+      }
+      window.location.assign(res.data.url);
+    })
+    .catch(err => { console.error('[ENTRY PAY]', err); alert('Network error.'); });
+  }catch(e){ console.error('[ENTRY PAY]', e); alert(e.message || String(e)); }
+}
+try{ window.startEntryCheckout = startEntryCheckout; }catch(_){}
+
+document.addEventListener('DOMContentLoaded', function(){
+  ['j-fname','j-lname','j-name','j-email','j-skill'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el && !el.__eligBind){
+      el.addEventListener('input', function(){ try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ } });
+      el.addEventListener('change', function(){ try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ } });
+      el.__eligBind = true;
+    }
+  });
+  try{ if(window.recomputeJoinDisabled) window.recomputeJoinDisabled(); }catch(_){ }
+});
+
+
+/* Inline pay-link click handler (minimal) */
+function handleEntryPayClick(ev){
+  try{
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var a = (ev && (ev.currentTarget || (ev.target && ev.target.closest && ev.target.closest('a[data-act="pay"]')))) || null;
+    var id = a ? a.getAttribute('data-id') : null;
+    var entries = (typeof LAST_DETAIL_ENTRIES !== 'undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : [];
+    var entry = entries.find(function(x){ return x && x.id === id; });
+    if (entry && window.startEntryCheckout){ window.startEntryCheckout(entry); }
+  }catch(e){ console.error('handleEntryPayClick failed', e); }
+  return false;
+}
+try{ window.handleEntryPayClick = handleEntryPayClick; }catch(_){}
+
+
+/* --- Ensure pay-link click never navigates and always starts checkout --- */
+function __payClick(ev, id){
+  try{
+    if (ev && ev.preventDefault) ev.preventDefault();
+    var entries = (typeof LAST_DETAIL_ENTRIES !== 'undefined' && LAST_DETAIL_ENTRIES) ? LAST_DETAIL_ENTRIES : [];
+    var entry = (entries || []).find(function(x){ return x && x.id === id; });
+    if (entry && window.startEntryCheckout){ window.startEntryCheckout(entry); return false; }
+  }catch(e){ console.error('__payClick failed', e); }
+  return false;
+}
+try{ window.__payClick = __payClick; }catch(_){}
+
+// --- Member roster CSV import & join gating ---
 (function(){
-  function isSiteAdmin(){ try{ return !!(window.localStorage.getItem('pico_admin')||'').length; }catch(_){ return false; } }
-  function showManageLinkForPot(potId, ownerCode){
-    var out = document.getElementById('owner-output') || document.getElementById('owner-out');
-    if(!out) return;
-    var link = location.origin + '/manage.html?pot=' + encodeURIComponent(potId) + (ownerCode ? '&oc=' + encodeURIComponent(ownerCode) : '');
-    out.style.display='block';
-    out.innerHTML = '<div class="rounded-md bg-blue-50 p-2 text-sm">'
-      + '<div><b>Manage link:</b> <a href="' + link + '" target="_blank">' + link + '</a></div>'
-      + (ownerCode ? '<div style="margin-top:6px"><b>New Owner Code:</b> <code>'+ownerCode+'</code></div>' : '')
-      + '</div>';
+  const statusEl = document.getElementById('csv-status');
+  function normalizeName(first, last){
+    const f = String(first||'').trim().toLowerCase();
+    const l = String(last||'').trim().toLowerCase();
+    return (f && l) ? (f + ' ' + l) : '';
   }
-  async function rotateOwnerCodeForPot(){
+  function parseCSV(text){
+    const lines = String(text||'').split(/\r?\n/).filter(Boolean);
+    if (!lines.length) return [];
+    const header = lines.shift().split(',').map(s=>s.trim().toLowerCase());
+    let fi = header.findIndex(h=>/^first/.test(h));
+    let li = header.findIndex(h=>/^last/.test(h));
+    if (fi === -1 || li === -1){ fi = 0; li = 1; }
+    const names = [];
+    for (const line of lines){
+      const cols = line.split(',');
+      const first = cols[fi]||''; const last = cols[li]||'';
+      const key = normalizeName(first,last);
+      if (key) names.push(key);
+    }
+    return names;
+  }
+  async function handleCSVFile(file){
     try{
-      var potIdEl = document.getElementById('owner-potid') || document.getElementById('ownerPotId');
-      var potId = (potIdEl && potIdEl.value || '').trim();
-      if(!potId){ alert('Enter a Pot ID.'); return; }
-      var API = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/,'');
-      try{ await fetch(API+'/', {mode:'no-cors'}); }catch(_){}
-      var res = await fetch(API + '/owner/rotate', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({pot: potId}) });
-      if(!res.ok){ throw new Error('Rotate failed: ' + res.status); }
-      var data = await res.json().catch(()=>({}));
-      if(!data.code){ throw new Error('No code returned'); }
-      showManageLinkForPot(potId, data.code);
-    }catch(e){ console.error('[owner-rotate]', e); alert(e.message||'Rotate failed'); }
+      const text = await file.text();
+      const names = parseCSV(text);
+      window.__ROSTER_SET = new Set(names);
+      if (statusEl) statusEl.textContent = names.length ? ('Roster loaded: ' + names.length + ' names') : 'No names found';
+      applyRosterEligibility();
+    }catch(e){
+      console.error('CSV parse failed', e);
+      if (statusEl) statusEl.textContent = 'Failed to load CSV';
+    }
   }
-  function bindOwnerButtons(){
-    var r = document.getElementById('btn-owner-rotate') || document.getElementById('owner-rotate');
-    if(r && !r.__bound){ r.addEventListener('click', rotateOwnerCodeForPot); r.__bound=true; }
-    var s = document.getElementById('btn-owner-link') || document.getElementById('btn-owner-show');
-    if(s && !s.__bound){ s.addEventListener('click', function(){
-      var potIdEl = document.getElementById('owner-potid') || document.getElementById('ownerPotId');
-      var potId = (potIdEl && potIdEl.value || '').trim();
-      if(!potId) return alert('Enter a Pot ID.');
-      showManageLinkForPot(potId, '');
-    }); s.__bound=true; }
+  const input = document.getElementById('c-roster-csv');
+  if (input){
+    input.addEventListener('change', (e)=>{
+      const f = e.target.files && e.target.files[0];
+      if (f) handleCSVFile(f);
+    });
   }
-  if(document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', bindOwnerButtons); }
-  else { try{ bindOwnerButtons(); }catch(_){ } }
+  window.applyRosterEligibility = function(){
+    try{
+      const set = window.__ROSTER_SET;
+      const fname = document.getElementById('j-fname')?.value || '';
+      const lname = document.getElementById('j-lname')?.value || '';
+      const key = normalizeName(fname, lname);
+      const sel = document.getElementById('j-mtype');
+      if (!sel) return;
+      if (set && key && set.has(key)){
+        sel.innerHTML = '<option value="Member">Member</option>';
+        sel.value = 'Member';
+      } else {
+        sel.innerHTML = '<option value="Guest">Guest</option>';
+        sel.value = 'Guest';
+      }
+      if (typeof updateJoinCost === 'function') updateJoinCost();
+    }catch(_){}
+  };
+  ['j-fname','j-lname'].forEach(id=>{
+    const el = document.getElementById(id);
+    if (el){ el.addEventListener('input', ()=> window.applyRosterEligibility()); }
+  });
+  setTimeout(()=>window.applyRosterEligibility(), 0);
 })();
+
