@@ -365,7 +365,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const entryId = t.getAttribute('data-id');
         try{
           await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
-            .collection('entries').doc(entryId).update({ paid: t.checked });
+            .collection('entries').doc(entryId).update({ paid: t.checked 
+      // Admin toggle member_type (Member/Guest) and update applied_buyin
+      if (t && t.matches('select[data-act="mtype"]')) {
+        if(!requireAdmin()) { 
+          return; 
+        }
+        const entryId = t.getAttribute('data-id');
+        const newType = t.value === 'Member' ? 'Member' : 'Guest';
+        try{
+          const mAmt = Number((CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.buyin_member) || 0);
+          const gAmt = Number((CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.buyin_guest) || 0);
+          const newAmt = (newType === 'Member') ? mAmt : gAmt;
+          await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
+            .collection('entries').doc(entryId).update({ member_type: newType, applied_buyin: newAmt });
+        }catch(err){
+          console.error('Failed to update member type', err);
+          alert('Failed to update member/guest. Please try again.');
+        }
+        return;
+      }
+    });
         }catch(err){
           console.error(err); alert('Failed to update paid status.'); t.checked = !t.checked;
         }
@@ -972,7 +992,7 @@ function renderRegistrations(entries){
       <tr>
         <td>${(function(){ const paid=(e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; if(!paid && stripeOk){ return `<a href=\"#\" data-act=\"pay\" data-id=\"${e.id}\" onclick=\"return window.__payClick && window.__payClick(event, '${e.id}');\">${escapeHtml(name)}</a>`;} return escapeHtml(name); })()}</td>
         <td>${escapeHtml(email)}</td>
-        <td>${escapeHtml(type)}</td>
+        <td>${(canAdmin? `<select data-act=\"mtype\" data-id=\"${e.id}\"><option value=\"Member\" ${ (e.member_type||'')==='Member' ? 'selected' : '' }>Member</option><option value=\"Guest\" ${ (e.member_type||'')==='Guest' ? 'selected' : '' }>Guest</option></select>` : escapeHtml(type))}</td>
         <td>${buyin}</td>
         <td>${e.paid ? 'Yes' : 'No'}</td>
         <td>${escapeHtml(status)}</td>
@@ -2407,18 +2427,6 @@ async function createPotDirect(){
       start_at, end_at,
       org_email: orgEmail
     };
-
-
-// Attach member CSV gating if enabled on create
-try{
-  const __csvToggle = document.getElementById('c-members-csv-toggle');
-  const __list = Array.isArray(window.CREATE_MEMBERS_ALLOWED) ? window.CREATE_MEMBERS_ALLOWED : [];
-  if (__csvToggle && __csvToggle.checked && __list.length){
-    pot.members_check_mode = 'csv';
-    pot.members_allowed = __list;
-  }
-}catch(e){ console.warn('CSV attach failed (non-fatal)', e); }
-
 
     const ref = await db.collection('pots').add(pot);
     const resultEl = document.getElementById('create-result');
