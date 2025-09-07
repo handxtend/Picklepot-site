@@ -365,27 +365,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const entryId = t.getAttribute('data-id');
         try{
           await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
-            .collection('entries').doc(entryId).update({ paid: t.checked 
-      // Admin toggle member_type (Member/Guest) and update applied_buyin
-      if (t && t.matches('select[data-act="mtype"]')) {
-        if(!requireAdmin()) { 
-          return; 
-        }
-        const entryId = t.getAttribute('data-id');
-        const newType = t.value === 'Member' ? 'Member' : 'Guest';
-        try{
-          const mAmt = Number((CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.buyin_member) || 0);
-          const gAmt = Number((CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.buyin_guest) || 0);
-          const newAmt = (newType === 'Member') ? mAmt : gAmt;
-          await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
-            .collection('entries').doc(entryId).update({ member_type: newType, applied_buyin: newAmt });
-        }catch(err){
-          console.error('Failed to update member type', err);
-          alert('Failed to update member/guest. Please try again.');
-        }
-        return;
-      }
-    });
+            .collection('entries').doc(entryId).update({ paid: t.checked });
         }catch(err){
           console.error(err); alert('Failed to update paid status.'); t.checked = !t.checked;
         }
@@ -992,7 +972,7 @@ function renderRegistrations(entries){
       <tr>
         <td>${(function(){ const paid=(e.paid===true)||e.paid===1||String(e.paid||'').toLowerCase()==='true'||String(e.paid||'').toLowerCase()==='yes'; if(!paid && stripeOk){ return `<a href=\"#\" data-act=\"pay\" data-id=\"${e.id}\" onclick=\"return window.__payClick && window.__payClick(event, '${e.id}');\">${escapeHtml(name)}</a>`;} return escapeHtml(name); })()}</td>
         <td>${escapeHtml(email)}</td>
-        <td>${(canAdmin? `<select data-act=\"mtype\" data-id=\"${e.id}\"><option value=\"Member\" ${ (e.member_type||'')==='Member' ? 'selected' : '' }>Member</option><option value=\"Guest\" ${ (e.member_type||'')==='Guest' ? 'selected' : '' }>Guest</option></select>` : escapeHtml(type))}</td>
+        <td>${escapeHtml(type)}</td>
         <td>${buyin}</td>
         <td>${e.paid ? 'Yes' : 'No'}</td>
         <td>${escapeHtml(status)}</td>
@@ -2990,4 +2970,109 @@ try{ window.__payClick = __payClick; }catch(_){}
   });
   setTimeout(()=>window.applyRosterEligibility(), 0);
 })();
+
+
+
+// ===== Owner Tool: rock-solid wiring & hashing (no colon) =====
+(function(){
+  if (window.__ownerToolWired) return; 
+  window.__ownerToolWired = true;
+
+  function _getDb(){
+    try{
+      if (typeof db !== 'undefined' && db) return db;
+      if (typeof firebase !== 'undefined' && firebase.firestore) return firebase.firestore();
+    }catch(_){}
+    return null;
+  }
+
+  async function _sha256Hex(s){
+    const enc = new TextEncoder().encode(s);
+    const buf = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+
+  function _rand(len, alphabet){
+    alphabet = alphabet || 'ABCDEFGHJKMNPQRSTUWXYZ23456789';
+    let out=''; for(let i=0;i<len;i++) out += alphabet[Math.floor(Math.random()*alphabet.length)];
+    return out;
+  }
+
+  function _makeManageLink(pid, code){
+    const base = location.origin.replace(/\/$/,'');
+    return base + '/manage.html?pot=' + encodeURIComponent(pid) + '&oc=' + encodeURIComponent(code);
+  }
+
+  async function _rotateOwnerCode(){
+    try{
+      if (typeof requireAdmin==='function' && !requireAdmin()){
+        alert('Admin required to rotate owner code.');
+        return;
+      }
+      var pid = ((document.getElementById('owner-potid')||{}).value||'').trim();
+      if(!pid && typeof CURRENT_DETAIL_POT !== 'undefined' && CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.id){
+        pid = CURRENT_DETAIL_POT.id;
+      }
+      if(!pid){ alert('Enter or load a Pot ID first.'); return; }
+
+      var code = _rand(8);
+      var salt = _rand(12);
+      // NOTE: hash recipe matches manage page: code + salt (no colon)
+      var hash = await _sha256Hex(code + salt);
+
+      var _db = _getDb();
+      if(!_db){ alert('Firestore not initialized'); return; }
+
+      var ts = (typeof firebase!=='undefined' && firebase.firestore && firebase.firestore.FieldValue) ? firebase.firestore.FieldValue.serverTimestamp() : new Date();
+      await _db.collection('pots').doc(pid).set({
+        owner_code_hash: hash,
+        owner_token_salt: salt,
+        owner_code_rotated_at: ts
+      }, { merge: true });
+
+      var link = _makeManageLink(pid, code);
+      var out = document.getElementById('owner-output');
+      if(out){
+        out.style.display='';
+        out.innerHTML = '<div><b>New Owner Code:</b> <span style="font-family:monospace">'+code+'</span></div>' +
+                        '<div style="margin-top:6px"><b>Manage link:</b> <a target="_blank" rel="noopener" href="'+link+'">'+link+'</a></div>' +
+                        '<div class="muted" style="margin-top:6px">Share this with the organizer. It replaces any older owner code.</div>';
+      }
+      console.log('[owner-tool] rotated for pot', pid);
+    }catch(e){
+      console.error('[owner-tool] rotate failed', e);
+      alert('Rotate failed. See console for details.');
+    }
+  }
+  window._rotateOwnerCode = _rotateOwnerCode;
+
+  function wireButtons(){
+    var rot = document.getElementById('btn-owner-rotate');
+    if(rot && !rot._wired){ rot.addEventListener('click', function(e){ e.preventDefault(); _rotateOwnerCode(); }); rot._wired = true; }
+    var show = document.getElementById('btn-owner-link');
+    if(show && !show._wired){ show.addEventListener('click', function(e){ 
+      e.preventDefault();
+      var out = document.getElementById('owner-output');
+      if(out){ out.style.display=''; out.innerHTML = 'No plaintext owner code is stored. Use <b>Rotate owner code</b> to generate a fresh code & link.'; }
+    }); show._wired = true; }
+  }
+
+  // Delegation fallback (works even if DOM changes)
+  document.addEventListener('click', function(ev){
+    var t = ev.target;
+    if(!t) return;
+    if (t.closest && t.closest('#btn-owner-rotate')){ ev.preventDefault(); _rotateOwnerCode(); }
+    if (t.closest && t.closest('#btn-owner-link')){ ev.preventDefault(); 
+      var out = document.getElementById('owner-output');
+      if(out){ out.style.display=''; out.innerHTML = 'No plaintext owner code is stored. Use <b>Rotate owner code</b> to generate a fresh code & link.'; }
+    }
+  });
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', wireButtons);
+  } else {
+    wireButtons();
+  }
+})();
+// ===== /Owner Tool =====
 
