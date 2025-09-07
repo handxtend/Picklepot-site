@@ -1,4 +1,31 @@
 
+// ---- Owner Code helpers (admin) ----
+function makeManageLink(potId, ownerCode){
+  const base = location.origin.replace(/\/$/, '');
+  return `${base}/manage.html?pot=${encodeURIComponent(potId)}&oc=${encodeURIComponent(ownerCode)}`;
+}
+function randomOwnerCode(len=8){
+  const alphabet = 'ABCDEFGHJKMNPQRSTUWXYZ23456789';
+  let out=''; for(let i=0;i<len;i++) out += alphabet[Math.floor(Math.random()*alphabet.length)];
+  return out;
+}
+async function sha256Hex(s){
+  const enc = new TextEncoder().encode(s);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+function afterPotLoadedForAdminUI(pot){
+  try{
+    if (typeof isSiteAdmin === 'function' ? isSiteAdmin() : false){
+      const potIdEl = document.getElementById('owner-potid');
+      if(potIdEl) potIdEl.value = pot?.id || '';
+      const panel = document.getElementById('owner-tool');
+      if(panel) panel.style.display = '';
+    }
+  }catch(e){ console.warn('afterPotLoadedForAdminUI failed', e); }
+}
+
+
 /* ===== Enforce Join Button Disable Rules (skill play-down + dup email + dup name) ===== */
 function recomputeJoinDisabled(){
   try{
@@ -2971,3 +2998,57 @@ try{ window.__payClick = __payClick; }catch(_){}
   setTimeout(()=>window.applyRosterEligibility(), 0);
 })();
 
+
+
+// Owner tool listeners (admin-only)
+document.addEventListener('DOMContentLoaded', function(){
+  var btnShow = document.getElementById('btn-owner-link');
+  var btnRot  = document.getElementById('btn-owner-rotate');
+  if(btnShow && !btnShow._wired){
+    btnShow.addEventListener('click', async function(){
+      try{
+        if(typeof requireAdmin==='function' && !requireAdmin()) return;
+        var pid = (document.getElementById('owner-potid')||{}).value || (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT ? CURRENT_DETAIL_POT.id : '');
+        pid = (pid||'').trim();
+        if(!pid) { alert('Enter or load a Pot ID first.'); return; }
+        var out = document.getElementById('owner-output');
+        if(out){
+          out.style.display='';
+          out.innerHTML = 'No plaintext owner code is stored. Use <b>Rotate owner code</b> to generate a fresh code & link.';
+        }
+      }catch(e){ console.warn('owner link failed', e); }
+    });
+    btnShow._wired = true;
+  }
+  if(btnRot && !btnRot._wired){
+    btnRot.addEventListener('click', async function(){
+      try{
+        if(typeof requireAdmin==='function' && !requireAdmin()) return;
+        var pid = (document.getElementById('owner-potid')||{}).value || (typeof CURRENT_DETAIL_POT!=='undefined' && CURRENT_DETAIL_POT ? CURRENT_DETAIL_POT.id : '');
+        pid = (pid||'').trim();
+        if(!pid) { alert('Enter or load a Pot ID first.'); return; }
+
+        var code = randomOwnerCode(8);
+        var salt = randomOwnerCode(12);
+        var hash = await sha256Hex(code + ':' + salt);
+
+        if(!window.db){ alert('Firestore not initialized'); return; }
+        await db.collection('pots').doc(pid).set({
+          owner_code_hash: hash,
+          owner_token_salt: salt,
+          owner_code_rotated_at: firebase && firebase.firestore ? firebase.firestore.FieldValue.serverTimestamp() : new Date()
+        }, { merge: true });
+
+        var link = makeManageLink(pid, code);
+        var out = document.getElementById('owner-output');
+        if(out){
+          out.style.display='';
+          out.innerHTML = '<div><b>New Owner Code:</b> <span style=\"font-family:monospace\">'+code+'</span></div>' +
+                          '<div style=\"margin-top:6px\"><b>Manage link:</b> <a target=\"_blank\" rel=\"noopener\" href=\"'+link+'\">'+link+'</a></div>' +
+                          '<div class=\"muted\" style=\"margin-top:6px\">Share this with the organizer. It replaces any older owner code.</div>';
+        }
+      }catch(e){ console.error('rotate owner code failed', e); alert('Rotate failed. See console.'); }
+    });
+    btnRot._wired = true;
+  }
+});

@@ -329,6 +329,23 @@
 <button class="btn" id="btn-admin-grant">Grant this device co-admin</button>
 <button class="btn" id="btn-admin-revoke">Revoke this device</button>
 </div>
+<!-- Owner / Organizer Access (Admin only) -->
+<div id="owner-tool" class="admin-only" style="display:none; margin-top:12px; border:1px dashed var(--border); padding:10px; border-radius:8px;">
+  <div style="font-weight:700; margin-bottom:6px;">Owner / Organizer Access</div>
+  <div class="row" style="gap:8px; align-items:flex-end;">
+    <div style="min-width:260px;">
+      <label>Pot ID</label>
+      <input id="owner-potid" placeholder="Enter Pot ID"/>
+    </div>
+    <div>
+      <button class="btn" id="btn-owner-link">Show manage link</button>
+      <button class="btn danger" id="btn-owner-rotate">Rotate owner code</button>
+    </div>
+  </div>
+  <div class="muted" style="margin-top:8px">Tip: Load a pot above to auto-fill Pot ID. Only admins can see this panel.</div>
+  <div id="owner-output" class="soft-blue-box" style="margin-top:8px; display:none"></div>
+</div>
+
 <div class="muted" id="admin-uids" style="margin-top:6px;"></div>
 <!-- Edit form -->
 <form id="pot-edit-form" style="display:none; margin-top:12px; border:1px solid var(--border);padding:12px;border-radius:8px;">
