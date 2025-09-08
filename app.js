@@ -51,12 +51,9 @@ try{ window.recomputeJoinDisabled = recomputeJoinDisabled; }catch(_){}
 
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
-  try {
-    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || '';
-  } catch(_) { 
-    return ''; 
-  }
-}catch(_){ return ''; }
+  try{
+    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || __capturedPayType() || '';
+  }catch(_){ return ''; }
 }
 
 
@@ -2535,7 +2532,7 @@ document.addEventListener('DOMContentLoaded', () => {
         draft: collectCreateDraft(),
         count,
         success_url: originHost() + '/success.html?flow=join',
-cancel_url: originHost() + '/cancel.html?flow=join',
+cancel_url: originHost() + '/cancel.html?flow=create',
 
       };
       setBusy(true, 'Redirecting…');
@@ -2578,7 +2575,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
       player_name: playerName,
       player_email: playerEmail,
      success_url: originHost() + '/success.html?flow=join',
-  cancel_url: originHost() + '/cancel.html?flow=join'
+  cancel_url: originHost() + '/cancel.html?flow=create'
 
     };
     try{
@@ -2950,23 +2947,48 @@ try{ window.__payClick = __payClick; }catch(_){}
     });
   }
   window.applyRosterEligibility = function(){
+    
     try{
-      const set = window.__ROSTER_SET;
-      const fname = document.getElementById('j-fname')?.value || '';
-      const lname = document.getElementById('j-lname')?.value || '';
-      const key = normalizeName(fname, lname);
-      const sel = document.getElementById('j-mtype');
-      if (!sel) return;
-      if (set && key && set.has(key)){
-        sel.innerHTML = '<option value="Member">Member</option>';
-        sel.value = 'Member';
+      // Build roster set: prefer pot.members_allowed if available; fallback to uploaded CSV (__ROSTER_SET)
+      var set = null;
+      try{
+        if (window.CURRENT_JOIN_POT && Array.isArray(CURRENT_JOIN_POT.members_allowed)) {
+          set = new Set(CURRENT_JOIN_POT.members_allowed.map(function(x){return String(x||'').trim().toLowerCase();}));
+        } else if (window.__ROSTER_SET instanceof Set) {
+          set = window.__ROSTER_SET;
+        }
+      }catch(_){}
+      var fnameEl = document.getElementById('j-fname');
+      var lnameEl = document.getElementById('j-lname');
+      var sel = document.getElementById('j-mtype');
+      if (!sel || !fnameEl || !lnameEl) return;
+
+      var fname = String(fnameEl.value||'').trim().toLowerCase().replace(/\s+/g,' ');
+      var lname = String(lnameEl.value||'').trim().toLowerCase().replace(/\s+/g,' ');
+      var key = (fname && lname) ? (fname + ' ' + lname) : (fname || lname);
+
+      // Ensure both options exist (avoid previous single-option state)
+      if (sel.options.length < 2) {
+        sel.innerHTML = '<option value="Member">Member</option><option value="Guest">Guest</option>';
+      }
+
+      var memOpt = sel.querySelector('option[value="Member"]');
+      var gstOpt = sel.querySelector('option[value="Guest"]');
+
+      var onRoster = !!(set && key && set.has(key));
+
+      if (onRoster) {
+        if (memOpt) memOpt.disabled = false;
+        if (gstOpt) gstOpt.disabled = true;
+        if (sel.value !== 'Member') sel.value = 'Member';
       } else {
-        sel.innerHTML = '<option value="Guest">Guest</option>';
-        sel.value = 'Guest';
+        if (gstOpt) gstOpt.disabled = false;
+        if (memOpt) memOpt.disabled = true;
+        if (sel.value !== 'Guest') sel.value = 'Guest';
       }
       if (typeof updateJoinCost === 'function') updateJoinCost();
-    }catch(_){}
-  };
+    } catch(e){ console.warn('applyRosterEligibility failed', e); }
+    };
   ['j-fname','j-lname'].forEach(id=>{
     const el = document.getElementById(id);
     if (el){ el.addEventListener('input', ()=> window.applyRosterEligibility()); }
@@ -2990,42 +3012,9 @@ try{ window.__payClick = __payClick; }catch(_){}
           var r = __origOnCreate.call(this, e);
           if (r && typeof r.then === 'function') await r;
         } finally {
-          setTimeout(function(){ __inflight = false; }, 1500);
+          setTimeout(function(){ __inflight = false; }, 1200);
         }
       };
     }
   }catch(_){}
 })();
-
-
-
-/* === Robust roster-driven Member/Guest defaulting === */
-(function(){
-  function bind(){
-    try{
-      ['j-fname','j-lname'].forEach(function(id){
-        var el = document.getElementById(id);
-        if (el && !el.__roBind){
-          el.addEventListener('input', function(){
-            if (window.applyRosterEligibility) window.applyRosterEligibility();
-          });
-          el.__roBind = true;
-        }
-      });
-      var sel = document.getElementById('j-mtype');
-      if (sel && !sel.__roBind){
-        sel.addEventListener('change', function(){
-          if (typeof updateJoinCost === 'function') updateJoinCost();
-        });
-        sel.__roBind = true;
-      }
-      if (window.applyRosterEligibility) window.applyRosterEligibility();
-    }catch(_){}
-  }
-  document.addEventListener('DOMContentLoaded', bind);
-  try{
-    new MutationObserver(function(){ bind(); })
-      .observe(document.documentElement || document.body, { childList:true, subtree:true });
-  }catch(_){}
-})();
-
