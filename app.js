@@ -2,8 +2,12 @@
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
   try{
-    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || __capturedPayType() || '';
-  }catch(_){ return ''; }
+    if (window.__joinPayMethod) return window.__joinPayMethod;
+    var stored = sessionStorage.getItem('JOIN_PAY_METHOD');
+    if (stored) return stored;
+    var sel = document.getElementById('j-pay') || document.getElementById('j-paytype') || document.querySelector('[name="pay_type"]');
+    return sel && sel.value ? sel.value : '';
+  }catch(e){ return ''; }
 }
 
 
@@ -42,6 +46,18 @@ function clearClientSession() {
 })();
 
 /* Update “Signed In/Out” label and buttons */
+
+/* ===== Create Expiry Note Visibility ===== */
+function updateCreateExpireNoteVisibility(){
+  try{
+    var note = document.getElementById('create-expire-note');
+    if (!note) return;
+    var admin = (typeof isSiteAdmin==='function' && isSiteAdmin());
+    note.style.display = admin ? 'none' : '';
+  }catch(_){}
+}
+try{ window.updateCreateExpireNoteVisibility = updateCreateExpireNoteVisibility; }catch(_){}
+
 document.addEventListener('DOMContentLoaded', initAuthGate);
 function initAuthGate() {
   const uid = localStorage.getItem('pp_uid');
@@ -112,9 +128,7 @@ function isOrganizerOwnerWithSub(){
 /* ---------- Admin UI ---------- */
 function refreshAdminUI(){
   const on = isSiteAdmin();
-  $$('.admin-only').forEach(el => { el.style.display = on ? '' : 'none'; 
-  try{ if(CURRENT_DETAIL_POT && window.adminSetRosterUIFromPot) adminSetRosterUIFromPot(CURRENT_DETAIL_POT); }catch(_){ }
-});
+  $$('.admin-only').forEach(el => { el.style.display = on ? '' : 'none'; });
   const btnLogin  = $('#site-admin-toggle');
   const btnLogout = $('#site-admin-logout');
   const status    = $('#site-admin-status');
@@ -663,7 +677,6 @@ async function joinPot(){
     btn.textContent = on ? (text || 'Working…') : 'Join';
   }
   function fail(message){
-    try{ msg.style.color='#b91c1c'; msg.style.fontWeight='800'; }catch(_){}
     console.error('[JOIN] Error:', message);
     msg.textContent = message || 'Something went wrong.';
     setBusy(false);
@@ -776,7 +789,7 @@ async function joinPot(){
       sessionStorage.setItem('entryId', entryId);
 
       try { window.location.href = data.url; }
-      catch { window.open(data.url, '_blank', 'noopener'); }
+      catch (e) { window.open(data.url, '_blank', 'noopener'); }
       return;
     }
 
@@ -815,8 +828,6 @@ async function onLoadPotClicked(){
   $('#pi-location').textContent = pot.location||'';
   $('#pi-organizer').textContent = `Org: ${pot.organizer||''}`;
   $('#pi-status').textContent = `Status: ${pot.status||'open'}`;
-  try{ if(window.adminSetRosterUIFromPot) adminSetRosterUIFromPot(pot); }catch(_){ }
-
   $('#pi-id').textContent = `ID: ${pot.id}`;
   try{ setOrganizerContact(pot); }catch(_){ }
 
@@ -1271,7 +1282,7 @@ function checkStripeReturn(){
             const amt = (typeof d.paid_amount === 'number') ? (d.paid_amount/100) : (d.applied_buyin||0);
             banner.textContent = `Payment successful: ${dollars(amt)} received. Enjoy the event! 🎉`;
             // Auto-hide after a bit
-            setTimeout(()=>{ try{ banner.style.display='none'; }catch{} }, 8000);
+            setTimeout(()=>{ try{ banner.style.display='none'; }catch (e) {} }, 8000);
           } else {
             banner.textContent = 'Payment completed. Waiting for confirmation…';
           }
@@ -1388,7 +1399,7 @@ async function onOrganizerSubscribe(){
       return;
     }
     try{ window.location.href = data.url; }
-    catch{ window.open(data.url, '_blank', 'noopener'); }
+    catch (e) { window.open(data.url, '_blank', 'noopener'); }
   }catch(e){
     console.error('[Sub] Failed to start organizer subscription', e);
     alert('Could not start subscription.');
@@ -2005,87 +2016,6 @@ document.addEventListener('DOMContentLoaded', hideStripeForNonAdmin);
 try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function(){ try{ _oldRefreshAdmin(); }catch(_){ } try{ hideStripeForNonAdmin(); }catch(_){ } } }catch(_){}
 
 
-
-// === Admin: Member Roster (CSV) controls ===
-(function(){
-  function adminNormalizeName(s){
-    return String(s||'').trim().replace(/\s+/g,' ').toLowerCase();
-  }
-  function adminParseRosterCSV(text){
-    const out = [];
-    String(text||'').split(/\r?\n/).forEach(raw=>{
-      const line = String(raw||'').trim();
-      if(!line) return;
-      const parts = line.split(',');
-      if(parts.length>=2){
-        const first = adminNormalizeName(parts[0]);
-        const last  = adminNormalizeName(parts.slice(1).join(' '));
-        const full  = adminNormalizeName(first+' '+last);
-        if(full.replace(/\s/g,'')) out.push(full);
-        return;
-      }
-      const sp = line.split(/\s+/);
-      if(sp.length>=2){
-        out.push(adminNormalizeName(sp[0]+' '+sp.slice(1).join(' ')));
-      }
-    });
-    return Array.from(new Set(out));
-  }
-  function adminRosterEls(){
-    return {
-      row: document.getElementById('admin-roster-ui'),
-      file: document.getElementById('admin_csv_file'),
-      status: document.getElementById('admin_csv_status'),
-      toggle: document.getElementById('admin_csv_toggle')
-    };
-  }
-  function adminWireRoster(){
-    const els = adminRosterEls();
-    if(!els.file || els.file._wired){ return; }
-    els.file.addEventListener('change', async (ev)=>{
-      try{
-        const f = ev.target.files && ev.target.files[0];
-        if(!f) return;
-        const txt = await f.text();
-        const names = adminParseRosterCSV(txt);
-        if(els.status) els.status.textContent = names.length ? ('Roster loaded ('+names.length+')') : 'No roster loaded';
-        if(els.toggle) els.toggle.checked = names.length>0;
-        // Persist onto current pot
-        if (window.db && window.CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.id){
-          await db.collection('pots').doc(CURRENT_DETAIL_POT.id).update({
-            members_check_mode: names.length ? 'csv' : null,
-            members_allowed: names
-          });
-        }
-      }catch(e){ console.warn('Admin CSV upload failed', e); if(els.status) els.status.textContent='Failed to load CSV'; }
-    });
-    if(els.toggle && !els.toggle._wired){
-      els.toggle.addEventListener('change', async (ev)=>{
-        try{
-          if (window.db && window.CURRENT_DETAIL_POT && CURRENT_DETAIL_POT.id){
-            const on = !!ev.target.checked;
-            await db.collection('pots').doc(CURRENT_DETAIL_POT.id).update({
-              members_check_mode: on ? 'csv' : null
-            });
-          }
-        }catch(e){ console.warn('Admin CSV toggle failed', e); }
-      });
-      els.toggle._wired = true;
-    }
-    els.file._wired = true;
-  }
-  window.adminSetRosterUIFromPot = function(p){
-    try{
-      const els = adminRosterEls();
-      const visible = !!(typeof isSiteAdmin==='function' ? isSiteAdmin() : true);
-      if(els.row) els.row.style.display = visible ? '' : 'none';
-      const names = Array.isArray(p && p.members_allowed) ? p.members_allowed : [];
-      if(els.status) els.status.textContent = names.length ? ('Roster loaded ('+names.length+')') : 'No roster loaded';
-      if(els.toggle) els.toggle.checked = (p && p.members_check_mode==='csv' && names.length>0);
-      adminWireRoster();
-    }catch(e){ console.warn('adminSetRosterUIFromPot failed', e); }
-  };
-})();
 /* === Create Pot -> Stripe Checkout === */
 
 
@@ -2125,7 +2055,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
       catch(_){ location.hash = '#pot-detail-section'; }
     });
   }
-  document.addEventListener('DOMContentLoaded', function(){
+  document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
     try{ wireHowTo(); wireShowDetail(); }catch(_){}
   });
   // Also attempt late-binding in case DOM is injected later
@@ -2177,7 +2107,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
       var pay_zelle   = $id('c-pay-zelle')?.value || '';
       var pay_cashapp = $id('c-pay-cashapp')?.value || '';
-      var pay_onsite = isAdmin() ? ((($id('c-pay-onsite')?.value||'no')==='yes')) : false;
+      var pay_onsite  = (($id('c-pay-onsite')?.value || 'yes') === 'yes');
 
       // Admin-only toggle for Stripe payments on the pot itself (not the organizer checkout)
       var allow_stripe = isAdmin() ? (( $id('c-allow-stripe')?.value || 'no') === 'yes') : false;
@@ -2266,7 +2196,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     }catch(e){ console.warn('[Create Checkout Return] error', e); }
   }
 
-  document.addEventListener('DOMContentLoaded', function(){
+  document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
     // Rebind after other scripts run, to override any createPot binding
     try{ rebindCreateToCheckout(); setTimeout(rebindCreateToCheckout, 0); setTimeout(rebindCreateToCheckout, 300); }catch(_){}
     handleCreateCheckoutReturn();
@@ -2280,7 +2210,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
 
 // Ensure Create button triggers Stripe checkout (idempotent binding)
-document.addEventListener('DOMContentLoaded', function(){
+document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
     btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
@@ -2698,7 +2628,7 @@ if (location.pathname.endsWith('/manage.html') || location.pathname.endsWith('ma
 
 
 // --- Simple show/hide for Create/Join cards ---
-document.addEventListener('DOMContentLoaded', function(){
+document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
   var createCard = document.getElementById('create-card');
   var joinCard   = document.getElementById('join-card');
   var btnStartCreate = document.getElementById('btn-start-create');
@@ -2786,17 +2716,3 @@ document.addEventListener('DOMContentLoaded', function(){
     }catch(_){}
   }catch(err){ console.error('join binder bootstrap error', err); }
 })();
-
-/* admin-only onsite visibility */
-
-document.addEventListener('DOMContentLoaded', function(){
-  try{
-    var el = (typeof $id==='function') ? $id('c-pay-onsite') : document.getElementById('c-pay-onsite');
-    if (el && !(typeof isAdmin==='function' && isAdmin())){
-      el.disabled = true;
-      el.style.display = 'none';
-      var lab = document.querySelector('label[for="c-pay-onsite"]');
-      if (lab) lab.style.display = 'none';
-    }
-  }catch(_){}
-});
