@@ -2971,3 +2971,58 @@ try{ window.__payClick = __payClick; }catch(_){}
   setTimeout(()=>window.applyRosterEligibility(), 0);
 })();
 
+
+
+/* === Single-fire guard for Create-a-Pot click === */
+(function(){
+  try{
+    var __inflight = false;
+    var __origOnCreate = window.onCreateClick;
+    if (typeof __origOnCreate === 'function') {
+      window.onCreateClick = async function(e){
+        try{
+          if (e && e.preventDefault) e.preventDefault();
+          if (__inflight) return;
+          __inflight = true;
+          var r = __origOnCreate.call(this, e);
+          if (r && typeof r.then === 'function') await r;
+        } finally {
+          setTimeout(function(){ __inflight = false; }, 1500);
+        }
+      };
+    }
+  }catch(_){}
+})();
+
+
+
+/* === Robust roster-driven Member/Guest defaulting === */
+(function(){
+  function bind(){
+    try{
+      ['j-fname','j-lname'].forEach(function(id){
+        var el = document.getElementById(id);
+        if (el && !el.__roBind){
+          el.addEventListener('input', function(){
+            if (window.applyRosterEligibility) window.applyRosterEligibility();
+          });
+          el.__roBind = true;
+        }
+      });
+      var sel = document.getElementById('j-mtype');
+      if (sel && !sel.__roBind){
+        sel.addEventListener('change', function(){
+          if (typeof updateJoinCost === 'function') updateJoinCost();
+        });
+        sel.__roBind = true;
+      }
+      if (window.applyRosterEligibility) window.applyRosterEligibility();
+    }catch(_){}
+  }
+  document.addEventListener('DOMContentLoaded', bind);
+  try{
+    new MutationObserver(function(){ bind(); })
+      .observe(document.documentElement || document.body, { childList:true, subtree:true });
+  }catch(_){}
+})();
+
