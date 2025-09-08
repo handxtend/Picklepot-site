@@ -51,9 +51,12 @@ try{ window.recomputeJoinDisabled = recomputeJoinDisabled; }catch(_){}
 
 // --- Captured payment method snapshot ---
 function __capturedPayType(){
-  try{
-    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || __capturedPayType() || '';
-  }catch(_){ return ''; }
+  try {
+    return window.__joinPayMethod || sessionStorage.getItem('JOIN_PAY_METHOD') || '';
+  } catch(_) { 
+    return ''; 
+  }
+}catch(_){ return ''; }
 }
 
 
@@ -2532,7 +2535,7 @@ document.addEventListener('DOMContentLoaded', () => {
         draft: collectCreateDraft(),
         count,
         success_url: originHost() + '/success.html?flow=join',
-cancel_url: originHost() + '/cancel.html?flow=create',
+cancel_url: originHost() + '/cancel.html?flow=join',
 
       };
       setBusy(true, 'Redirecting…');
@@ -2575,7 +2578,7 @@ const potId = byId('v-pot')?.value?.trim() || '';
       player_name: playerName,
       player_email: playerEmail,
      success_url: originHost() + '/success.html?flow=join',
-  cancel_url: originHost() + '/cancel.html?flow=create'
+  cancel_url: originHost() + '/cancel.html?flow=join'
 
     };
     try{
