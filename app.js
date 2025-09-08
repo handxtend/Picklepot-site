@@ -52,9 +52,10 @@ function updateCreateExpireNoteVisibility(){
   try{
     var note = document.getElementById('create-expire-note');
     if (!note) return;
-    note.style.display = '';
-  }catch(_){}}
-try{ window.updateCreateExpireNoteVisibility = updateCreateExpireNoteVisibility; }catch(_){ }
+    var admin = (typeof isSiteAdmin==='function' && isSiteAdmin());
+    note.style.display = admin ? 'none' : '';
+  }catch(_){}
+}
 try{ window.updateCreateExpireNoteVisibility = updateCreateExpireNoteVisibility; }catch(_){}
 
 document.addEventListener('DOMContentLoaded', initAuthGate);
@@ -677,7 +678,7 @@ async function joinPot(){
   }
   function fail(message){
     console.error('[JOIN] Error:', message);
-    if (msg){ try{ msg.style.color='#b91c1c'; msg.style.fontWeight='800'; }catch(_){}; msg.textContent = message || 'Something went wrong.'; }
+    msg.textContent = message || 'Something went wrong.';
     setBusy(false);
   }
 
@@ -2106,7 +2107,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 
       var pay_zelle   = $id('c-pay-zelle')?.value || '';
       var pay_cashapp = $id('c-pay-cashapp')?.value || '';
-      var pay_onsite = (typeof isSiteAdmin==='function' && isSiteAdmin()) ? ((($id('c-pay-onsite')?.value||'no')==='yes')) : false;
+      var pay_onsite  = (($id('c-pay-onsite')?.value || 'yes') === 'yes');
 
       // Admin-only toggle for Stripe payments on the pot itself (not the organizer checkout)
       var allow_stripe = isAdmin() ? (( $id('c-allow-stripe')?.value || 'no') === 'yes') : false;
@@ -2715,17 +2716,3 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
     }catch(_){}
   }catch(err){ console.error('join binder bootstrap error', err); }
 })();
-
-/* admin-only onsite visibility */
-document.addEventListener('DOMContentLoaded', function(){
-  try{
-    var el = (typeof $id==='function') ? $id('c-pay-onsite') : document.getElementById('c-pay-onsite');
-    var admin = (typeof isSiteAdmin==='function' && isSiteAdmin());
-    if (el && !admin){
-      el.disabled = true;
-      el.style.display = 'none';
-      var lab = document.querySelector('label[for="c-pay-onsite"]');
-      if (lab) lab.style.display = 'none';
-    }
-  }catch(_){}
-});
