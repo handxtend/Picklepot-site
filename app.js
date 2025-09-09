@@ -3276,3 +3276,114 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
   })();
 })();
 /* ===== /STRIPE AUTO MEMBER/GUEST ENFORCER ================================== */
+
+
+
+/* ===== JOIN & COST HARDENING v5 ============================================ */
+(function(){
+  function $(s, el=document){ return el.querySelector(s); }
+  function clean(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+  function lower(s){ return String(s||'').toLowerCase(); }
+  function safe(fn){ try{ return fn(); }catch(_){ return undefined; } }
+
+  // Effective type: roster decides. If not on roster -> Guest; if on roster -> Member.
+  function computeEffectiveType(){
+    const p = window.CURRENT_JOIN_POT;
+    if (!p) return null;
+    const fname = $('#j-fname')?.value || '';
+    const lname = $('#j-lname')?.value || '';
+    const email = $('#j-email')?.value || '';
+    const full  = clean(fname + ' ' + lname);
+    try{
+      if (typeof window.isOnRoster === 'function'){
+        return window.isOnRoster(p.id, full, email) ? 'Member' : 'Guest';
+      }
+      if (typeof window.loadRoster === 'function'){
+        const r = window.loadRoster(p.id) || {names:[],emails:[]};
+        const n = lower(full);
+        const e = lower(email);
+        const on = (r.names||[]).includes(n) || (r.emails||[]).includes(e);
+        return on ? 'Member' : 'Guest';
+      }
+    }catch(_){}
+    // Fallback to UI selection if roster unknown
+    const sel = $('#j-mtype'); return sel ? sel.value : 'Guest';
+  }
+
+  function applyTypeAndCost(){
+    const p = window.CURRENT_JOIN_POT;
+    if (!p) return;
+    const eff = computeEffectiveType();
+    const sel = $('#j-mtype'); if (sel) sel.value = eff || sel.value;
+
+    const amt = (sel.value === 'Member') ? Number(p.buyin_member||0) : Number(p.buyin_guest||0);
+    const costEl = $('#j-cost'); if (costEl) costEl.textContent = 'Cost: $' + Number(amt||0).toFixed(2);
+
+    // If your flow uses a hidden amount field for the server, try to set it too
+    const hiddenAmt = document.getElementById('j-amount') || document.querySelector('input[name="joinAmount"]');
+    if (hiddenAmt){ hiddenAmt.value = String(amt.toFixed ? amt.toFixed(2) : amt); }
+    return amt;
+  }
+
+  // Wrap joinPot to enforce type/cost before creating entry
+  if (typeof window.joinPot === 'function'){
+    const __orig_joinPot = window.joinPot;
+    window.joinPot = async function(){
+      applyTypeAndCost();
+      return await __orig_joinPot.apply(this, arguments);
+    };
+  }
+
+  // Wrap Stripe checkout: block when not Stripe, otherwise enforce type/cost
+  const __orig_startJoinCheckout = window.startJoinCheckout || function(){ console.warn('startJoinCheckout missing'); };
+  window.startJoinCheckout = async function(){
+    const method = $('#j-paytype') ? $('#j-paytype').value : '';
+    if (lower(method) !== 'stripe'){
+      // Never go to Stripe for non-Stripe methods
+      if (typeof window.joinPot === 'function') { return await window.joinPot(); }
+      return;
+    }
+    applyTypeAndCost();
+    // If your code computes amount elsewhere, try to trigger it
+    safe(()=>window.updateJoinCost && window.updateJoinCost());
+    safe(()=>window.computeJoinAmount && window.computeJoinAmount());
+    return await __orig_startJoinCheckout.apply(this, arguments);
+  };
+
+  // Router on the Join button to call the correct path
+  (function bindJoinButton(){
+    let busy = false;
+    function onJoinClick(e){
+      if (e){ e.preventDefault(); e.stopPropagation(); }
+      if (busy) return; busy = true; setTimeout(()=>busy=false, 1200);
+      const method = $('#j-paytype') ? $('#j-paytype').value : '';
+      if (lower(method) === 'stripe'){
+        return window.startJoinCheckout();
+      } else {
+        return window.joinPot && window.joinPot();
+      }
+    }
+    function attach(){
+      const btn = document.getElementById('btn-join');
+      if (!btn || btn.__joinV5) return;
+      const fresh = btn.cloneNode(true);
+      btn.parentNode.replaceChild(fresh, btn);
+      fresh.__joinV5 = true;
+      fresh.addEventListener('click', onJoinClick, true);
+    }
+    if (document.readyState === 'loading'){ document.addEventListener('DOMContentLoaded', attach); } else { attach(); }
+    try{ new MutationObserver(attach).observe(document.documentElement || document.body, {childList:true, subtree:true}); }catch(_){}
+  })();
+
+  // Keep cost correct when fields change
+  ['#j-fname','#j-lname','#j-email','#j-mtype','#j-paytype'].forEach(sel=>{
+    const el = $(sel);
+    if (!el || el.__costV5) return;
+    el.__costV5 = true;
+    el.addEventListener('input', applyTypeAndCost);
+    el.addEventListener('change', applyTypeAndCost);
+  });
+  // Initial compute
+  applyTypeAndCost();
+})();
+/* ===== /JOIN & COST HARDENING v5 =========================================== */
