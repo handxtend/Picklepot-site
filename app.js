@@ -131,3 +131,39 @@ try {
   }
 } catch (_){}
 
+
+
+
+// === Active Tournaments watchdog (auto-retry + graceful empty state) ===
+(function(){
+  function $ (s, el){ return (el||document).querySelector(s); }
+  var attempts = 0;
+  function tryBind(reason){
+    attempts++;
+    console.log('[pots] ensure attachActivePotsListener()', {attempts, reason});
+    try { typeof attachActivePotsListener === 'function' && attachActivePotsListener(); } catch(e){ console.error(e); }
+  }
+  function setLoadingState(){
+    var sel = $('#j-pot-select');
+    if (sel && !sel.options.length) sel.innerHTML = '<option>Loading…</option>';
+  }
+  function maybeShowEmpty(){
+    var sel = $('#j-pot-select');
+    if (!sel) return;
+    var hasReal = (sel.options.length && sel.options[0].value && sel.options[0].value !== 'Loading…');
+    if (!hasReal){
+      sel.innerHTML = '<option disabled>No open tournaments found. Click Refresh.</option>';
+    }
+  }
+  // initial loading placeholder
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setLoadingState);
+  } else {
+    setLoadingState();
+  }
+  // retry sequence
+  setTimeout(function(){ tryBind('t+1200ms'); }, 1200);
+  setTimeout(function(){ tryBind('t+3500ms'); }, 3500);
+  setTimeout(function(){ maybeShowEmpty(); }, 6000);
+})();
+
