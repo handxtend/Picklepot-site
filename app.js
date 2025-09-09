@@ -2213,7 +2213,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
-    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
+    btn.addEventListener('click', function(e){ e.preventDefault(); onCreateClick(e);});
     btn.__stripeBound = true;
   }
 });
@@ -2268,10 +2268,8 @@ function onCreateClick(e){
   } catch(err){
     console.error('[Create] error', err);
   }
-} else {
-      return startCreatePotCheckout();
-    }
-  }catch(err){ console.error('Create click failed', err); }
+}
+  } catch(err){ console.error('Create click failed', err); }
 }
 
 
@@ -2672,9 +2670,9 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
       btnCreate.addEventListener('click', function(ev){
         // allow existing handlers, but provide a fallback if none are bound
         try{
-          if (typeof startCreatePotCheckout === 'function') return startCreatePotCheckout();
           if (typeof onCreateClick === 'function') return onCreateClick();
-        }catch(e){ console.error('Create Pot click error:', e); }
+if (typeof startCreatePotCheckout === 'function') return startCreatePotCheckout();
+}catch(e){ console.error('Create Pot click error:', e); }
       });
       btnCreate.__bound = true;
     }
