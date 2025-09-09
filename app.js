@@ -99,9 +99,8 @@ async function loadOrganizerSubStatus(){
     const active = (d.status === 'active') && (!!untilMs ? untilMs > now : true);
     ORG_SUB = { active, until: untilMs };
     return ORG_SUB;
-  }catch(err){
-    console.error('[Sub] Failed to load organizer subscription status', err);
-    ORG_SUB = { active:false, until:null };
+  }
+;
     return ORG_SUB;
   }
 }
@@ -319,10 +318,8 @@ document.addEventListener('DOMContentLoaded', () => {
         try{
           await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
             .collection('entries').doc(entryId).update({ paid: t.checked });
-        }catch(err){
-          console.error(err); alert('Failed to update paid status.'); t.checked = !t.checked;
         }
-      }
+}
     });
     tbody.addEventListener('click', async (e)=>{
       const btn = e.target.closest('button[data-act]');
@@ -335,16 +332,16 @@ document.addEventListener('DOMContentLoaded', () => {
         try{
           await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
             .collection('entries').doc(entryId).delete();
-        }catch(err){ console.error(err); alert('Failed to remove registration.'); }
-        return;
+        }
+return;
       }
       if (act === 'hold'){
         const next = btn.getAttribute('data-next');
         try{
           await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
             .collection('entries').doc(entryId).update({ status: next });
-        }catch(err){ console.error(err); alert('Failed to update status.'); }
-        return;
+        }
+return;
       }
       if (act === 'move'){ openMoveDialog(entryId); return; }
       if (act === 'resend'){ resendConfirmation(entryId); return; }
@@ -1135,7 +1132,7 @@ async function moveEntry(entryId, toPotId){
     await toRef.add(data);
     await db.collection('pots').doc(fromPotId).collection('entries').doc(entryId).delete();
     alert('Registration moved.');
-  }catch(err){ console.error(err); alert('Failed to move registration.'); }
+  }
 }
 
 async function resendConfirmation(entryId){
@@ -1164,7 +1161,7 @@ PiCo Pickle Pot`;
       message: { subject, text }
     });
     alert('Resend queued.');
-  }catch(err){ console.error(err); alert('Failed to queue resend.'); }
+  }
 }
 
 /* ---------- Rotating Banners ---------- */
@@ -2213,7 +2210,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
 document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpireNoteVisibility(); }catch(_){};
   var btn = document.getElementById('btn-create');
   if (btn && !btn.__stripeBound){
-    btn.addEventListener('click', function(e){ e.preventDefault(); startCreatePotCheckout(); });
+    btn.addEventListener('click', function(e){ e.preventDefault(); onCreateClick(e);});
     btn.__stripeBound = true;
   }
 });
@@ -2262,16 +2259,17 @@ function onCreateClick(e){
   try {
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
       return createPotDirect();
-    } else {
-      return startCreatePotCheckout();
     }
-  } catch(err){
-    console.error('[Create] error', err);
-  }
-} else {
-      return startCreatePotCheckout();
+}
+}
+, 1200); }
+  try {
+    if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
+      return createPotDirect();
     }
-  }catch(err){ console.error('Create click failed', err); }
+}
+}
+}
 }
 
 
@@ -2706,17 +2704,17 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
         btn.addEventListener('click', function(e){
           try{ e.preventDefault(); }catch(_){}
           try{ e.stopPropagation(); }catch(_){}
-          try{ if (window.joinPot) window.joinPot(); }catch(err){ console.error('joinPot call failed', err); }
-          return false;
+          try{ if (window.joinPot) window.joinPot(); }
+return false;
         }, false);
         btn.onclick = function(e){ try{ e && e.preventDefault && e.preventDefault(); }catch(_){}
-          try{ if (window.joinPot) window.joinPot(); }catch(err){ console.error('joinPot call failed', err); }
-          return false; };
+          try{ if (window.joinPot) window.joinPot(); }
+return false; };
         btn.dataset._joinBound = '1';
         console.debug('[join] bound to', btn);
         return true;
-      }catch(err){ console.error('bindJoin error', err); return false; }
-    }
+      }
+}
     function tryBind(){ bindJoin(); }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', tryBind);
@@ -2727,7 +2725,7 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
       var mo = new MutationObserver(function(){ bindJoin(); });
       mo.observe(document.documentElement, {childList:true, subtree:true});
     }catch(_){}
-  }catch(err){ console.error('join binder bootstrap error', err); }
+  }
 })();
 
 
