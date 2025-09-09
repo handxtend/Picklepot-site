@@ -2721,3 +2721,96 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
     }catch(_){}
   }catch(err){ console.error('join binder bootstrap error', err); }
 })();
+
+
+
+/* ==== LOCKED CREATE POT POLICY (do not remove) ===============================
+   Guarantees:
+   - Admin -> createPotDirect() immediately (no Stripe)
+   - Organizer -> startCreatePotCheckout()
+   - Create button (#btn-create) always routed through onCreateClick(e)
+   - Prevents accidental overrides of onCreateClick / startCreatePotCheckout binder
+   ============================================================================ */
+(function(){
+  function ensureFn(name, fn){
+    try {
+      Object.defineProperty(window, name, {
+        value: fn,
+        writable: false,
+        configurable: false,
+        enumerable: true
+      });
+    } catch(e){
+      // If already defined, re-define only if different
+      try{
+        if (window[name] !== fn){
+          // Attempt to redefine once
+          delete window[name];
+          Object.defineProperty(window, name, {
+            value: fn,
+            writable: false,
+            configurable: false,
+            enumerable: true
+          });
+        }
+      }catch(_){}
+    }
+  }
+
+  // Canonical router
+  function __locked_onCreateClick(e){
+    if (e && e.preventDefault) e.preventDefault();
+    var btn = document.getElementById('btn-create');
+    if (btn && btn.__creating) return;
+    if (btn) { btn.__creating = true; setTimeout(function(){ btn.__creating = false; }, 1200); }
+    try {
+      if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
+        return createPotDirect();
+      } else {
+        return startCreatePotCheckout();
+      }
+    } catch(err){
+      console.error('[Locked Create] error', err);
+    }
+  }
+
+  // Freeze the router in place
+  ensureFn('onCreateClick', __locked_onCreateClick);
+
+  // Wrap startCreatePotCheckout so admin always bypasses, even if called directly
+  var __orig_startCreatePotCheckout = window.startCreatePotCheckout || function(){ console.warn('startCreatePotCheckout missing'); };
+  function __locked_startCreatePotCheckout(){
+    if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
+      return createPotDirect();
+    }
+    return __orig_startCreatePotCheckout.apply(this, arguments);
+  }
+  ensureFn('startCreatePotCheckout', __locked_startCreatePotCheckout);
+
+  // One true binder
+  function bindCreateButton(){
+    var el = document.getElementById('btn-create');
+    if (!el || el.__lockedBound) return;
+    var fresh = el.cloneNode(true);
+    el.parentNode.replaceChild(fresh, el);
+    fresh.__lockedBound = true;
+    fresh.addEventListener('click', function(e){ e.preventDefault(); window.onCreateClick(e); });
+  }
+
+  // Bind now and keep it bound
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', bindCreateButton);
+  } else {
+    bindCreateButton();
+  }
+
+  // Re-bind if the button is replaced/changed later
+  try {
+    var mo = new MutationObserver(function(muts){ bindCreateButton(); });
+    mo.observe(document.documentElement || document.body, { childList: true, subtree: true });
+  } catch(_){}
+
+  // Periodic safeguard (in case some script modifies it after initial bind)
+  setInterval(bindCreateButton, 5000);
+})();
+/* ==== /LOCKED CREATE POT POLICY ============================================ */
