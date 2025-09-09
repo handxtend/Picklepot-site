@@ -3022,3 +3022,144 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
   }catch(_){}
 })();
 /* ================== /MEMBER ROSTER CSV ===================================== */
+
+
+
+/* ===== ROSTER UX v2: works before pot exists; auto-attaches later ============ */
+(function(){
+  const PENDING_KEY = 'ROSTER_PENDING';
+
+  function $(s, el=document){ return el.querySelector(s); }
+  function clean(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+
+  function savePendingRoster(obj){
+    try{ localStorage.setItem(PENDING_KEY, JSON.stringify(obj||{})); }catch(_){}
+  }
+  function loadPendingRoster(){
+    try{ const raw = localStorage.getItem(PENDING_KEY); return raw ? JSON.parse(raw) : null; }catch(_){ return null; }
+  }
+  function clearPendingRoster(){ try{ localStorage.removeItem(PENDING_KEY); }catch(_){} }
+
+  // Attach pending roster to a pot if pot has none yet
+  function tryAttachPendingToPot(potId, hasExisting){
+    const pending = loadPendingRoster();
+    if (!pending) return false;
+    if (hasExisting) return false;
+    try {
+      // Reuse the same helpers from the roster module if present
+      if (typeof saveRoster === 'function'){
+        saveRoster(potId, pending);
+        clearPendingRoster();
+        console.log('[Roster] Pending roster attached to pot', potId);
+        const note = document.getElementById('roster-status');
+        if (note){ note.textContent = 'Roster attached to this tournament.'; }
+        return True;
+      }
+    } catch(_){}
+    return false;
+  }
+
+  // Bind generic file picker for "Member Roster (CSV)" in Create section
+  function bindGenericRosterPicker(){
+    // Prefer known IDs first
+    let input = document.getElementById('roster-csv') 
+             || document.getElementById('j-roster')
+             || document.querySelector('input[type="file"][data-roster]')
+             || document.querySelector('input[type="file"][name="roster"]');
+    if (!input){
+      // Fallback: find a file input near label text "Member Roster"
+      const labels = Array.from(document.querySelectorAll('label,div,span'))
+        .filter(n => /member\s+roster/i.test(n.textContent||''));
+      for (const lbl of labels){
+        const candidate = lbl.parentElement && lbl.parentElement.querySelector('input[type="file"]');
+        if (candidate){ input = candidate; break; }
+      }
+    }
+    if (!input || input.__rosterGenericBound) return;
+    input.__rosterGenericBound = true;
+
+    // Add a small status text if none exists
+    if (!document.getElementById('roster-status')){
+      const s = document.createElement('small');
+      s.id = 'roster-status';
+      s.style.marginLeft = '8px';
+      s.textContent = 'No roster loaded';
+      input.parentElement && input.parentElement.appendChild(s);
+    }
+
+    input.addEventListener('change', function(){
+      const file = this.files && this.files[0];
+      if (!file){ alert('Select a roster CSV file.'); return; }
+      const reader = new FileReader();
+      reader.onload = function(){
+        try{
+          const parsed = (typeof parseCSV==='function') ? parseCSV(String(reader.result||'')) : {names:[],emails:[]};
+          // If a pot is selected in Join section, attach immediately. Else save as pending.
+          const potSel = document.getElementById('j-pot-select');
+          const currentPotId = potSel && potSel.value ? potSel.value : null;
+          if (currentPotId){
+            if (typeof saveRoster === 'function'){ saveRoster(currentPotId, parsed); }
+            const note = document.getElementById('roster-status'); if (note) note.textContent = 'Roster loaded for selected tournament.';
+          } else {
+            savePendingRoster(parsed);
+            const note = document.getElementById('roster-status'); if (note) note.textContent = 'Roster loaded (pending). It will attach when a tournament is selected/created.';
+          }
+          try { if (typeof updateJoinCost === 'function') updateJoinCost(); } catch(_){}
+        }catch(err){
+          console.error('[Roster v2] parse failed', err);
+          alert('Could not parse roster CSV. Ensure it has columns: First, Last, (optional) Email.');
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  // Hook pot selection to attach pending roster if none exists yet
+  const _origOnJoinPotChange = window.onJoinPotChange || function(){};
+  window.onJoinPotChange = function(){
+    try {
+      const pot = window.CURRENT_JOIN_POT;
+      if (pot){
+        const r = (typeof loadRoster==='function') ? loadRoster(pot.id) : {names:[],emails:[]};
+        const hasExisting = (r.names && r.names.length) || (r.emails && r.emails.length);
+        tryAttachPendingToPot(pot.id, !!hasExisting);
+      }
+    } catch(_){}
+    try { _origOnJoinPotChange(); } catch(_){}
+  };
+
+  // Wrap admin direct-create to attach pending when we have the new pot id
+  if (typeof createPotDirect === 'function'){
+    const __orig_createPotDirect = createPotDirect;
+    window.createPotDirect = async function(){
+      const result = await __orig_createPotDirect.apply(this, arguments);
+      try {
+        const pending = loadPendingRoster();
+        if (pending){
+          // best effort: look for pot id stored globally or in result
+          const newPotId = window.__lastCreatedPotId || (result && (result.id || result.potId));
+          if (newPotId && typeof saveRoster === 'function'){
+            saveRoster(newPotId, pending);
+            clearPendingRoster();
+            console.log('[Roster] Pending roster attached to newly created pot', newPotId);
+          }
+        }
+      } catch(e){ console.warn('[Roster] could not attach to new pot', e); }
+      return result;
+    }
+  }
+
+  function boot(){
+    bindGenericRosterPicker();
+  }
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+  try {
+    const mo = new MutationObserver(function(){ boot(); });
+    mo.observe(document.documentElement || document.body, { childList:true, subtree:true });
+  } catch(_){}
+})();
+/* ===== /ROSTER UX v2 ======================================================== */
