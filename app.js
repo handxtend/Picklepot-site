@@ -102,3 +102,32 @@
   })();
 })();
 /* ===== /Admin/Organizer type toggle ======================================== */
+
+// === Ensure Active Tournaments list populates reliably ===
+if (typeof document !== 'undefined') {
+  document.addEventListener('DOMContentLoaded', function() {
+    try {
+      if (typeof attachActivePotsListener === 'function') { attachActivePotsListener(); }
+      // Optional UX: show "Loading..." if list is empty initially
+      try {
+        var sel = document.getElementById('j-pot-select');
+        if (sel && !sel.options.length) sel.innerHTML = '<option>Loading…</option>';
+      } catch (_){}
+    } catch (e) { console && console.error && console.error('[boot] attachActivePotsListener failed', e); }
+  });
+}
+// Retry once when Firebase auth state settles (covers delayed init)
+try {
+  var __auth = (window.firebase && firebase.auth) ? firebase.auth() : null;
+  if (__auth && !window.__potsBoundOnce) {
+    __auth.onAuthStateChanged(function() {
+      if (!window.__potsBoundOnce) {
+        window.__potsBoundOnce = true;
+        try {
+          if (typeof attachActivePotsListener === 'function') { attachActivePotsListener(); }
+        } catch (e) { console && console.error && console.error('[auth] attachActivePotsListener failed', e); }
+      }
+    });
+  }
+} catch (_){}
+
