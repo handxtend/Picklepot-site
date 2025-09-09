@@ -2258,27 +2258,17 @@ function onCreateClick(e){
   if (e && e.preventDefault) e.preventDefault();
   var btn = document.getElementById('btn-create');
   if (btn && btn.__creating) return;
-  if (btn) {
-    btn.__creating = true;
-    setTimeout(function(){ btn.__creating = false; }, 1200);
-  }
+  if (btn) { btn.__creating = true; setTimeout(function(){ btn.__creating = false; }, 1200); }
   try {
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
-      // Admin: create pot immediately, no Stripe
       return createPotDirect();
     } else {
-      // Organizer: redirect to Stripe
       return startCreatePotCheckout();
     }
-  } } else {
-      return startCreatePotCheckout();
-    }
-  }catch(err){ console.error('Create click failed', err); }
-}
-
-
-
-async function createPotDirect(){
+  } catch(err){
+    console.error('[Create] error', err);
+  }
+}async function createPotDirect(){
   if (window.__creatingPotDirect) return; window.__creatingPotDirect = true; setTimeout(function(){ window.__creatingPotDirect=false; }, 1500);
 
   try{
