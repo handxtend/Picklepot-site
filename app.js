@@ -2814,3 +2814,211 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
   setInterval(bindCreateButton, 5000);
 })();
 /* ==== /LOCKED CREATE POT POLICY ============================================ */
+
+
+
+/* ================== MEMBER ROSTER CSV — AUTO MEMBER/GUEST ===================
+   Flow:
+   - When a roster CSV is uploaded, we parse and store it per-pot (localStorage).
+   - On Join: if name/email is on the roster for the selected pot, set Member.
+              otherwise set Guest. This overrides manual selection.
+   - After each join, the Join page refreshes and the rule persists (storage).
+   CSV accepted columns (case-insensitive): 
+     First, Last, Name, Email (any subset works; Name can be "First Last").
+============================================================================= */
+
+(function(){
+  const KEY_PREFIX = 'ROSTER_POT_';
+
+  function $(s, el=document){ return el.querySelector(s); }
+  function clean(s){ return (s||'').replace(/\s+/g,' ').trim(); }
+  function normNameFromParts(first, last){
+    const f = clean(first).toLowerCase();
+    const l = clean(last).toLowerCase();
+    return clean((f + ' ' + l).strip ? (f + ' ' + l).strip() : (f + ' ' + l)).trim();
+  }
+  function normAnyName(s){
+    return clean(String(s||'').toLowerCase());
+  }
+
+  function storageKey(potId){ return KEY_PREFIX + String(potId||'').trim(); }
+
+  function saveRoster(potId, data){
+    try{
+      localStorage.setItem(storageKey(potId), JSON.stringify(data || {names:[], emails:[]}));
+    }catch(_){}
+  }
+  function loadRoster(potId){
+    try{
+      const raw = localStorage.getItem(storageKey(potId));
+      if(!raw) return {names:[], emails:[]};
+      const obj = JSON.parse(raw);
+      if (!obj || !Array.isArray(obj.names) || !Array.isArray(obj.emails)) return {names:[], emails:[]};
+      return obj;
+    }catch(_){ return {names:[], emails:[]}; }
+  }
+
+  function parseCSV(text){
+    const lines = String(text||'').split(/\r?\n/).filter(Boolean);
+    if (!lines.length) return {names:[], emails:[]};
+
+    // Split CSV rows (simple: commas; handles quoted commas minimally)
+    function splitCSVRow(row){
+      const out = []; let cur = ''; let inQ = false;
+      for (let i=0;i<row.length;i++){
+        const ch = row[i];
+        if (ch === '"'){ inQ = !inQ; continue; }
+        if (ch === ',' && !inQ){ out.push(cur); cur=''; continue; }
+        cur += ch;
+      }
+      out.push(cur);
+      return out;
+    }
+
+    const header = splitCSVRow(lines[0]).map(h=>clean(h).toLowerCase());
+    const idx = {
+      first: header.indexOf('first'),
+      last:  header.indexOf('last'),
+      name:  header.indexOf('name'),
+      email: header.indexOf('email')
+    };
+
+    const names = new Set();
+    const emails = new Set();
+
+    for (let i=1;i<lines.length;i++){
+      const cols = splitCSVRow(lines[i]);
+      let nm = '';
+      if (idx.name >= 0 && cols[idx.name]) nm = normAnyName(cols[idx.name]);
+      else {
+        const f = idx.first >= 0 ? cols[idx.first] : '';
+        const l = idx.last  >= 0 ? cols[idx.last]  : '';
+        nm = normAnyName((clean(f) + ' ' + clean(l)).trim());
+      }
+      if (nm) names.add(nm);
+      if (idx.email >= 0 && cols[idx.email]) emails.add(clean(cols[idx.email]).toLowerCase());
+    }
+    return { names: Array.from(names), emails: Array.from(emails) };
+  }
+
+  // Bind CSV upload input for roster
+  function bindRosterUpload(){
+    const potSel = $('#j-pot-select');
+    if (!potSel) return;
+
+    // Support multiple possible input IDs/attributes
+    const input = document.getElementById('roster-csv') 
+               || document.getElementById('j-roster')
+               || document.querySelector('input[type="file"][data-roster]')
+               || document.querySelector('input[type="file"][name="roster"]');
+    if (!input || input.__rosterBound) return;
+
+    input.__rosterBound = true;
+    input.addEventListener('change', function(){
+      const file = this.files && this.files[0];
+      if (!file){ alert('Select a roster CSV file.'); return; }
+      const reader = new FileReader();
+      reader.onload = function(){
+        try{
+          const potId = potSel.value || ($('#v-pot')?.value || '');
+          if(!potId){ alert('Select a tournament first, then upload the roster.'); return; }
+          const parsed = parseCSV(String(reader.result||''));
+          saveRoster(potId, parsed);
+          alert('Roster loaded for this tournament. Members will be auto-detected on join.');
+          // Re-evaluate UI (cost & type)
+          try { evaluateJoinEligibility(); } catch(_){}
+          try { updateJoinCost(); } catch(_){}
+        }catch(err){
+          console.error('[Roster] parse failed', err);
+          alert('Could not parse roster CSV. Ensure it has columns: First, Last, (optional) Email.');
+        }
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  // Decide if current player is on roster
+  function isOnRoster(potId, name, email){
+    const r = loadRoster(potId);
+    const n = normAnyName(name);
+    const e = clean(email||'').toLowerCase();
+    return (n && r.names.includes(n)) || (e && r.emails.includes(e));
+  }
+
+  // Override cost calc to use auto member/guest
+  const _origUpdateJoinCost = window.updateJoinCost || function(){};
+  window.updateJoinCost = function(){
+    const p = window.CURRENT_JOIN_POT;
+    if (!p){ try{_origUpdateJoinCost();}catch(_){ } return; }
+
+    const fname = $('#j-fname')?.value || '';
+    const lname = $('#j-lname')?.value || '';
+    const email = $('#j-email')?.value || '';
+    const full  = clean(fname + ' ' + lname);
+    const potId = p.id;
+
+    let autoType = 'Guest';
+    try {
+      autoType = isOnRoster(potId, full, email) ? 'Member' : 'Guest';
+    } catch(_){}
+
+    // Force the select to reflect autoType
+    try { const sel = $('#j-mtype'); if (sel) sel.value = autoType; } catch(_){}
+
+    // Show cost based on autoType
+    const amt = (autoType==='Member' ? Number(p.buyin_member||0) : Number(p.buyin_guest||0));
+    const costEl = $('#j-cost');
+    if (costEl) costEl.textContent = 'Cost: $' + Number(amt||0).toFixed(2);
+  };
+
+  // Override join to enforce auto member/guest + refresh after join
+  const _origJoinPot = window.joinPot;
+  window.joinPot = async function(){
+    const p = window.CURRENT_JOIN_POT;
+    const msg = $('#join-msg');
+    if (!p){
+      if (msg) msg.textContent = 'Select a pot to join.';
+      return;
+    }
+    const fname = $('#j-fname')?.value.trim() || '';
+    const lname = $('#j-lname')?.value.trim() || '';
+    const email = $('#j-email')?.value.trim() || '';
+    const full  = clean(fname + ' ' + lname);
+
+    // Determine auto type and force it in the UI
+    const autoType = isOnRoster(p.id, full, email) ? 'Member' : 'Guest';
+    try { const sel = $('#j-mtype'); if (sel) sel.value = autoType; } catch(_){}
+
+    // Persist the chosen pay method for UX continuity
+    try{
+      const paySel = $('#j-paytype'); 
+      if (paySel){ window.__joinPayMethod = paySel.value; sessionStorage.setItem('JOIN_PAY_METHOD', String(paySel.value||'')); }
+    }catch(_){}
+
+    // Call through to original flow (it reads #j-mtype and computes cost)
+    try{
+      await _origJoinPot();
+    }catch(e){
+      console.error('[Roster] join wrapper error', e);
+    }
+
+    // If we didn’t go to Stripe (i.e., stayed on page), refresh join pane
+    try {
+      const pay = $('#j-paytype')?.value || '';
+      if (pay && pay !== 'Stripe'){
+        // quick refresh of totals and selection while keeping roster active
+        if (typeof onJoinPotChange === 'function') onJoinPotChange();
+      }
+    }catch(_){}
+  };
+
+  // Bind on DOM ready and also after mutations
+  document.addEventListener('DOMContentLoaded', function(){
+    bindRosterUpload();
+  });
+  try{
+    const mo = new MutationObserver(function(){ bindRosterUpload(); });
+    mo.observe(document.documentElement || document.body, { childList:true, subtree:true });
+  }catch(_){}
+})();
+/* ================== /MEMBER ROSTER CSV ===================================== */
