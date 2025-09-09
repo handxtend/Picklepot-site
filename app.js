@@ -2268,9 +2268,9 @@ function onCreateClick(e){
   } catch(err){
     console.error('[Create] error', err);
   }
-}
-   catch(err){ console.error('Create click failed', err); }
 
+   catch(err){ console.error('Create click failed', err); 
+}
 
 
 
