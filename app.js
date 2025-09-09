@@ -2258,18 +2258,22 @@ function onCreateClick(e){
   if (e && e.preventDefault) e.preventDefault();
   var btn = document.getElementById('btn-create');
   if (btn && btn.__creating) return;
-  if (btn) { btn.__creating = true; setTimeout(function(){ btn.__creating = false; }, 1200); }
+  if (btn) {
+    btn.__creating = true;
+    setTimeout(function(){ btn.__creating = false; }, 1200);
+  }
   try {
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
+      // Admin: create pot immediately, no Stripe
       return createPotDirect();
     } else {
+      // Organizer: redirect to Stripe
       return startCreatePotCheckout();
     }
-  } catch(err){
-    console.error('[Create] error', err);
-  }
-
-   catch(err){ console.error('Create click failed', err); 
+  } } else {
+      return startCreatePotCheckout();
+    }
+  }catch(err){ console.error('Create click failed', err); }
 }
 
 
@@ -2670,9 +2674,9 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
       btnCreate.addEventListener('click', function(ev){
         // allow existing handlers, but provide a fallback if none are bound
         try{
+          if (typeof startCreatePotCheckout === 'function') return startCreatePotCheckout();
           if (typeof onCreateClick === 'function') return onCreateClick();
-if (typeof startCreatePotCheckout === 'function') return startCreatePotCheckout();
-}catch(e){ console.error('Create Pot click error:', e); }
+        }catch(e){ console.error('Create Pot click error:', e); }
       });
       btnCreate.__bound = true;
     }
