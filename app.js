@@ -48,7 +48,14 @@ function clearClientSession() {
 /* Update “Signed In/Out” label and buttons */
 
 /* ===== Create Expiry Note Visibility ===== */
-function updateCreateExpireNoteVisibility(){ try{ var note=document.getElementById('create-expire-note'); if(!note) return; note.style.display=''; }catch(_){}}
+function updateCreateExpireNoteVisibility(){
+  try{
+    var note = document.getElementById('create-expire-note');
+    if (!note) return;
+    var admin = (typeof isSiteAdmin==='function' && isSiteAdmin());
+    note.style.display = admin ? 'none' : '';
+  }catch(_){}
+}
 try{ window.updateCreateExpireNoteVisibility = updateCreateExpireNoteVisibility; }catch(_){}
 
 document.addEventListener('DOMContentLoaded', initAuthGate);
@@ -214,7 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_btn){
       const _clone = _btn.cloneNode(true);
       _btn.parentNode.replaceChild(_clone, _btn);
-      _clone.addEventListener('click', onCreateClick);
+      _clone.addEventListener('click', onCreateClick); window.__createBound = true;
     }
   }catch(_){}
   document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
@@ -250,7 +257,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
-  $('#btn-create').addEventListener('click', onCreateClick);
+  if (!window.__createBound){ $('#btn-create').addEventListener('click', onCreateClick); window.__createBound = true; }
 (function(){ 
   const old = document.getElementById('btn-join');
   if (old){
@@ -362,10 +369,10 @@ function getPaymentMethods(p){
 }
 
 /* ---------- Create Pot ---------- */
-function createPot(){ return (async function(){
+async function createPot(){
   // Route to Stripe checkout (draft first)
   return startCreatePotCheckout();
-})(); }
+}
 /* ---------- Active list / Totals ---------- */
 let JOIN_POTS_CACHE = [];
 let JOIN_POTS_SUB = null;
@@ -659,7 +666,7 @@ function updatePaymentNotes(){
 }
 
 /* ---------- Join (Stripe + others) ---------- */
-function joinPot(){ return (async function(){
+async function joinPot(){
   const p = CURRENT_JOIN_POT; 
   const btn = $('#btn-join');
   const msg = $('#join-msg');
@@ -795,10 +802,10 @@ function joinPot(){ return (async function(){
     console.error('[JOIN] Unexpected failure:', e);
     fail('Join failed (check Firebase rules and your network).');
   }
-})(); }
+}
 
 /* ---------- Pot Detail loader + registrations subscription ---------- */
-function onLoadPotClicked(){ return (async function(){
+async function onLoadPotClicked(){
   let id = ($('#v-pot')?.value || '').trim();
   if(!id){ id = $('#j-pot-select')?.value || ''; }
   if(!id){ alert('Select an active tournament or enter a Pot ID.'); return; }
@@ -826,7 +833,7 @@ function onLoadPotClicked(){ return (async function(){
 
   subscribeDetailEntries(pot.id);
   if ($('#pot-edit-form')?.style.display === '') prefillEditForm(pot);
-})(); }
+}
 
 
 /* ---------- Organizer Contact display ---------- */
@@ -972,7 +979,7 @@ function prefillEditForm(pot){
   $('#f-status').value = pot.status || 'open';
 }
 
-function savePotEdits(){ return (async function(){
+async function savePotEdits(){
   if(!requireAdmin()) return;
   try{
     const ref = db.collection('pots').doc(CURRENT_DETAIL_POT.id);
@@ -1029,18 +1036,18 @@ function savePotEdits(){ return (async function(){
     alert('Saved.');
     onLoadPotClicked();
   }catch(e){ console.error(e); alert('Failed to save changes.'); }
-})(); }
+}
 
-function updatePotStatus(newStatus){ return (async function(){
+async function updatePotStatus(newStatus){
   if(!requireAdmin()) return;
   try{
     await db.collection('pots').doc(CURRENT_DETAIL_POT.id).update({ status: newStatus });
     alert(`Status updated to ${newStatus}.`);
     onLoadPotClicked();
   }catch(e){ console.error(e); alert('Failed to update status.'); }
-})(); }
+}
 
-function deleteCurrentPot(){ return (async function(){
+async function deleteCurrentPot(){
   if(!requireAdmin()) return;
   const go = confirm('This deletes the pot document. Continue?');
   if(!go) return;
@@ -1051,9 +1058,9 @@ function deleteCurrentPot(){ return (async function(){
     $('#pot-info').style.display = 'none';
     if (db) attachActivePotsListener();
   }catch(e){ console.error(e); alert('Failed to delete pot.'); }
-})(); }
+}
 
-function grantThisDeviceAdmin(){ return (async function(){
+async function grantThisDeviceAdmin(){
   if(!requireAdmin()) return;
   try{
     const uid = firebase.auth().currentUser?.uid;
@@ -1062,8 +1069,8 @@ function grantThisDeviceAdmin(){ return (async function(){
       .update({ adminUids: firebase.firestore.FieldValue.arrayUnion(uid) });
     alert('This device UID granted co-admin.');
   }catch(e){ console.error(e); alert('Failed to grant co-admin.'); }
-})(); }
-function revokeThisDeviceAdmin(){ return (async function(){
+}
+async function revokeThisDeviceAdmin(){
   if(!requireAdmin()) return;
   try{
     const uid = firebase.auth().currentUser?.uid;
@@ -1072,7 +1079,7 @@ function revokeThisDeviceAdmin(){ return (async function(){
       .update({ adminUids: firebase.firestore.FieldValue.arrayRemove(uid) });
     alert('This device UID revoked.');
   }catch(e){ console.error(e); alert('Failed to revoke co-admin.'); }
-})(); }
+}
 
 /* ---------- Move & Resend (unchanged) ---------- */
 function openMoveDialog(entryId){
@@ -1103,7 +1110,7 @@ function openMoveDialog(entryId){
   };
 }
 
-function moveEntry(entryId, toPotId){ return (async function(){
+async function moveEntry(entryId, toPotId){
   try{
     const fromPotId = CURRENT_DETAIL_POT.id;
     if(toPotId===fromPotId){ alert('Already in this tournament.'); return; }
@@ -1129,9 +1136,9 @@ function moveEntry(entryId, toPotId){ return (async function(){
     await db.collection('pots').doc(fromPotId).collection('entries').doc(entryId).delete();
     alert('Registration moved.');
   }catch(err){ console.error(err); alert('Failed to move registration.'); }
-})(); }
+}
 
-function resendConfirmation(entryId){ return (async function(){
+async function resendConfirmation(entryId){
   try{
     const entry = LAST_DETAIL_ENTRIES.find(e=>e.id===entryId);
     if(!entry){ alert('Entry not found.'); return; }
@@ -1158,7 +1165,7 @@ PiCo Pickle Pot`;
     });
     alert('Resend queued.');
   }catch(err){ console.error(err); alert('Failed to queue resend.'); }
-})(); }
+}
 
 /* ---------- Rotating Banners ---------- */
 (function(){
@@ -1336,7 +1343,7 @@ function originForReturn(){
   return window.location.protocol === 'file:' ? 'https://pickleballcompete.com' : window.location.origin;
 }
 
-function onOrganizerSubscribe(){ return (async function(){
+async function onOrganizerSubscribe(){
   try{
     // Read selected plan -> explicit Stripe price_id
     const planSel = document.getElementById('org-plan');
@@ -1397,9 +1404,9 @@ function onOrganizerSubscribe(){ return (async function(){
     console.error('[Sub] Failed to start organizer subscription', e);
     alert('Could not start subscription.');
   }
-})(); }
+}
 
-function handleSubscriptionReturn(){ return (async function(){
+async function handleSubscriptionReturn(){
   try{
     const params = new URLSearchParams(window.location.search);
     const sub = params.get('sub');
@@ -1429,7 +1436,7 @@ function handleSubscriptionReturn(){ return (async function(){
       window.history.replaceState({}, '', url.toString());
     }catch(_){}
   }catch(e){ console.warn('[Sub] handleSubscriptionReturn error', e); }
-})(); }
+}
 
 
 /* ====== ORGANIZER VISIBILITY FIX (non-breaking) ====== */
@@ -2248,22 +2255,30 @@ function toggleAddressForLocation(){
 }
 
 function onCreateClick(e){
-  var e = arguments[0];
   if (e && e.preventDefault) e.preventDefault();
-  try{
+  var btn = document.getElementById('btn-create');
+  if (btn && btn.__creating) return;
+  if (btn) { btn.__creating = true; setTimeout(function(){ btn.__creating = false; }, 1200); }
+  try {
     if (typeof isSiteAdmin === 'function' && isSiteAdmin()){
       return createPotDirect();
     } else {
       return startCreatePotCheckout();
     }
-  }catch(err){
+  } catch(err){
     console.error('[Create] error', err);
   }
+} else {
+      return startCreatePotCheckout();
+    }
+  }catch(err){ console.error('Create click failed', err); }
 }
 
 
 
-function createPotDirect(){ return (async function(){
+async function createPotDirect(){
+  if (window.__creatingPotDirect) return; window.__creatingPotDirect = true; setTimeout(function(){ window.__creatingPotDirect=false; }, 1500);
+
   try{
     if(!db){ alert('Firebase is not initialized.'); return; }
     const uid = (window.firebase && firebase.auth && firebase.auth().currentUser) ? firebase.auth().currentUser.uid : null;
@@ -2341,7 +2356,7 @@ function createPotDirect(){ return (async function(){
     console.error('[CreateDirect] Failed:', e);
     alert('Failed to create pot.');
   }
-})(); }
+}
 
 
 
@@ -2430,7 +2445,9 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (typeof window.collectCreateDraft !== 'function') window.collectCreateDraft = collectCreateDraft;
 
-  function startCreatePotCheckout(){ return (async function(){
+  async function startCreatePotCheckout(){
+  if (typeof isSiteAdmin==='function' && isSiteAdmin()){ return createPotDirect(); }
+
     const btn = byId('btn-create');
     const msg = byId('create-msg') || byId('create-result');
     const setBusy=(on,t)=>{ if(btn){ btn.disabled=!!on; if(t) btn.textContent=t; } };
@@ -2456,7 +2473,7 @@ cancel_url: originHost() + '/cancel.html?flow=create',
       console.error('[CREATE]', e);
       show(e.message||String(e));
     }finally{ setBusy(false, 'Create Pot'); }
-  })(); }
+  }
   if (typeof window.startCreatePotCheckout !== 'function') window.startCreatePotCheckout = startCreatePotCheckout;
 
   async function startJoinCheckout(){
