@@ -3163,3 +3163,48 @@ document.addEventListener('DOMContentLoaded', function(){ try{ updateCreateExpir
   } catch(_){}
 })();
 /* ===== /ROSTER UX v2 ======================================================== */
+
+
+
+/* ===== JOIN CLICK ROUTER: Stripe vs Non-Stripe ============================== */
+(function(){
+  function $(s, el=document){ return el.querySelector(s); }
+
+  let __joining = false;
+  async function onJoinClickRoute(e){
+    if (e && e.preventDefault) e.preventDefault();
+    if (__joining) return;
+    __joining = true; setTimeout(function(){ __joining = false; }, 1500);
+
+    const method = $('#j-paytype') ? $('#j-paytype').value : '';
+    try{
+      if ((method||'').toLowerCase() === 'stripe'){
+        if (typeof startJoinCheckout === 'function') return startJoinCheckout();
+      } else {
+        if (typeof joinPot === 'function') return await joinPot(); // immediate register for Onsite/Zelle/CashApp
+      }
+    }catch(err){
+      console.error('[JOIN] route error', err);
+    }
+  }
+
+  function bindJoinButton(){
+    const btn = document.getElementById('btn-join');
+    if (!btn || btn.__joinRouted) return;
+    const fresh = btn.cloneNode(true);
+    btn.parentNode.replaceChild(fresh, btn);
+    fresh.__joinRouted = true;
+    fresh.addEventListener('click', onJoinClickRoute);
+  }
+
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', bindJoinButton);
+  } else {
+    bindJoinButton();
+  }
+  try{
+    const mo = new MutationObserver(function(){ bindJoinButton(); });
+    mo.observe(document.documentElement || document.body, { childList:true, subtree:true });
+  }catch(_){}
+})();
+/* ===== /JOIN CLICK ROUTER =================================================== */
