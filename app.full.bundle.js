@@ -93,9 +93,6 @@
         try{
           await db.collection('pots').doc(pot.id).collection('entries').doc(entryId)
             .update({ member_type: newType, applied_buyin: newBuyin });
-        } catch(err) {
-          console.error('Failed to update type', err);
-          alert('Failed to update Member/Guest.');
         }
 }
     }, true);
