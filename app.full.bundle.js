@@ -265,8 +265,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const potId = window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
             const val = String(t.value || '');
             const isMember = /^m/i.test(val);
-            const p = window.__activePot || {};
-            const buyin = isMember ? (p.buyin_member||0) : (p.buyin_guest||0);
+            const p = (window.CURRENT_DETAIL_POT || window.__activePot || {});
+            const buyin = isMember ? (Number(p.buyin_member)||0) : (Number(p.buyin_guest)||0);
             const cell = row ? row.querySelector('.buyin') : null;
             if (cell) {
               const fm = (typeof formatMoney==='function') ? formatMoney(buyin) : ('$' + Number(buyin).toFixed(2));
