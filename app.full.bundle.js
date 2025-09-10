@@ -318,7 +318,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const entryId = t.getAttribute('data-id');
         try{
           await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
-            .collection('entries').doc(entryId).update({ paid: t.checked 
+            .collection('entries').doc(entryId).update({ paid: t.checked });
+        }catch(err){
+          console.error(err); alert('Failed to update paid status.'); t.checked = !t.checked;
+        }
       } else if (t && t.matches('select.mtSel')){
         if(!requireAdmin()) return;
         const entryId = t.getAttribute('data-id');
@@ -337,11 +340,6 @@ document.addEventListener('DOMContentLoaded', () => {
           console.error(err); alert('Failed to update type/buy-in.'); 
         }
       }
-    });
-
-        }catch(err){
-          console.error(err); alert('Failed to update paid status.'); t.checked = !t.checked;
-        }
       }
     });
     tbody.addEventListener('click', async (e)=>{
