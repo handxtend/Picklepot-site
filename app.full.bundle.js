@@ -262,7 +262,7 @@ document.addEventListener('DOMContentLoaded', () => {
           try {
             const row = t.closest('[data-id]');
             const id = row ? row.getAttribute('data-id') : (t.dataset.id || '');
-            const potId = window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
+            const potId = (window.CURRENT_DETAIL_POT?.id) || window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
             const val = String(t.value || '');
             const isMember = /^m/i.test(val);
             const p = (window.CURRENT_DETAIL_POT || window.__activePot || {});
@@ -271,6 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cell) {
               const fm = (typeof formatMoney==='function') ? formatMoney(buyin) : ('$' + Number(buyin).toFixed(2));
               cell.textContent = fm;
+            if (typeof recalcPotTotals==='function') try{ recalcPotTotals(); }catch(_e){}
             }
             if (typeof db!=='undefined' && db && potId && id && db.collection) {
               await db.collection('pots').doc(potId).collection('regs').doc(id)
@@ -282,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
           try {
             const row = t.closest('[data-id]');
             const id = row ? row.getAttribute('data-id') : (t.dataset.id || '');
-            const potId = window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
+            const potId = (window.CURRENT_DETAIL_POT?.id) || window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
             if (typeof db!=='undefined' && db && potId && id && db.collection) {
               await db.collection('pots').doc(potId).collection('regs').doc(id)
                 .update({ paid: !!t.checked });
