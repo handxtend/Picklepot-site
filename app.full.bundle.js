@@ -262,12 +262,23 @@ document.addEventListener('DOMContentLoaded', () => {
           try {
             const row = t.closest('[data-id]');
             const id = row ? row.getAttribute('data-id') : (t.dataset.id || '');
-            const potId = (window.CURRENT_DETAIL_POT?.id) || window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
-            if(!window.CURRENT_DETAIL_POT){ /* silently ignore if details not loaded */ console.warn('Type change ignored: no CURRENT_DETAIL_POT'); return; }
+            const potId = (window.CURRENT_DETAIL_POT?.id)
+              || window.__active_pot_id
+              || (document.getElementById('v-pot')?.value || '')
+              || (document.getElementById('potIdInput')?.value || '');
+            
             const val = String(t.value || '');
             const isMember = /^m/i.test(val);
-            const p = (window.CURRENT_DETAIL_POT || window.__activePot || {});
-            const buyin = isMember ? (Number(p.buyin_member)||0) : (Number(p.buyin_guest)||0);
+            let p = (window.CURRENT_DETAIL_POT || window.__activePot || null);
+            if(!p && typeof db!=='undefined' && db && potId){
+              try{
+                const _snap = await db.collection('pots').doc(potId).get();
+                if(_snap && _snap.exists){ p = { id:_snap.id, ..._snap.data() }; if(!window.CURRENT_DETAIL_POT) window.CURRENT_DETAIL_POT = p; }
+              }catch(_e){ console.warn('Lazy pot fetch failed', _e); }
+            }
+            const pObj = p || {};
+            
+            const buyin = isMember ? (Number(pObj.buyin_member)||0) : (Number(pObj.buyin_guest)||0);
             const cell = row ? row.querySelector('.buyin') : null;
             if (cell) {
               const fm = (typeof formatMoney==='function') ? formatMoney(buyin) : ('$' + Number(buyin).toFixed(2));
@@ -284,8 +295,11 @@ document.addEventListener('DOMContentLoaded', () => {
           try {
             const row = t.closest('[data-id]');
             const id = row ? row.getAttribute('data-id') : (t.dataset.id || '');
-            const potId = (window.CURRENT_DETAIL_POT?.id) || window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
-            if(!window.CURRENT_DETAIL_POT){ /* silently ignore if details not loaded */ console.warn('Type change ignored: no CURRENT_DETAIL_POT'); return; }
+            const potId = (window.CURRENT_DETAIL_POT?.id)
+              || window.__active_pot_id
+              || (document.getElementById('v-pot')?.value || '')
+              || (document.getElementById('potIdInput')?.value || '');
+            
             if (typeof db!=='undefined' && db && potId && id && db.collection) {
               await db.collection('pots').doc(potId).collection('regs').doc(id)
                 .update({ paid: !!t.checked });
