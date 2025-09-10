@@ -318,7 +318,27 @@ document.addEventListener('DOMContentLoaded', () => {
         const entryId = t.getAttribute('data-id');
         try{
           await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
-            .collection('entries').doc(entryId).update({ paid: t.checked });
+            .collection('entries').doc(entryId).update({ paid: t.checked 
+      } else if (t && t.matches('select.mtSel')){
+        if(!requireAdmin()) return;
+        const entryId = t.getAttribute('data-id');
+        const newType = t.value === 'Member' ? 'Member' : 'Guest';
+        const p = CURRENT_DETAIL_POT || {};
+        const memberAmt = Number(p.buyin_member||0);
+        const guestAmt  = Number(p.buyin_guest||0);
+        const newAmt = (newType==='Member' ? memberAmt : guestAmt);
+        try{
+          await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
+            .collection('entries').doc(entryId).update({ member_type: newType, applied_buyin: newAmt });
+          // Update the UI cell immediately
+          const cell = tbody.querySelector('.buyin[data-id="'+entryId+'"]');
+          if (cell){ cell.textContent = dollars(newAmt); }
+        }catch(err){
+          console.error(err); alert('Failed to update type/buy-in.'); 
+        }
+      }
+    });
+
         }catch(err){
           console.error(err); alert('Failed to update paid status.'); t.checked = !t.checked;
         }
@@ -887,6 +907,12 @@ function renderRegistrations(entries){
     const name = e.name || '—';
     const email = showEmail ? (e.email || '—') : '';
     const type = e.member_type || '—';
+    const typeHtml = canAdmin ? (
+      `<select class="mtSel" data-id="${e.id}" style="min-width:64px">
+         <option value="Member" ${type==='Member'?'selected':''}>Mt</option>
+         <option value="Guest"  ${type==='Guest'?'selected':''}>Gt</option>
+       </select>`
+    ) : escapeHtml(type);
     const buyin = dollars(e.applied_buyin || 0);
     const paidChecked = e.paid ? 'checked' : '';
     const status = (e.status || 'active').toLowerCase();
@@ -909,8 +935,8 @@ function renderRegistrations(entries){
       <tr>
         <td>${escapeHtml(name)}</td>
         <td>${escapeHtml(email)}</td>
-        <td>${escapeHtml(type)}</td>
-        <td>${buyin}</td>
+        <td>${typeHtml}</td>
+        <td><span class="buyin" data-id="${e.id}">${buyin}</span></td>
         <td>${e.paid ? 'Yes' : 'No'}</td>
         <td>${escapeHtml(status)}</td>
         <td>${actions}</td>
