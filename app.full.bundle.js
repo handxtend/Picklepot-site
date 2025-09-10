@@ -313,21 +313,20 @@ document.addEventListener('DOMContentLoaded', () => {
   if (tbody){
     tbody.addEventListener('change', async (e)=>{
       const t = e.target;
-      if (t && (t.matches('select.mtSel') || t.matches('select[data-act="type"]'))) {
-        if(!requireAdmin()) { return; }
-        try{
-          const entryId = t.getAttribute('data-id');
-          const pot = window.CURRENT_DETAIL_POT || null;
-          if (!pot) { console.warn('Type change ignored: no pot loaded'); return; }
-          const newType = t.value === 'Member' ? 'Member' : (t.value === 'Guest' ? 'Guest' : (/^m/i.test(t.value)?'Member':'Guest'));
-          const newBuyin = newType==='Member' ? Number(pot.buyin_member||0) : Number(pot.buyin_guest||0);
-          const cell = t.closest('tr')?.querySelector('.buyin');
-          if (cell) cell.textContent = dollars(newBuyin);
-          await db.collection('pots').doc(pot.id).collection('entries').doc(entryId)
-            .update({ member_type: newType, applied_buyin: newBuyin });
-        }catch(err){ console.warn('Type change failed', err); }
-        return;
-      }
+    if (t && (t.matches('select.mtSel') || t.matches('select[data-act="type"]'))) {
+      if(!requireAdmin()) { return; }
+      const entryId = t.getAttribute('data-id');
+      const newType = t.value === 'Member' ? 'Member' : 'Guest';
+      try{
+        const pot = CURRENT_DETAIL_POT;
+        const buyin = newType==='Member' ? Number(pot.buyin_member||0) : Number(pot.buyin_guest||0);
+        const cell = t.closest('tr')?.querySelector('.buyin');
+        if (cell) cell.textContent = dollars(buyin);
+        await db.collection('pots').doc(pot.id).collection('entries').doc(entryId)
+          .update({ member_type: newType, applied_buyin: buyin });
+      }catch(err){ console.warn(err); alert('Failed to update type.'); }
+      return;
+    }
     
       if (t && t.matches('input[type="checkbox"][data-act="paid"]')) {
         if(!requireAdmin()) { t.checked = !t.checked; return; }
@@ -905,7 +904,7 @@ function renderRegistrations(entries){
     const type = e.member_type || '—';
   const typeHtml = isSiteAdmin() ? (
       `<select class="mtSel" data-id="${e.id}" style="min-width:64px">
-         <option value="Member" ${type==='Member'?'selected':''}>Me</option>
+         <option value="Member" ${type==='Member'?'selected':''}>Mt</option>
          <option value="Guest"  ${type==='Guest'?'selected':''}>Gt</option>
        </select>`
     ) : escapeHtml(type);
