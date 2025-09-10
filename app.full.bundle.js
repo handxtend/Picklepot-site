@@ -215,166 +215,86 @@ let db = null;
 
 /* ---------- UI bootstrap ---------- */
 document.addEventListener('DOMContentLoaded', () => {
-  // Force Create button to use Stripe Checkout
-  try{
-    const _btn = document.getElementById('btn-create');
-    if (_btn){
-      const _clone = _btn.cloneNode(true);
-      _btn.parentNode.replaceChild(_clone, _btn);
-      _clone.addEventListener('click', onCreateClick); window.__createBound = true;
+  try {
+    console.log('[pots] bootstrap attach document-ready');
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    // Create a Pot
+    const createBtn = $('#btn-create');
+    if (createBtn && !createBtn.__bound) {
+      createBtn.addEventListener('click', onCreateClick);
+      createBtn.__bound = true;
     }
-  }catch(_){}
-  document.getElementById('btn-subscribe-organizer')?.addEventListener('click', onOrganizerSubscribe);
-  handleSubscriptionReturn();
 
-  fillSelect('c-name-select', NAME_OPTIONS);
-  fillSelect('c-event', EVENTS);
-  fillSelect('c-skill', SKILLS);
-  fillSelect('c-location-select', LOCATIONS);
-  try{ fillStateAndCity(); }catch(_){}
-  try{ toggleAddressForLocation(); $('#c-location-select').addEventListener('change', ()=>toggleAddressForLocation()); }catch(_){}
-  fillSelect('j-skill', SKILLS);
-
-  // Other toggles (create)
-  toggleOther($('#c-name-select'), $('#c-name-other-wrap'));
-  $('#c-name-select').addEventListener('change', ()=>toggleOther($('#c-name-select'), $('#c-name-other-wrap')));
-  toggleOther($('#c-organizer'), $('#c-org-other-wrap'));
-  try{ toggleOrganizerExtras(); $('#c-organizer').addEventListener('change', toggleOrganizerExtras); }catch(_){}
-  $('#c-organizer').addEventListener('change', ()=>toggleOther($('#c-organizer'), $('#c-org-other-wrap')));
-  toggleOther($('#c-event'), $('#c-event-other-wrap'));
-  $('#c-event').addEventListener('change', ()=>toggleOther($('#c-event'), $('#c-event-other-wrap')));
-  toggleOther($('#c-skill'), $('#c-skill-other-wrap'));
-  $('#c-skill').addEventListener('change', ()=>toggleOther($('#c-skill'), $('#c-skill-other-wrap')));
-  toggleOther($('#c-location-select'), $('#c-location-other-wrap'));
-  $('#c-location-select').addEventListener('change', ()=>toggleOther($('#c-location-select'), $('#c-location-other-wrap')));
-
-  if (db) attachActivePotsListener();
-
-  $('#j-refresh').addEventListener('click', ()=>{ if (db) attachActivePotsListener(); onJoinPotChange(); });
-  $('#j-pot-select').addEventListener('change', onJoinPotChange);
-  $('#j-skill').addEventListener('change', evaluateJoinEligibility);
-  $('#j-mtype').addEventListener('change', ()=>{ updateJoinCost(); evaluateJoinEligibility(); });
-
-  $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
-
-  if (!window.__createBound){ $('#btn-create').addEventListener('click', onCreateClick); window.__createBound = true; }
-(function(){ 
-  const old = document.getElementById('btn-join');
-  if (old){
-    const fresh = old.cloneNode(false);
-    fresh.id = 'btn-join';
-    fresh.textContent = old.textContent || 'Join';
-    fresh.className = old.className;
-    old.parentNode.replaceChild(fresh, old);
-    fresh.addEventListener('click', joinPot);
-  }
-})();
-
-  const loadBtn = $('#btn-load');
-  if (loadBtn) { loadBtn.disabled = false; loadBtn.addEventListener('click', onLoadPotClicked); }
-  const potIdInput = $('#v-pot');
-  if (potIdInput) {
-    potIdInput.addEventListener('keydown', (e)=>{
-      if(e.key === 'Enter'){ e.preventDefault(); onLoadPotClicked(); }
+    // Active tournaments & Join hooks
+    const refreshBtn = $('#j-refresh');
+    if (refreshBtn) refreshBtn.addEventListener('click', () => {
+      try {
+        if (typeof attachActivePotsListener==='function') attachActivePotsListener();
+        if (typeof onJoinPotChange==='function') onJoinPotChange();
+      } catch(e){ console.warn(e); }
     });
-  }
-  $('#j-pot-select').addEventListener('change', ()=>{
-    const sel = $('#j-pot-select').value;
-    if(sel && potIdInput){ potIdInput.value = sel; }
-  });
 
-  // Admin header buttons
-  $('#site-admin-toggle').addEventListener('click', ()=>{
-    const v = prompt('Admin password?');
-    if(v===SITE_ADMIN_PASS){ setSiteAdmin(true); refreshAdminUI(); alert('Admin mode enabled.'); }
-    else alert('Incorrect password.');
-  });
-  $('#site-admin-logout').addEventListener('click', ()=>{
-    setSiteAdmin(false); refreshAdminUI(); alert('Admin mode disabled.');
-  });
+    const potSelect = $('#j-pot-select');
+    if (potSelect && typeof onJoinPotChange==='function') potSelect.addEventListener('change', onJoinPotChange);
 
-  // Admin buttons in Pot Detail
-  $('#btn-admin-login')?.addEventListener('click', ()=>{
-    const v = prompt('Admin password?');
-    if(v===SITE_ADMIN_PASS){ setSiteAdmin(true); refreshAdminUI(); alert('Admin mode enabled.'); }
-    else alert('Incorrect password.');
-  });
-  $('#btn-edit')?.addEventListener('click', enterPotEditMode);
-  $('#btn-cancel-edit')?.addEventListener('click', ()=>{ $('#pot-edit-form').style.display='none'; });
-  $('#btn-save-pot')?.addEventListener('click', savePotEdits);
-  $('#btn-hold')?.addEventListener('click', ()=>updatePotStatus('hold'));
-  $('#btn-resume')?.addEventListener('click', ()=>updatePotStatus('open'));
-  $('#btn-delete')?.addEventListener('click', deleteCurrentPot);
-  $('#btn-admin-grant')?.addEventListener('click', grantThisDeviceAdmin);
-  $('#btn-admin-revoke')?.addEventListener('click', revokeThisDeviceAdmin);
+    const skillSel = $('#j-skill');
+    if (skillSel && typeof evaluateJoinEligibility==='function') skillSel.addEventListener('change', evaluateJoinEligibility);
 
-  // Per-entry actions delegated
-  const tbody = document.querySelector('#adminTable tbody');
-  if (tbody){
-    tbody.addEventListener('change', async (e)=>{
-      const t = e.target;
-      if (t && t.matches('input[type="checkbox"][data-act="paid"]')) {
-        if(!requireAdmin()) { t.checked = !t.checked; return; }
-        const entryId = t.getAttribute('data-id');
-        try{
-          await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
-            .collection('entries').doc(entryId).update({ paid: t.checked });
-        }catch(err){
-          console.error(err); alert('Failed to update paid status.'); t.checked = !t.checked;
+    const mtypeSel = $('#j-mtype');
+    if (mtypeSel) mtypeSel.addEventListener('change', () => {
+      try {
+        if (typeof updateJoinCost==='function') updateJoinCost();
+        if (typeof evaluateJoinEligibility==='function') evaluateJoinEligibility();
+      } catch(e){ console.warn(e); }
+    });
+
+    const paySel = $('#j-paytype');
+    if (paySel && typeof onPayTypeChange==='function') paySel.addEventListener('change', onPayTypeChange);
+
+    // Admin table: type select + paid checkbox
+    const table = document.getElementById('adminTable') || document.querySelector('[data-admin-table]');
+    if (table) {
+      table.addEventListener('change', async (ev) => {
+        const t = ev.target;
+        if (t && (t.matches('select.mtSel') || t.matches('select[data-act="type"]'))) {
+          try {
+            const row = t.closest('[data-id]');
+            const id = row ? row.getAttribute('data-id') : (t.dataset.id || '');
+            const potId = window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
+            const val = String(t.value || '');
+            const isMember = /^m/i.test(val);
+            const p = window.__activePot || {};
+            const buyin = isMember ? (p.buyin_member||0) : (p.buyin_guest||0);
+            const cell = row ? row.querySelector('.buyin') : null;
+            if (cell) {
+              const fm = (typeof formatMoney==='function') ? formatMoney(buyin) : ('$' + Number(buyin).toFixed(2));
+              cell.textContent = fm;
+            }
+            if (typeof db!=='undefined' && db && potId && id && db.collection) {
+              await db.collection('pots').doc(potId).collection('regs').doc(id)
+                .update({ member_type: isMember?'Member':'Guest', applied_buyin: buyin });
+            }
+          } catch(e){ console.warn(e); }
         }
-      } else if (t && t.matches('select.mtSel')){
-        if(!requireAdmin()) return;
-        const entryId = t.getAttribute('data-id');
-        const newType = t.value === 'Member' ? 'Member' : 'Guest';
-        const p = CURRENT_DETAIL_POT || {};
-        const memberAmt = Number(p.buyin_member||0);
-        const guestAmt  = Number(p.buyin_guest||0);
-        const newAmt = (newType==='Member' ? memberAmt : guestAmt);
-        try{
-          await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
-            .collection('entries').doc(entryId).update({ member_type: newType, applied_buyin: newAmt });
-          // Update the UI cell immediately
-          const cell = tbody.querySelector('.buyin[data-id="'+entryId+'"]');
-          if (cell){ cell.textContent = dollars(newAmt); }
-        }catch(err){
-          console.error(err); alert('Failed to update type/buy-in.'); 
+        if (t && (t.matches('input[type="checkbox"][data-act="paid"]') || t.matches('input.paidChk'))) {
+          try {
+            const row = t.closest('[data-id]');
+            const id = row ? row.getAttribute('data-id') : (t.dataset.id || '');
+            const potId = window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
+            if (typeof db!=='undefined' && db && potId && id && db.collection) {
+              await db.collection('pots').doc(potId).collection('regs').doc(id)
+                .update({ paid: !!t.checked });
+            }
+          } catch(e){ console.warn(e); }
         }
-      }
-      }
-    });
-    tbody.addEventListener('click', async (e)=>{
-      const btn = e.target.closest('button[data-act]');
-      if(!btn) return;
-      if(!requireAdmin()) return;
-      const act = btn.getAttribute('data-act');
-      const entryId = btn.getAttribute('data-id');
-      if (act === 'remove'){
-        const ok = confirm('Remove this registration?'); if(!ok) return;
-        try{
-          await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
-            .collection('entries').doc(entryId).delete();
-        }catch(err){ console.error(err); alert('Failed to remove registration.'); }
-        return;
-      }
-      if (act === 'hold'){
-        const next = btn.getAttribute('data-next');
-        try{
-          await db.collection('pots').doc(CURRENT_DETAIL_POT.id)
-            .collection('entries').doc(entryId).update({ status: next });
-        }catch(err){ console.error(err); alert('Failed to update status.'); }
-        return;
-      }
-      if (act === 'move'){ openMoveDialog(entryId); return; }
-      if (act === 'resend'){ resendConfirmation(entryId); return; }
-    });
+      });
+    }
+  } catch (e) {
+    console.error('[pots] bootstrap error', e);
   }
-
-  refreshAdminUI();
-  // NEW: show success banner if returning from Stripe
-  checkStripeReturn();
-});
-
-/* ---------- Utility: payment methods map ---------- */
+});/* ---------- Utility: payment methods map ---------- */
 function getPaymentMethods(p){
   const pm = p?.payment_methods || {};
   const has = v => v === true;
