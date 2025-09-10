@@ -258,11 +258,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (table) {
       table.addEventListener('change', async (ev) => {
         const t = ev.target;
-        if (t && (t.matches('select.mtSel') || t.matches('select[data-act="type"]'))) {
+        if (t && (t.matches('select.mtSel') || t.matches('select[data-act="type"]'))) { ev.stopPropagation();
           try {
             const row = t.closest('[data-id]');
             const id = row ? row.getAttribute('data-id') : (t.dataset.id || '');
             const potId = (window.CURRENT_DETAIL_POT?.id) || window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
+            if(!window.CURRENT_DETAIL_POT){ /* silently ignore if details not loaded */ console.warn('Type change ignored: no CURRENT_DETAIL_POT'); return; }
             const val = String(t.value || '');
             const isMember = /^m/i.test(val);
             const p = (window.CURRENT_DETAIL_POT || window.__activePot || {});
@@ -270,7 +271,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const cell = row ? row.querySelector('.buyin') : null;
             if (cell) {
               const fm = (typeof formatMoney==='function') ? formatMoney(buyin) : ('$' + Number(buyin).toFixed(2));
-              cell.textContent = fm;
+              cell.textContent = fm; cell.setAttribute('data-value', String(buyin));
             if (typeof recalcPotTotals==='function') try{ recalcPotTotals(); }catch(_e){}
             }
             if (typeof db!=='undefined' && db && potId && id && db.collection) {
@@ -284,6 +285,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const row = t.closest('[data-id]');
             const id = row ? row.getAttribute('data-id') : (t.dataset.id || '');
             const potId = (window.CURRENT_DETAIL_POT?.id) || window.__active_pot_id || (document.getElementById('potIdInput')?.value || '');
+            if(!window.CURRENT_DETAIL_POT){ /* silently ignore if details not loaded */ console.warn('Type change ignored: no CURRENT_DETAIL_POT'); return; }
             if (typeof db!=='undefined' && db && potId && id && db.collection) {
               await db.collection('pots').doc(potId).collection('regs').doc(id)
                 .update({ paid: !!t.checked });
