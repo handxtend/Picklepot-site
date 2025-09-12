@@ -7,26 +7,6 @@
   const LOG=(...a)=>console.log('[enforcer]', ...a);
   const lc=s=>(s||'').trim().toLowerCase();
   const RKEY_BY_POT='pot_rosters_by_key';
-  // --- server roster prefer hook ---
-  const API = (window.API_BASE||'').replace(/\/$/, '');
-  const ADMIN_TOKEN = (window.ADMIN_TOKEN||window.ORG_TOKEN||'');
-  const __srvCache = new Map(); // potId -> Set(emails)
-
-  async function getServerRosterForPot(potId){
-    try{
-      if(!API || !potId) return null;
-      if(__srvCache.has(potId)) return __srvCache.get(potId);
-      const res = await fetch(API + `/api/pots/${encodeURIComponent(potId)}/roster-resolved`, {
-        headers: ADMIN_TOKEN ? {'X-Organizer-Token': ADMIN_TOKEN} : {}
-      });
-      if(!res.ok) return null;
-      const json = await res.json();
-      const emails = new Set((json && json.emails || []).map(e => (e||'').trim().toLowerCase()).filter(Boolean));
-      __srvCache.set(potId, emails);
-      return emails;
-    }catch(e){ console.warn('[enforcer] server roster fetch failed', e); return null; }
-  }
-
 
   function loadPotMap(){ try{ const raw=localStorage.getItem(RKEY_BY_POT); return raw? (JSON.parse(raw)||{}):{};}catch(_){return{};} }
 
@@ -144,22 +124,7 @@
   }
 
   let inProgress=false;
-  \1
-    try{
-      const pid = (window.CURRENT_DETAIL_POT && (CURRENT_DETAIL_POT.id || CURRENT_DETAIL_POT.pot_id)) ||
-                  (document.getElementById('pot-id') && document.getElementById('pot-id').textContent.trim()) || '';
-      const emailEl = (function(){ const scope=document; const els=scope.querySelectorAll('#j-email, #email, input[name="email"], input[type="email"]'); for(const el of els){ if(!el.disabled && el.offsetParent!==null) return el; } return els[els.length-1]||null; })();
-      const email = (emailEl && emailEl.value || '').trim().toLowerCase();
-      if(pid && email){
-        getServerRosterForPot(pid).then(set => {
-          if(set && set.has(email)){
-            const mtype = document.getElementById('j-mtype') || document.querySelector('#mtype, select[name*="type" i]');
-            if(mtype){ mtype.value = 'Member'; mtype.dispatchEvent(new Event('change',{bubbles:true})); }
-            const cost = document.getElementById('j-cost'); if(cost) cost.dispatchEvent(new Event('change',{bubbles:true}));
-          }
-        });
-      }
-    }catch(_e){}
+  function applyRule(){
     if(inProgress) return false;
     inProgress=true;
     try{
