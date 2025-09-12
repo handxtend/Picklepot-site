@@ -134,30 +134,75 @@
 // === /PiCo Boot Hooks ========================================================
 
 
-/* ===== Join Checkout amount injector (force-correct price to backend) ===== */
+/* ===== Join Checkout amount injector v3 (force-correct price; JSON + FormData + URLSearchParams) ===== */
 (function(){
-  if (window.__pp_amount_injector_installed_v2) return;
-  window.__pp_amount_injector_installed_v2 = true;
+  if (window.__pp_amount_injector_v3) return;
+  window.__pp_amount_injector_v3 = true;
+
+  function parseDollarsToCents(str){
+    var m = /\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/.exec(String(str||""));
+    return m ? Math.round(parseFloat(m[1]) * 100) : null;
+  }
 
   function findCostCents(){
     try{
-      // Preferred: explicit data-amount / data-cost / #j-cost
-      var el = document.querySelector('#j-cost,[data-cost],[data-amount],.cost-label,.cost');
+      // Priority: explicit data-* attributes
+      var el = document.querySelector('#j-cost,[data-cost],[data-amount],.cost-label,.cost,[data-pp-cost]');
       if (el){
-        var t = (el.dataset && (el.dataset.amount || el.dataset.cost)) ? (el.dataset.amount || el.dataset.cost) : (el.textContent||'');
-        var m = /\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/.exec(String(t));
-        if (m){ return Math.round(parseFloat(m[1]) * 100); }
+        var t = (el.dataset && (el.dataset.amount || el.dataset.cost || el.dataset.ppCost)) ? (el.dataset.amount || el.dataset.cost || el.dataset.ppCost) : (el.textContent||'');
+        var c = parseDollarsToCents(t);
+        if (c != null) return c;
       }
-      // Fallback: parse "Cost: $X.YY" near Member/Guest
+      // Fallback: parse "Cost: $X.YY" next to Member/Guest
       var mg = document.querySelector('#j-mtype,#mtype,select[name*="type" i],select[name*="buy" i]');
       if (mg){
-        var wrap = mg.closest('.form-row,.row,.field,.input-group,.container') || document;
+        var wrap = mg.closest('.form-row,.row,.field,.input-group,.container,.col') || document;
         var txt = wrap.textContent || '';
-        var m2 = /Cost:\s*\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/i.exec(txt);
-        if (m2){ return Math.round(parseFloat(m2[1]) * 100); }
+        var c2 = parseDollarsToCents(txt);
+        if (c2 != null) return c2;
       }
     }catch(e){ console.warn('[join] findCostCents failed', e); }
     return null;
+  }
+
+  // Helper: set amount_cents on various body types
+  function setAmountOnBody(init, cents){
+    if (!init) return false;
+    try{
+      if (typeof init.body === "string"){
+        // JSON or urlencoded string
+        if (/^\s*\{/.test(init.body)){ // JSON
+          var data = {};
+          try{ data = JSON.parse(init.body); }catch(e){}
+          data.amount_cents = cents;
+          init.body = JSON.stringify(data);
+          return true;
+        }else{ // urlencoded
+          var usp = new URLSearchParams(init.body);
+          usp.set("amount_cents", String(cents));
+          init.body = usp.toString();
+          // ensure header
+          init.headers = init.headers || {};
+          if (init.headers instanceof Headers){ init.headers.set("Content-Type","application/x-www-form-urlencoded"); }
+          else if (Array.isArray(init.headers)){ init.headers.push(["Content-Type","application/x-www-form-urlencoded"]); }
+          else { init.headers["Content-Type"]="application/x-www-form-urlencoded"; }
+          return true;
+        }
+      }else if (init.body instanceof URLSearchParams){
+        init.body.set("amount_cents", String(cents));
+        return true;
+      }else if (init.body instanceof FormData){
+        init.body.set("amount_cents", String(cents));
+        return true;
+      }else if (typeof init.body === "object" && init.body !== null){
+        // Non-standard case: some libs pass a plain object and a custom fetch wraps it later
+        if (!("amount_cents" in init.body) || init.body.amount_cents !== cents){
+          init.body.amount_cents = cents;
+        }
+        return true;
+      }
+    }catch(e){ console.warn("[join] setAmountOnBody failed", e); }
+    return false;
   }
 
   var __origFetch = window.fetch;
@@ -165,24 +210,21 @@
     try{
       var url = (typeof input==='string') ? input : (input && input.url) || '';
       var method = (init && init.method || 'GET').toUpperCase();
-      if (/\/create-checkout-session(?:\?|$)/.test(url) && method === 'POST' && init && typeof init.body === 'string'){
-        try{
-          var data = JSON.parse(init.body || '{}');
-          var cents = findCostCents();
-          if (cents != null){
-            if (data.amount_cents !== cents){
-              data.amount_cents = cents; // ALWAYS override to what the UI shows
-              init.body = JSON.stringify(data);
-              console.log('[join] forced amount_cents =', cents);
-            }
+      if (/\/create-checkout-session(?:\?|$)/.test(url) && method === 'POST' && init){
+        var cents = findCostCents();
+        if (cents != null){
+          if (setAmountOnBody(init, cents)){
+            console.log('[join] forced amount_cents =', cents);
           } else {
-            console.warn('[join] unable to determine cost; leaving payload amount_cents=', data.amount_cents);
+            console.warn('[join] could not modify request body to set amount_cents');
           }
-        }catch(e){ console.warn('[join] payload parse fail', e); }
+        }else{
+          console.warn('[join] could not determine cost from page');
+        }
       }
-    }catch(e){}
+    }catch(e){ console.warn('[join] injector error', e); }
     return __origFetch.apply(this, arguments);
   };
 })();
-/* ===== /Join Checkout amount injector ====================================== */
+/* ===== /Join Checkout amount injector v3 =================================== */
 
