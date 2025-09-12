@@ -307,6 +307,95 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btn-delete')?.addEventListener('click', deleteCurrentPot);
   $('#btn-admin-grant')?.addEventListener('click', grantThisDeviceAdmin);
   $('#btn-admin-revoke')?.addEventListener('click', revokeThisDeviceAdmin);
+  // Roster attach UI (show only for admin)
+  const rosterBox = document.getElementById('roster-attach');
+  if (rosterBox) rosterBox.style.display = (isSiteAdmin() || isOrganizerOwnerWithSub()) ? '' : 'none';
+
+  // Simple CSV reader -> window.__potRoster (emails only, case-insensitive)
+  function __readRosterFile(file, statusEl){
+    try{
+      const reader = new FileReader();
+      reader.onload = ev => {
+        try{
+          const text = String(ev.target.result||'');
+          const lines = text.split(/\r?\n/);
+          let header = (lines[0]||'').split(',').map(s=>s.trim().toLowerCase());
+          let emailIdx = header.findIndex(h=>/email/.test(h));
+          if (emailIdx < 0) emailIdx = 0; // fallback first col
+          const map = new Map();
+          for(let i=1;i<lines.length;i++){
+            if(!lines[i]) continue;
+            const cols = lines[i].split(',');
+            const em = (cols[emailIdx]||'').trim().toLowerCase();
+            if(em) map.set(em,{email:em});
+          }
+          window.__potRoster = map;
+          if(statusEl) statusEl.textContent = map.size ? (map.size+' emails loaded') : 'No emails found';
+        }catch(err){ console.error(err); if(statusEl) statusEl.textContent='Failed to parse CSV'; }
+      };
+      reader.readAsText(file);
+    }catch(e){ console.error(e); if(statusEl) statusEl.textContent='Failed to read CSV'; }
+  }
+
+  function __deriveDetailPotKeys(p){
+    const lc = s => (s||'').trim().toLowerCase();
+    const keys = [];
+    if(p && p.name) keys.push(lc(p.name));
+    const composite = [p?.name, p?.date, p?.time, p?.location].map(lc).filter(Boolean).join('|');
+    if(composite) keys.push(composite);
+    return Array.from(new Set(keys));
+  }
+
+  function __saveEmailsForKey(key){
+    try{
+      if(typeof window.__savePotRosterForKey==='function'){
+        return window.__savePotRosterForKey(key);
+      }
+      // fallback: write to localStorage directly
+      const lc = s=>(s||'').trim().toLowerCase();
+      const RKEY_BY_POT='pot_rosters_by_key';
+      const raw = localStorage.getItem(RKEY_BY_POT);
+      const map = raw ? (JSON.parse(raw)||{}) : {};
+      const emails = window.__potRoster instanceof Map ? Array.from(window.__potRoster.keys()) : [];
+      if(!emails.length) return false;
+      map[lc(String(key||''))] = emails.map(lc);
+      localStorage.setItem(RKEY_BY_POT, JSON.stringify(map));
+      return true;
+    }catch(e){ console.error(e); return false; }
+  }
+
+  function __clearRosterForKeys(keys){
+    try{
+      const RKEY_BY_POT='pot_rosters_by_key';
+      const raw = localStorage.getItem(RKEY_BY_POT);
+      const map = raw ? (JSON.parse(raw)||{}) : {};
+      keys.forEach(k => { delete map[(k||'').trim().toLowerCase()]; });
+      localStorage.setItem(RKEY_BY_POT, JSON.stringify(map));
+      return true;
+    }catch(e){ console.error(e); return false; }
+  }
+
+  document.getElementById('d-roster-csv')?.addEventListener('change', (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(!file) return;
+    __readRosterFile(file, document.getElementById('d-roster-status'));
+  });
+
+  document.getElementById('btn-roster-attach')?.addEventListener('click', ()=>{
+    if(!requireAdmin()) return;
+    const keys = __deriveDetailPotKeys(CURRENT_DETAIL_POT);
+    let okAny = false;
+    keys.forEach(k => { okAny = __saveEmailsForKey(k) || okAny; });
+    alert(okAny ? 'Roster bound to this pot on this device.' : 'Load a CSV first, then try again.');
+  });
+
+  document.getElementById('btn-roster-clear')?.addEventListener('click', ()=>{
+    if(!requireAdmin()) return;
+    const keys = __deriveDetailPotKeys(CURRENT_DETAIL_POT);
+    __clearRosterForKeys(keys);
+    alert('Roster binding cleared for this pot on this device.');
+  });
+
 
   // Per-entry actions delegated
   const tbody = document.querySelector('#adminTable tbody');

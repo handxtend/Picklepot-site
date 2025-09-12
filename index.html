@@ -376,6 +376,22 @@
 </div>
 <div class="muted" id="admin-uids" style="margin-top:6px;"></div>
 
+<!-- Roster attach for existing pot (safe & optional) -->
+<div id="roster-attach" style="margin-top:12px; border:1px dashed var(--border); padding:10px; border-radius:8px; display:none;">
+  <div class="row">
+    <div>
+      <label>Attach / Replace Roster (CSV)</label>
+      <input id="d-roster-csv" type="file" accept=".csv"/>
+    </div>
+    <div class="muted" id="d-roster-status" style="align-self:flex-end">No roster loaded</div>
+  </div>
+  <div class="inline" style="margin-top:8px">
+    <button class="btn" id="btn-roster-attach" type="button">Bind roster to this pot</button>
+    <button class="btn" id="btn-roster-clear" type="button">Clear roster binding</button>
+  </div>
+  <div class="muted" style="margin-top:6px">Tip: You can also load a CSV from the Create section; then click “Bind roster to this pot”.</div>
+</div>
+
 <!-- Edit form -->
 <form id="pot-edit-form" style="display:none; margin-top:12px; border:1px solid var(--border);padding:12px;border-radius:8px;">
 <div class="row">
