@@ -756,7 +756,13 @@ async function joinPot(){
         return fail('Stripe is disabled for this event.');
       }
 
-      const amount_cents = Math.round(Number(applied_buyin || 0) * 100);
+      const __pillNode = (typeof byId==='function'? byId('j-cost') : document.getElementById('j-cost'));
+      const __pillText = (__pillNode && (__pillNode.textContent || __pillNode.innerText) || '').trim();
+      const __pillMatch = __pillText.match(/([0-9]+(?:\.[0-9]+)?)/);
+      const __pillDollars = (__pillMatch && __pillMatch[1]) ? Number(__pillMatch[1]) : 0;
+      const __mtypeNow = (document.getElementById('j-mtype')?.value || _mType || 'Guest');
+      const __fallbackDollars = (__mtypeNow==='Member'? Number((p&&p.buyin_member)||0) : Number((p&&p.buyin_guest)||0));
+      const amount_cents = Math.round((__pillDollars>0?__pillDollars:__fallbackDollars) * 100);
       if (!Number.isFinite(amount_cents) || amount_cents < 50){
         return fail('Stripe requires a fee of at least $0.50.');
       }
@@ -2472,8 +2478,8 @@ document.addEventListener('DOMContentLoaded', () => {
       const payload = {
         draft: collectCreateDraft(),
         count,
-        success_url: originHost() + '/success.html?flow=join',
-cancel_url: originHost() + '/cancel.html?flow=create',
+        success_url: originHost() + '/success.html',
+cancel_url: originHost() + '/cancel.html',
 
       };
       setBusy(true, 'Redirecting…');
@@ -2493,8 +2499,15 @@ cancel_url: originHost() + '/cancel.html?flow=create',
   async function startJoinCheckout(){
     if ((String(__capturedPayType()).toLowerCase()||'') !== 'stripe' && (String(__capturedPayType()).toLowerCase()||'') !== 'stripe (card)') { console.warn('[JOIN] hard-stop startJoinCheckout: method is', __capturedPayType()); return; }
 const potId = byId('v-pot')?.value?.trim() || '';
-    const amountDollars = byId('j-cost')?.value || byId('j-amount')?.value || '10';
-    const playerName = byId('j-name')?.value || byId('j-player')?.value || 'Player';
+    const p = (typeof window.CURRENT_JOIN_POT!=='undefined' && window.CURRENT_JOIN_POT) ? window.CURRENT_JOIN_POT : {};
+    const _mType = (byId('j-mtype')?.value || 'Guest');
+    const __costNode = byId('j-cost');
+    const __costText = (__costNode && (__costNode.textContent || __costNode.innerText) || '').trim();
+    const __m = __costText.match(/([0-9]+(?:\.[0-9]+)?)/);
+    const amountDollars = (__m && __m[1]) ? Number(__m[1]) : ((_mType==='Member')?Number(p.buyin_member||0):Number(p.buyin_guest||0));
+    const fname = byId('j-fname')?.value || byId('j-name')?.value || byId('j-player')?.value || '';
+    const lname = byId('j-lname')?.value || '';
+    const playerName = [fname,lname].filter(Boolean).join(' ').trim() || 'Player';
     const playerEmail= byId('j-email')?.value || '';
     const entryId = 'e_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 
@@ -2506,8 +2519,8 @@ const potId = byId('v-pot')?.value?.trim() || '';
       amount_cents: toCents(amountDollars),
       player_name: playerName,
       player_email: playerEmail,
-     success_url: originHost() + '/success.html?flow=join',
-  cancel_url: originHost() + '/cancel.html?flow=create'
+     success_url: originHost() + '/success.html',
+  cancel_url: originHost() + '/cancel.html'
 
     };
     try{
