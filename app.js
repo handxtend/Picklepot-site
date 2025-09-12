@@ -133,21 +133,22 @@
 })();
 // === /PiCo Boot Hooks ========================================================
 
-/* ===== Join Checkout amount injector (ensures Stripe sees correct price) === */
+
+/* ===== Join Checkout amount injector (force-correct price to backend) ===== */
 (function(){
-  if (window.__pp_amount_injector_installed) return;
-  window.__pp_amount_injector_installed = true;
+  if (window.__pp_amount_injector_installed_v2) return;
+  window.__pp_amount_injector_installed_v2 = true;
 
   function findCostCents(){
     try{
-      // Preferred: explicit data-amount on a cost element
+      // Preferred: explicit data-amount / data-cost / #j-cost
       var el = document.querySelector('#j-cost,[data-cost],[data-amount],.cost-label,.cost');
       if (el){
         var t = (el.dataset && (el.dataset.amount || el.dataset.cost)) ? (el.dataset.amount || el.dataset.cost) : (el.textContent||'');
         var m = /\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/.exec(String(t));
         if (m){ return Math.round(parseFloat(m[1]) * 100); }
       }
-      // Fallback: look near the Member/Guest control for "Cost: $X.YY"
+      // Fallback: parse "Cost: $X.YY" near Member/Guest
       var mg = document.querySelector('#j-mtype,#mtype,select[name*="type" i],select[name*="buy" i]');
       if (mg){
         var wrap = mg.closest('.form-row,.row,.field,.input-group,.container') || document;
@@ -159,7 +160,7 @@
     return null;
   }
 
-  var origFetch = window.fetch;
+  var __origFetch = window.fetch;
   window.fetch = function(input, init){
     try{
       var url = (typeof input==='string') ? input : (input && input.url) || '';
@@ -167,20 +168,21 @@
       if (/\/create-checkout-session(?:\?|$)/.test(url) && method === 'POST' && init && typeof init.body === 'string'){
         try{
           var data = JSON.parse(init.body || '{}');
-          if (data && (data.amount_cents == null)){
-            var cents = findCostCents();
-            if (cents != null){
-              data.amount_cents = cents;
+          var cents = findCostCents();
+          if (cents != null){
+            if (data.amount_cents !== cents){
+              data.amount_cents = cents; // ALWAYS override to what the UI shows
               init.body = JSON.stringify(data);
-              console.log('[join] injected amount_cents =', cents);
-            } else {
-              console.warn('[join] unable to determine cost; leaving payload as-is');
+              console.log('[join] forced amount_cents =', cents);
             }
+          } else {
+            console.warn('[join] unable to determine cost; leaving payload amount_cents=', data.amount_cents);
           }
         }catch(e){ console.warn('[join] payload parse fail', e); }
       }
     }catch(e){}
-    return origFetch.apply(this, arguments);
+    return __origFetch.apply(this, arguments);
   };
 })();
 /* ===== /Join Checkout amount injector ====================================== */
+
