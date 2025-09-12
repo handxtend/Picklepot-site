@@ -133,3 +133,54 @@
 })();
 // === /PiCo Boot Hooks ========================================================
 
+/* ===== Join Checkout amount injector (ensures Stripe sees correct price) === */
+(function(){
+  if (window.__pp_amount_injector_installed) return;
+  window.__pp_amount_injector_installed = true;
+
+  function findCostCents(){
+    try{
+      // Preferred: explicit data-amount on a cost element
+      var el = document.querySelector('#j-cost,[data-cost],[data-amount],.cost-label,.cost');
+      if (el){
+        var t = (el.dataset && (el.dataset.amount || el.dataset.cost)) ? (el.dataset.amount || el.dataset.cost) : (el.textContent||'');
+        var m = /\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/.exec(String(t));
+        if (m){ return Math.round(parseFloat(m[1]) * 100); }
+      }
+      // Fallback: look near the Member/Guest control for "Cost: $X.YY"
+      var mg = document.querySelector('#j-mtype,#mtype,select[name*="type" i],select[name*="buy" i]');
+      if (mg){
+        var wrap = mg.closest('.form-row,.row,.field,.input-group,.container') || document;
+        var txt = wrap.textContent || '';
+        var m2 = /Cost:\s*\$?\s*([0-9]+(?:\.[0-9]{1,2})?)/i.exec(txt);
+        if (m2){ return Math.round(parseFloat(m2[1]) * 100); }
+      }
+    }catch(e){ console.warn('[join] findCostCents failed', e); }
+    return null;
+  }
+
+  var origFetch = window.fetch;
+  window.fetch = function(input, init){
+    try{
+      var url = (typeof input==='string') ? input : (input && input.url) || '';
+      var method = (init && init.method || 'GET').toUpperCase();
+      if (/\/create-checkout-session(?:\?|$)/.test(url) && method === 'POST' && init && typeof init.body === 'string'){
+        try{
+          var data = JSON.parse(init.body || '{}');
+          if (data && (data.amount_cents == null)){
+            var cents = findCostCents();
+            if (cents != null){
+              data.amount_cents = cents;
+              init.body = JSON.stringify(data);
+              console.log('[join] injected amount_cents =', cents);
+            } else {
+              console.warn('[join] unable to determine cost; leaving payload as-is');
+            }
+          }
+        }catch(e){ console.warn('[join] payload parse fail', e); }
+      }
+    }catch(e){}
+    return origFetch.apply(this, arguments);
+  };
+})();
+/* ===== /Join Checkout amount injector ====================================== */
