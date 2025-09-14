@@ -586,6 +586,7 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
     // Single query that includes both 'open' and 'active'
     JOIN_POTS_SUB = db.collection('pots')
       .where('status','in',['open','active'])
+      .orderBy('start_at','asc')
       .onSnapshot(applySnapshot, onError);
   } catch (e) {
     // Fallback: merge two listeners if 'in' not available/indexed
@@ -616,8 +617,10 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       snap.forEach(d=>{ buffer.set(d.id, { id:d.id, ...d.data() }); });
       mergeApply();
     };
-    unsubs.push(db.collection('pots').where('status','==','open').onSnapshot(onSnap, onError));
-    unsubs.push(db.collection('pots').where('status','==','active').onSnapshot(onSnap, onError));
+    unsubs.push(db.collection('pots').where('status','==','open').orderBy('start_at','asc')
+    .onSnapshot(onSnap, onError));
+    unsubs.push(db.collection('pots').where('status','==','active').orderBy('start_at','asc')
+    .onSnapshot(onSnap, onError));
     JOIN_POTS_SUB = () => unsubs.forEach(u=>{ try{u();}catch(_){ } });
   }
 }
