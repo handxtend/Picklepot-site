@@ -127,7 +127,15 @@
       const f = file.files && file.files[0];
       if(!f){ setStatus(status, 'No roster loaded', false); return; }
       try{
-        const text = await f.text();
+        const text = await (async function readFileText(file){
+  if (file && typeof file.text === 'function') return file.text();
+  return await new Promise((resolve, reject)=>{
+    const fr = new FileReader();
+    fr.onload = ()=> resolve(fr.result);
+    fr.onerror = ()=> reject(fr.error||new Error('Failed to read file'));
+    fr.readAsText(file);
+  });
+})(f);
         const rows = csvToRows(text);
         const items= rowsToObjects(rows);
         const emails= extractEmails(items);
