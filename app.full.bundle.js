@@ -730,7 +730,7 @@ function evaluateJoinEligibility(){
   const playerSkill = $('#j-skill').value;
   const allow = (p.skill==='Any') || ( ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[playerSkill]??0) <= ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[p.skill]??0) );
   warn.style.display = allow ? 'none' : 'block';
-  warn.textContent = allow ? '' : 'Higher skill level cannot play down';
+  warn.textContent = allow ? '' : 'Higher skill level cannot play down';try{if(!allow){warn.style.color='#b91c1c';warn.style.fontWeight='800';}}catch(e){}
 }
 
 /* Build payment options per event */
@@ -783,7 +783,7 @@ async function joinPot(){
   function fail(message){
     console.error('[JOIN] Error:', message);
     msg.textContent = message || 'Something went wrong.';
-    setBusy(false);
+    try{ if(message && /Duplicate registration/i.test(String(message))){ msg.style.color='#b91c1c'; msg.style.fontWeight='800'; } }catch(_){}setBusy(false);
   }
 
   if(!p){ msg.textContent='Select a pot to join.'; return; }
