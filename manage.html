@@ -450,6 +450,13 @@ async function localAuthByCode(pot, code){
     }
   }catch(_){}
 
+
+  // --- Fallback: define loadEntries if the bundle didn't provide it ---
+  if (typeof loadEntries !== "function") {
+    function loadEntries(potId){
+      try { startLive(potId); } catch(e){ console.error("fallback loadEntries error", e); }
+    }
+  }
 })();
 </script>
 </body>
