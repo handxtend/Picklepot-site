@@ -1,44 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<script>
-  // Persisted sort preference for Active Tournaments
-
-<div id="join-sort-controls" style="display:flex;gap:8px;align-items:center;justify-content:flex-end;margin-top:6px;">
-  <span class="muted">Sort:</span>
-  <button type="button" id="join-sort-soonest" class="btn btn-sm">Soonest</button>
-  <button type="button" id="join-sort-newest" class="btn btn-sm">Newest</button>
-</div>
-<script>
-  (function(){
-    function setState(){
-      try{
-        var desc = !!window.JOIN_SORT_DESC;
-        var a = document.getElementById('join-sort-soonest');
-        var b = document.getElementById('join-sort-newest');
-        if (a) a.classList.toggle('btn-primary', !desc);
-        if (b) b.classList.toggle('btn-primary', desc);
-      }catch(_){}
-    }
-    setState();
-    var soon = document.getElementById('join-sort-soonest');
-    var neww = document.getElementById('join-sort-newest');
-    if (soon) soon.onclick = function(){
-      try{ localStorage.setItem('join_sort_desc', '0'); }catch(_){}
-      location.reload();
-    };
-    if (neww) neww.onclick = function(){
-      try{ localStorage.setItem('join_sort_desc', '1'); }catch(_){}
-      location.reload();
-    };
-  })();
-</script>
-
-  (function(){
-    try { window.JOIN_SORT_DESC = (localStorage.getItem('join_sort_desc') === '1'); } catch(_) {}
-  })();
-</script>
-
 
 <style>
   /* Desktop listbox behavior for Active Tournaments */
