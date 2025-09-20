@@ -1,6 +1,21 @@
 <!DOCTYPE html>
+
 <html lang="en">
 <head>
+
+<script>
+  // REDIRECT_MANAGE_CLEANURL: if server rewrites /manage to index.html, bounce to manage.html
+  (function(){
+    try{
+      var p = location.pathname.replace(/\/+/g,'/');
+      if (/\/manage\/?$/.test(p)) {
+        var qs = location.search || '';
+        var h  = location.hash   || '';
+        location.replace('manage.html' + qs + h);
+      }
+    }catch(_){}
+  })();
+</script>
 
 <style>
   /* Desktop listbox behavior for Active Tournaments */
@@ -12,7 +27,6 @@
     }
   }
 </style>
-
 <meta charset="utf-8"/>
 <meta content="width=device-width,initial-scale=1" name="viewport"/>
 <title>PiCo Pickle Pot</title>
@@ -172,7 +186,6 @@
 <div class="alert" id="configWarning" style="display:none">
       Firebase isn’t configured yet. Paste your Firebase config below, then reload.
 </div>
-
 <!-- ======= CREATE POT ======= -->
 <section class="card admin-only" id="create-card" style="display:none">
 <h2 class="section-header">Create a Pot</h2>
@@ -205,34 +218,29 @@
 <div id="c-addr-city-other-wrap" style="display:none"><label>City (other)</label><input id="c-addr-city-other" placeholder="Enter city"/></div>
 <div><label>Zip Code</label><input id="c-addr-zip" inputmode="numeric" pattern="\d{5}(-\d{4})?" placeholder="e.g., 30301"/></div>
 </div>
-
 <div class="row" style="margin-top:8px">
 <div><label>Allow Stripe (card)</label><select id="c-allow-stripe"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 <div><label>Zelle Info (optional)</label><input id="c-pay-zelle" placeholder="e.g., name / phone / email"/></div>
 <div><label>CashApp Info (optional)</label><input id="c-pay-cashapp" placeholder="$YourCashtag"/></div>
 <div><label>Onsite Payment</label><select id="c-pay-onsite"><option value="yes">Allowed</option><option value="no">Not allowed</option></select></div>
 </div>
-
 <div class="row" style="margin-top:8px">
-  <div>
-    <label>Member Roster (CSV)</label>
-    <input id="c-roster-csv" type="file" accept=".csv"/>
-  </div>
-  <div class="muted" id="csv-status" style="align-self:flex-end">No roster loaded</div>
+<div>
+<label>Member Roster (CSV)</label>
+<input accept=".csv" id="c-roster-csv" type="file"/>
 </div>
-
+<div class="muted" id="csv-status" style="align-self:flex-end">No roster loaded</div>
+</div>
 <div class="inline" style="margin-top:12px">
 <button class="btn primary" id="btn-create">Create Pot</button>
 <div class="muted" id="create-result"></div>
 </div>
 </div>
-
 <div class="collapse-create" style="text-align:center; margin-top:10px;">
 <button aria-label="Collapse Create section" id="btn-create-collapse" style="background:transparent;border:none;color:#222;font-size:26px;cursor:pointer;line-height:1;" type="button">↑↑</button>
 <div style="font-size:13px;color:#444;line-height:1;margin-top:4px;">close</div>
 </div>
 </section>
-
 <!-- ======= JOIN A POT ======= -->
 <section class="card">
 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
@@ -249,35 +257,31 @@
 </div>
 </div>
 </div>
-
 <div style="display:flex;align-items:center;gap:8px;margin:14px 0 6px">
-  <h3 style="margin:0">Active Tournaments</h3>
-  <button aria-controls="howto-panel" aria-expanded="false" class="btn" id="btn-howto" type="button">How To Use</button>
+<h3 style="margin:0">Active Tournaments</h3>
+<button aria-controls="howto-panel" aria-expanded="false" class="btn" id="btn-howto" type="button">How To Use</button>
 </div>
 <div class="alert" id="howto-panel" style="display:none">
-  <ol style="margin:0 0 8px 18px">
-    <li><b>Join a Pot is free to use.</b></li>
-    <li>Use <b>Active Tournaments</b> to find an event you’re interested in — the selected Pot's details appear at the bottom.</li>
-    <li>Fill out your info and choose a <b>payment option</b>.</li>
-    <li>Once payment is made, you'll be marked as <b>PAID</b> in the Pot Detail section and registered.</li>
-    <li>Be at the venue on the day/time of the event about <b>30 minutes earlier</b> to verify your registration.</li>
-  </ol>
-  <div class="muted"><b>Note:</b> For <b>Doubles</b>, make sure your partner is also registered here.</div>
+<ol style="margin:0 0 8px 18px">
+<li><b>Join a Pot is free to use.</b></li>
+<li>Use <b>Active Tournaments</b> to find an event you’re interested in — the selected Pot's details appear at the bottom.</li>
+<li>Fill out your info and choose a <b>payment option</b>.</li>
+<li>Once payment is made, you'll be marked as <b>PAID</b> in the Pot Detail section and registered.</li>
+<li>Be at the venue on the day/time of the event about <b>30 minutes earlier</b> to verify your registration.</li>
+</ol>
+<div class="muted"><b>Note:</b> For <b>Doubles</b>, make sure your partner is also registered here.</div>
 </div>
-
 <!-- Active Tournaments Filters -->
 <style>
   #active-list { list-style: none; padding-left: 0; margin: 8px 0; }
   #active-list li { padding: 8px 10px; border: 1px solid #e5e7eb; border-radius: 10px; margin-bottom: 8px; }
   #active-list a { text-decoration: none; }
 </style>
-
 <div class="row" style="margin-top:6px">
 <div><label>Filter by Name</label><input id="j-filter-name" placeholder="Tournament name"/></div>
 <div><label>Organizer</label><input id="j-filter-org" placeholder="Organizer name"/></div>
 <div><label>City</label><input id="j-filter-city" placeholder="City"/></div>
 </div>
-
 <div class="row" style="margin-top:10px">
 <div style="flex:1">
 <div class="muted" style="font-weight:700;margin:8px 0 6px">Select Tournament</div>
@@ -287,42 +291,36 @@
 <div class="badge warn" id="j-started-badge" style="display:none;margin-top:6px">Tournament Started</div>
 </div>
 <div>
-  <label> </label>
-  <button class="btn" id="j-refresh">Refresh</button>
-  <button class="btn" id="btn-show-detail" type="button">Show Pot Details</button>
+<label> </label>
+<button class="btn" id="j-refresh">Refresh</button>
+<button class="btn" id="btn-show-detail" type="button">Show Pot Details</button>
 </div>
 </div>
-
 <div class="pot-highlight" id="j-pot-total" style="margin-top:6px;display:none">Total Pot: $0</div>
-
 <div class="row" style="margin-top:12px">
 <div><label>First Name</label><input id="j-fname" placeholder="First name"/></div>
 <div><label>Last Name</label><input id="j-lname" placeholder="Last name"/></div>
 <div><label>Email</label><input id="j-email" placeholder="you@example.com" type="email"/></div>
 <div>
-  <label>Member / Guest</label>
-  <select id="j-mtype">
-    <option value="Member">Member</option>
-    <option value="Guest">Guest</option>
-  </select>
-  <div class="pill-cost" id="j-cost" style="margin-top:6px">Cost: —</div>
+<label>Member / Guest</label>
+<select id="j-mtype">
+<option value="Member">Member</option>
+<option value="Guest">Guest</option>
+</select>
+<div class="pill-cost" id="j-cost" style="margin-top:6px">Cost: —</div>
 </div>
 <div><label>Skill Level</label><select id="j-skill"></select></div>
 <div><label>Payment Type</label><select id="j-paytype"></select></div>
 </div>
-
 <div class="alert" id="j-pay-notes" style="display:none"></div>
 <p class="muted" style="margin:8px 0 0">Note: Lower-skilled players can play up, but higher-skilled players <b>CANNOT</b> play down.</p>
 <p class="muted" style="margin:4px 0 0">When paying, please put your <b>FULL NAME</b> in the payment notes.</p>
-
 <div class="muted" id="j-warn" style="margin-top:8px;display:none"></div>
-
 <div class="inline" style="margin-top:12px">
-<button class="btn xl primary" disabled id="btn-join">Join</button>
+<button class="btn xl primary" disabled="" id="btn-join">Join</button>
 <span class="muted" id="join-msg"></span>
 </div>
 </section>
-
 <!-- ======= POT DETAIL ======= -->
 <section class="card" id="pot-detail-section">
 <h2 class="section-header">Pot Details</h2>
@@ -330,7 +328,6 @@
 <input id="v-pot" placeholder="Pot ID to load"/>
 <button class="btn primary" id="btn-load">Load</button>
 </div>
-
 <div id="pot-info" style="margin-top:12px;display:none">
 <div style="display:flex;flex-wrap:wrap;gap:8px;margin:8px 0">
 <span class="pill soft-blue-box" id="pi-name"></span>
@@ -343,13 +340,11 @@
 <span class="pill status-chip" id="pi-status"></span>
 <span class="pill soft-blue-box admin-only" id="pi-id" style="display:none"></span>
 </div>
-
 <!-- Organizer contact (auto-hidden if empty) -->
-<div id="pot-contact" style="margin:6px 0 10px;display:none" class="muted">
-  <div id="j-organizer-email"></div>
-  <div id="j-organizer-phone"></div>
+<div class="muted" id="pot-contact" style="margin:6px 0 10px;display:none">
+<div id="j-organizer-email"></div>
+<div id="j-organizer-phone"></div>
 </div>
-
 <h3 style="margin:14px 0 6px">Registrations</h3>
 <div style="overflow:auto">
 <table id="adminTable">
@@ -367,7 +362,6 @@
 <tbody></tbody>
 </table>
 </div>
-
 <section class="admin-only" id="pot-admin" style="display:none; margin-top:16px;">
 <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
 <strong>Admin</strong>
@@ -380,23 +374,21 @@
 <button class="btn" id="btn-admin-revoke">Revoke this device</button>
 </div>
 <div class="muted" id="admin-uids" style="margin-top:6px;"></div>
-
 <!-- Roster attach for existing pot (safe & optional) -->
 <div id="roster-attach" style="margin-top:12px; border:1px dashed var(--border); padding:10px; border-radius:8px; display:none;">
-  <div class="row">
-    <div>
-      <label>Attach / Replace Roster (CSV)</label>
-      <input id="d-roster-csv" type="file" accept=".csv"/>
-    </div>
-    <div class="muted" id="d-roster-status" style="align-self:flex-end">No roster loaded</div>
-  </div>
-  <div class="inline" style="margin-top:8px">
-    <button class="btn" id="btn-roster-attach" type="button">Bind roster to this pot</button>
-    <button class="btn" id="btn-roster-clear" type="button">Clear roster binding</button>
-  </div>
-  <div class="muted" style="margin-top:6px">Tip: You can also load a CSV from the Create section; then click “Bind roster to this pot”.</div>
+<div class="row">
+<div>
+<label>Attach / Replace Roster (CSV)</label>
+<input accept=".csv" id="d-roster-csv" type="file"/>
 </div>
-
+<div class="muted" id="d-roster-status" style="align-self:flex-end">No roster loaded</div>
+</div>
+<div class="inline" style="margin-top:8px">
+<button class="btn" id="btn-roster-attach" type="button">Bind roster to this pot</button>
+<button class="btn" id="btn-roster-clear" type="button">Clear roster binding</button>
+</div>
+<div class="muted" style="margin-top:6px">Tip: You can also load a CSV from the Create section; then click “Bind roster to this pot”.</div>
+</div>
 <!-- Edit form -->
 <form id="pot-edit-form" style="display:none; margin-top:12px; border:1px solid var(--border);padding:12px;border-radius:8px;">
 <div class="row">
@@ -427,16 +419,27 @@
 <button class="btn" id="btn-cancel-edit" type="button">Cancel</button>
 </div>
 </form>
-</section>
+<div id="owner-admin" style="margin-top:12px;padding:10px;border:1px dashed var(--border);border-radius:8px;">
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+<strong>Owner Code</strong>
+<code id="owner-code-display" style="padding:6px 10px;background:#f3f4f6;border-radius:8px">—</code>
+<button class="btn" id="btn-gen-owner-code" type="button">Generate / Regenerate</button>
+<button class="btn" id="btn-copy-owner-code" type="button">Copy</button>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px">
+<strong>Organizer Link</strong>
+<input id="organizer-link" readonly="" style="flex:1;min-width:260px;padding:8px;border:1px solid var(--border);border-radius:8px"/>
+<button class="btn" id="btn-gen-organizer-link" type="button">Generate / Regenerate</button>
+<button class="btn" id="btn-copy-organizer-link" type="button">Copy</button>
+</div>
+<div class="muted" id="owner-admin-status" style="margin-top:6px;"></div>
+</div></section>
 </div>
 </section>
-
 <!-- BOTTOM SPONSOR BANNER -->
 <div aria-label="Sponsored" class="ad-slot" id="ad-bottom" style="display:none"></div>
 <div class="sponsored-tag" id="ad-bottom-meta" style="display:none">Sponsored</div>
-
 </div> <!-- /.wrap -->
-
 <div class="foot">© <span id="year"></span> PiCo ·
     <a href="picklepot_privacypolicy_comprehensive.pdf" rel="noopener" target="_blank">Privacy Policy</a> ·
     <a href="picklepot_termsofuse_comprehensive.pdf" rel="noopener" target="_blank">Terms of Use</a> ·
@@ -447,12 +450,10 @@
 <button class="admin-foot-btn" id="site-admin-logout" style="display:none;background:transparent;border:none;color:rgba(255,255,255,.16);font-size:10px;cursor:pointer;padding:0;" type="button">logout</button>
 </div>
 </div>
-
 <!-- Firebase (compat) -->
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
-
 <!-- Firebase config -->
 <script>
     const firebaseConfig = window.firebaseConfig || {
@@ -473,18 +474,15 @@
       console.error("Firebase init error:", e);
     }
 </script>
-
 <!-- Your API base -->
 <script>window.API_BASE = "https://picklepot-stripe.onrender.com";</script>
-
 <!-- App scripts (order matters) -->
-<script src="app.full.bundle.js" defer></script>
-<script src="app.roster.loader.v3.1.js?v=1" defer></script>
+<script defer="" src="app.full.bundle.js"></script>
+<script defer="" src="app.roster.loader.v3.1.js?v=1"></script>
 <!-- Per-pot enforcer -->
-<script src="app.roster.enforcer.v7.4.js?v=1" defer></script>
-<script src="app.bootstrap.v2.js?v=1" defer></script>
-<script src="app.detail.toggleType.v2.js?v=1" defer></script>
-
+<script defer="" src="app.roster.enforcer.v7.4.js?v=1"></script>
+<script defer="" src="app.bootstrap.v2.js?v=1"></script>
+<script defer="" src="app.detail.toggleType.v2.js?v=1"></script>
 <!-- Tips rotator & misc -->
 <script>
 (function(){
@@ -499,7 +497,6 @@
   document.getElementById('year').textContent = new Date().getFullYear();
 })();
 </script>
-
 <!-- Status skinning helper -->
 <script>
 (function(){
@@ -528,7 +525,138 @@
   const obs = new MutationObserver(applyStatusStyles);
   obs.observe(document.body, { childList:true, subtree:true, characterData:true });
 })();
-</script>
 
+
+// === Owner Code & Organizer Link Admin ===
+(function(){
+  try{
+    var db = firebase.firestore();
+  }catch(e){
+    console.error('Firestore not ready', e);
+    return;
+  }
+  function randCode(len){
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/1/0
+    var s=''; for(var i=0;i<(len||8);i++){ s += chars[Math.floor(Math.random()*chars.length)]; }
+    return s;
+  }
+  function currentPotId(){
+    var v = (document.getElementById('v-pot')||{}).value || '';
+    return (v||'').trim();
+  }
+  async function readPot(potId){
+    const d = await db.collection('pots').doc(potId).get();
+    return d.exists ? d.data() : null;
+  }
+  function buildOrganizerLink(potId, code){
+    var base = (location.origin + location.pathname).replace(/index\.html?$/i,'');
+    return base + 'manage.html?pot=' + encodeURIComponent(potId) + (code?('&code='+encodeURIComponent(code)):''); 
+  }
+  async function ensureCode(potId){
+    var snap = await db.collection('pots').doc(potId).get();
+    var data = snap.exists ? snap.data() : null;
+    var code = data && data.owner_code ? String(data.owner_code).toUpperCase() : null;
+    if (!code){
+      code = randCode(8);
+      await db.collection('pots').doc(potId).update({ owner_code: code, owner_code_updated_at: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    return code;
+  }
+  async function regenerateCode(potId){
+    var code = randCode(8);
+    await db.collection('pots').doc(potId).update({ owner_code: code, owner_code_updated_at: firebase.firestore.FieldValue.serverTimestamp() });
+    return code;
+  }
+  function setStatus(text, ok){
+    var el = document.getElementById('owner-admin-status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = ok ? '#065f46' : '#b91c1c';
+  }
+  function updateUI(potId, code){
+    var codeEl = document.getElementById('owner-code-display');
+    if (codeEl) codeEl.textContent = code || '—';
+    var linkEl = document.getElementById('organizer-link');
+    if (linkEl) linkEl.value = buildOrganizerLink(potId, code||'');
+  }
+
+  var btnGenCode = document.getElementById('btn-gen-owner-code');
+  var btnCopyCode = document.getElementById('btn-copy-owner-code');
+  var btnGenLink = document.getElementById('btn-gen-organizer-link');
+  var btnCopyLink = document.getElementById('btn-copy-organizer-link');
+
+  if (btnGenCode){
+    btnGenCode.addEventListener('click', async function(){
+      try{
+        var potId = currentPotId();
+        if (!potId){ setStatus('Load a pot first (enter Pot ID and click Load).', false); return; }
+        setStatus('Updating owner code…', true);
+        var code = await regenerateCode(potId);
+        updateUI(potId, code);
+        setStatus('Owner code regenerated.', true);
+      }catch(e){ console.error(e); setStatus('Failed to regenerate code.', false); }
+    });
+  }
+  if (btnCopyCode){
+    btnCopyCode.addEventListener('click', async function(){
+      try{
+        var potId = currentPotId();
+        if (!potId){ setStatus('Load a pot first.', false); return; }
+        var snap = await db.collection('pots').doc(potId).get();
+        var code = snap.exists && snap.data().owner_code ? String(snap.data().owner_code).toUpperCase() : null;
+        if (!code){ code = await ensureCode(potId); }
+        await navigator.clipboard.writeText(code);
+        updateUI(potId, code);
+        setStatus('Owner code copied.', true);
+      }catch(e){ console.error(e); setStatus('Copy failed.', false); }
+    });
+  }
+  if (btnGenLink){
+    btnGenLink.addEventListener('click', async function(){
+      try{
+        var potId = currentPotId();
+        if (!potId){ setStatus('Load a pot first (enter Pot ID and click Load).', false); return; }
+        setStatus('Preparing organizer link…', true);
+        // Ensure a fresh code so previous links are invalidated
+        var code = await regenerateCode(potId);
+        var link = buildOrganizerLink(potId, code);
+        var linkEl = document.getElementById('organizer-link');
+        if (linkEl) linkEl.value = link;
+        setStatus('Organizer link regenerated.', true);
+      }catch(e){ console.error(e); setStatus('Failed to generate link.', false); }
+    });
+  }
+  if (btnCopyLink){
+    btnCopyLink.addEventListener('click', async function(){
+      try{
+        var potId = currentPotId();
+        if (!potId){ setStatus('Load a pot first.', false); return; }
+        var snap = await db.collection('pots').doc(potId).get();
+        var code = snap.exists && snap.data().owner_code ? String(snap.data().owner_code).toUpperCase() : await ensureCode(potId);
+        var link = buildOrganizerLink(potId, code);
+        await navigator.clipboard.writeText(link);
+        updateUI(potId, code);
+        setStatus('Organizer link copied.', true);
+      }catch(e){ console.error(e); setStatus('Copy failed.', false); }
+    });
+  }
+
+  // When Admin panel is shown and a pot is loaded, auto-fill
+  document.addEventListener('click', async function(e){
+    if (e.target && e.target.id === 'btn-load'){
+      // after load, give a moment for UI, then fetch code
+      setTimeout(async function(){
+        try{
+          var potId = currentPotId();
+          if (!potId) return;
+          var snap = await db.collection('pots').doc(potId).get();
+          var code = snap.exists && snap.data().owner_code ? String(snap.data().owner_code).toUpperCase() : null;
+          updateUI(potId, code||'');
+        }catch(_){}
+      }, 800);
+    }
+  }, true);
+
+})();</script>
 </body>
 </html>

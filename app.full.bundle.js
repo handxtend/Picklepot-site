@@ -535,16 +535,6 @@ function renderJoinPotSelectFromCache(){
 }
 
 
-
-function __resolveSortMs(p){
-  try{
-    var s = (p && p.start_at && p.start_at.toMillis) ? p.start_at.toMillis() : (typeof p.start_at==='number' ? p.start_at : null);
-    var d = (p && p.date) ? Date.parse(p.date) : null;
-    if (Number.isFinite(d)) return s || d;
-    var c = (p && p.created_at && p.created_at.toMillis) ? p.created_at.toMillis() : (typeof p.created_at==='number' ? p.created_at : null);
-    return s || c || 0;
-  }catch(_){ return 0; }
-}
 function attachActivePotsListener(){
   const sel = $('#j-pot-select');
   if (JOIN_POTS_SUB){ try{ JOIN_POTS_SUB(); }catch(_){ } JOIN_POTS_SUB = null; }
@@ -571,7 +561,7 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (endMs && endMs <= now) return; // hide ended
       pots.push(x);
     });
-    pots.sort((a,b)=> __resolveSortMs(a) - __resolveSortMs(b));
+    pots.sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
     JOIN_POTS_CACHE = pots;
 
     if (!pots.length){
@@ -1305,9 +1295,9 @@ PiCo Pickle Pot`;
     { src: 'sponsor_728x90.png', url: 'https://pickleballcompete.com' }
   ];
   const BOTTOM_BANNERS = [
-    { src: '/bottom_300x250_1.png', url: '' },
-    { src: '/bottom_300x250_2.png', url: '' },
-    { src: '/sponsor_300x250.png', url: '' }
+    { src: 'bottom_300x250_1.png', url: '' },
+    { src: 'bottom_300x250_2.png', url: '' },
+    { src: 'sponsor_300x250.png', url: '' }
   ];
 
   function preload(banners){
