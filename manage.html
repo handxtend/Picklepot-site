@@ -51,11 +51,11 @@
   <div class="panel">
     <header>
       <h1>Organizer — Manage Pot</h1>
-      
-<div id="close-row" style="display:flex;justify-content:flex-end;margin:6px 0 2px;">
-  <button id="btn-close-manage" class="btn btn-outline-secondary btn-sm" type="button" aria-label="Close organizer manage page">Close</button>
-</div>
-<p class="muted">Unlock with the Owner Link or Owner Code. Update pot fields and manage entries below.</p>
+      <p class="muted">Unlock with the Owner Link or Owner Code. Update pot fields and manage entries below.</p>
+    
+      <div id="close-row" class="row" style="justify-content:flex-end;margin-top:8px">
+        <button id="btn-close-manage" class="btn secondary" type="button" aria-label="Close organizer manage page">Close</button>
+      </div>
     </header>
 <div class="section-header" id="manage-expire-note" style="background-color:#003366;color:#ffffff;padding:10px 15px;border-radius:5px 5px 0 0;font-size:1.2em;font-weight:700;margin:12px 22px 0;">
   Note: Organizer-created pots expire 3 months after creation.
@@ -174,7 +174,7 @@
 </div>
 
 <script>
-(async function(){
+(function(){
   const API = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/,'');
   const $ = (id)=>document.getElementById(id);
   const setMsg = (t, ok)=>{ const el=$('status'); el.textContent=t; el.className = ok?'ok':'err'; };
@@ -204,49 +204,8 @@
     } finally { clearTimeout(id); }
   }
   async function warmAPI(){ try{ await fetch(API+'/', { mode:'no-cors' }); }catch(_){ } }
-  
-async function ownerAuthRobust(pot, key, code){
-  const payloadCode = { key: null, code: code||null };
-  const payloadKey  = { key: key||null,  code: null };
-  const isLocalish  = /^file:/i.test(location.protocol) || /localhost|127\.0\.0\.1/i.test(location.host);
-  await warmAPI();
-  // 1) Prefer code-only
-  if (code){
-    try{
-      const r = await fetchWithTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth`, {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payloadCode)
-      });
-      if (r.ok) return r.json().catch(()=>({ok:true}));
-    }catch(_){ /* ignore */ }
-    // 1b) silent local fallback (prevents noisy GETs)
-    try{
-      const local = await localAuthByCode(pot, code);
-      if (local && local.ok) return local;
-    }catch(_){}
-  }
-  // 2) Key-only (if present)
-  if (key){
-    try{
-      const r = await fetchWithTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth`, {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payloadKey)
-      });
-      if (r.ok) return r.json().catch(()=>({ok:true}));
-    }catch(_){ /* ignore */ }
-  }
-  // 3) As a last resort, try GET variants (but skip if we already had a code path to avoid console noise)
-  if (!code && !isLocalish){
-    try{
-      const r = await fetchWithTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth?key=${encodeURIComponent(key||'')}&code=${encodeURIComponent(code||'')}`);
-      if (r.ok) return r.json().catch(()=>({ok:true}));
-    }catch(_){}
-    try{
-      const r = await fetchWithTimeout(`${API}/owner/auth?pot=${encodeURIComponent(pot)}&key=${encodeURIComponent(key||'')}&code=${encodeURIComponent(code||'')}`);
-      if (r.ok) return r.json().catch(()=>({ok:true}));
-    }catch(_){}
-  }
-  throw new Error('Access denied');
-}
-;
+  async function ownerAuthRobust(pot, key, code){
+    const payloadCode = { key: null, code: code||null };
     const payloadKey  = { key: key||null,  code: null };
     await warmAPI();
     if (code){
@@ -496,7 +455,14 @@ async function localAuthByCode(pot, code){
   }catch(_){}
 
 
-  // Close button handler: try window.close(); fallback to history/index
+  // --- Fallback: define loadEntries if the bundle didn't provide it ---
+  if (typeof loadEntries !== "function") {
+    function loadEntries(potId){
+      try { startLive(potId); } catch(e){ console.error("fallback loadEntries error", e); }
+    }
+  }
+
+  // Close button handler: try to close the tab; if blocked, go back or to index.
   (function(){
     try{
       var btn = document.getElementById('btn-close-manage');
@@ -504,7 +470,6 @@ async function localAuthByCode(pot, code){
         btn.addEventListener('click', function(){
           try { window.open('', '_self'); } catch(_) {}
           try { window.close(); } catch(_) {}
-          // If the tab didn't close, navigate back or to index
           setTimeout(function(){
             try{
               if (document.visibilityState !== 'hidden') {
