@@ -208,6 +208,9 @@
       const email=findEmail(), sel=findMtype();
       if(email && sel && !attached){
         attached=true; LOG('attached to join controls');
+        try{ __ensureRosterLoaded(); }catch(_){}
+        try{ setTimeout(function(){ __ensureRosterLoaded(); }, 300); }catch(_){}
+    
         const handler=()=>applyRule();
         email.addEventListener('input', handler);
         email.addEventListener('keyup', handler);
