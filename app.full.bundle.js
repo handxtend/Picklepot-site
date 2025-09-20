@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#j-skill').addEventListener('change', evaluateJoinEligibility);
   $('#j-mtype').addEventListener('change', ()=>{ updateJoinCost(); evaluateJoinEligibility(); });
 
-  $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); __updateJoinRequiredUI(); });
+  $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
 
   if (!window.__createBound){ $('#btn-create').addEventListener('click', onCreateClick); window.__createBound = true; }
 (function(){ 
@@ -458,7 +458,6 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshAdminUI();
   // NEW: show success banner if returning from Stripe
   checkStripeReturn();
-  try{ __updateJoinRequiredUI(); }catch(_){}
 });
 
 /* ---------- Utility: payment methods map ---------- */
@@ -721,19 +720,9 @@ function updateBigTotals(paidShare, totalShare){
 /* ---------- Join helpers ---------- */
 function updateJoinCost(){
   const p = CURRENT_JOIN_POT; if(!p) return;
-  const email = (document.getElementById('j-email')?.value||'').trim();
-  const el = document.getElementById('j-cost');
-  if (!email){
-    if (el){ el.style.display='none'; el.style.visibility='hidden'; el.textContent=''; }
-    return;
-  }
-  const mtype = document.getElementById('j-mtype').value;
+  const mtype = $('#j-mtype').value;
   const amt = (mtype==='Member'? Number(p.buyin_member||0) : Number(p.buyin_guest||0));
-  if (el){
-    el.textContent = 'Cost: ' + dollars(amt);
-    el.style.display='';
-    el.style.visibility='visible';
-  }
+  $('#j-cost').textContent = 'Cost: ' + dollars(amt);
 }
 function evaluateJoinEligibility(){
   const p=CURRENT_JOIN_POT; if(!p) return;
@@ -743,38 +732,6 @@ function evaluateJoinEligibility(){
   warn.style.display = allow ? 'none' : 'block';
   warn.textContent = allow ? '' : 'Higher skill level cannot play down';try{if(!allow){warn.style.color='#b91c1c';warn.style.fontWeight='800';}}catch(e){}
 }
-
-
-/* --- Required fields + cost visibility gating --- */
-function __updateJoinRequiredUI(){
-  try{
-    var p = CURRENT_JOIN_POT;
-    var btn = document.getElementById('btn-join');
-    var fname = (document.getElementById('j-fname')?.value||'').trim();
-    var lname = (document.getElementById('j-lname')?.value||'').trim();
-    var email = (document.getElementById('j-email')?.value||'').trim();
-    var ok = !!(p && fname && lname && email);
-    if (btn) btn.disabled = !ok;
-    // hide cost until email present
-    var cost = document.getElementById('j-cost');
-    if (cost){
-      if (email){ cost.style.display=''; cost.style.visibility='visible'; }
-      else { cost.style.display='none'; cost.style.visibility='hidden'; }
-    }
-  }catch(_){}
-}
-try{
-  document.addEventListener('DOMContentLoaded', function(){
-    ['j-fname','j-lname','j-email'].forEach(function(id){
-      var el = document.getElementById(id);
-      if (el && !el.__reqBound){
-        el.addEventListener('input', function(){ __updateJoinRequiredUI(); try{ if(id==='j-email') updateJoinCost(); }catch(_){} });
-        el.__reqBound = true;
-      }
-    });
-    __updateJoinRequiredUI();
-  });
-}catch(_){}
 
 /* Build payment options per event */
 function updatePaymentOptions(){
@@ -848,8 +805,6 @@ async function joinPot(){
   try{ window.__joinPayMethod = pay_type; sessionStorage.setItem('JOIN_PAY_METHOD', String(pay_type||'')); }catch(_){}
 
   if(!fname){ msg.textContent='First name is required.'; return; }
-  if(!lname){ msg.textContent='Last name is required.'; return; }
-  if(!email){ msg.textContent='Email is required.'; return; }
   if(!__effective_pay_type){ msg.textContent='Choose a payment method.'; return; }
 
   const rank = s => ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] ?? 0);
@@ -2303,7 +2258,47 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
   }
 
   // Handle returns specifically for Create-Pot flow
-  async function handleCreateCheckoutReturn(){
+  async 
+  // Handle returns for JOIN flow (Stripe cancel -> delete draft entry)
+  async function handleJoinCheckoutReturn(){
+    try{
+      var params = new URLSearchParams(location.search);
+      var flow = params.get('flow');
+      if (flow !== 'join') return; // not our flow
+
+      var onCancel = /cancel\.html$/i.test(location.pathname);
+      var onSuccess = /success\.html$/i.test(location.pathname);
+      var potId = params.get('pot_id') || (function(){ try{ return sessionStorage.getItem('potId'); }catch(_){ return null; } })();
+      var entryId = params.get('entry_id') || (function(){ try{ return sessionStorage.getItem('entryId'); }catch(_){ return null; } })();
+
+      if (onCancel){
+        try{
+          if (window.firebase && firebase.firestore && potId && entryId){
+            var db = firebase.firestore();
+            var ref = db.collection('pots').doc(String(potId)).collection('entries').doc(String(entryId));
+            var snap = await ref.get();
+            var d = snap.exists ? (snap.data()||{}) : {};
+            if (!d.paid_at && !d.paid){ await ref.delete(); }
+            try{ sessionStorage.removeItem('potId'); sessionStorage.removeItem('entryId'); }catch(_){}
+            var b1 = document.getElementById('pay-banner');
+            if (b1){ b1.style.display=''; b1.textContent='Checkout canceled. Your registration was not saved.'; }
+          }
+        }catch(e){ console.warn('[Join Cancel] delete failed', e); }
+        if (history.replaceState){
+          var clean = location.pathname + location.hash;
+          history.replaceState(null, '', clean);
+        }
+        return;
+      }
+
+      if (onSuccess){
+        // Success is handled by existing return handler; no-op here
+        return;
+      }
+    }catch(e){ console.warn('[Join Checkout Return] error', e); }
+  }
+
+function handleCreateCheckoutReturn(){
     try{
       var params = new URLSearchParams(location.search);
       var flow = params.get('flow');
@@ -2362,6 +2357,7 @@ try{ const _oldRefreshAdmin = refreshAdminUI; window.refreshAdminUI = function()
     // Rebind after other scripts run, to override any createPot binding
     try{ rebindCreateToCheckout(); setTimeout(rebindCreateToCheckout, 0); setTimeout(rebindCreateToCheckout, 300); }catch(_){}
     handleCreateCheckoutReturn();
+    handleJoinCheckoutReturn();
   });
 
   try{
