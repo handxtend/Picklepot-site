@@ -53,11 +53,10 @@
       <h1>Organizer — Manage Pot</h1>
       <p class="muted">Unlock with the Owner Link or Owner Code. Update pot fields and manage entries below.</p>
     
-      <div id="close-row" class="row" style="justify-content:flex-end;margin:6px 22px 0">
+      <div id="close-row" class="row" style="justify-content:flex-end;margin-top:8px">
         <button id="btn-close-manage" class="btn secondary" type="button" aria-label="Close organizer manage page">Close</button>
       </div>
-    
-</header>
+    </header>
 <div class="section-header" id="manage-expire-note" style="background-color:#003366;color:#ffffff;padding:10px 15px;border-radius:5px 5px 0 0;font-size:1.2em;font-weight:700;margin:12px 22px 0;">
   Note: Organizer-created pots expire 3 months after creation.
 </div>
@@ -195,31 +194,6 @@
   let currentPot = null;
   let unsubscribe = null;
   let potSnapUnsub = null;
-  // Clear and lock the Manage UI until the owner verifies again
-  function resetManage(){
-    try{ if (unsubscribe) { unsubscribe(); } }catch(_){}
-    try{ if (potSnapUnsub) { potSnapUnsub(); } }catch(_){}
-    unsubscribe = null; potSnapUnsub = null; currentPot = null;
-    // Clear fields
-    try{ $('pot-id').value=''; $('owner-key').value=''; $('owner-code').value=''; }catch(_){}
-    // Clear UI
-    try{
-      $('status').textContent=''; $('status').className='';
-      $('tools').classList.add('hidden');
-      $('entries').innerHTML='';
-      $('potMeta').innerHTML='';
-      $('potline').textContent='';
-      $('editForm').classList.add('hidden');
-      $('saveStatus').textContent='';
-    }catch(_){}
-    // Remove saved auth and query params
-    try{ localStorage.removeItem('mgr_auth'); }catch(_){}
-    try{ history.replaceState(null, '', location.pathname); }catch(_){}
-    // Inform user and focus
-    try{ const el=$('status'); el.textContent='Access cleared. Verify with Owner Code or Link.'; el.className='muted'; }catch(_){}
-    try{ $('pot-id').focus(); }catch(_){}
-  }
-
 
   async function fetchWithTimeout(url, options={}, ms=30000){
     const ctrl = new AbortController();
@@ -488,14 +462,22 @@ async function localAuthByCode(pot, code){
     }
   }
 
-  // Close button: clear fields + remove auth; stay on page
+  // Close button handler: try to close the tab; if blocked, go back or to index.
   (function(){
     try{
       var btn = document.getElementById('btn-close-manage');
       if(btn){
         btn.addEventListener('click', function(){
-          try{ resetManage(); }catch(e){ console.error('resetManage failed', e); }
-          try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(_){}
+          try { window.open('', '_self'); } catch(_) {}
+          try { window.close(); } catch(_) {}
+          setTimeout(function(){
+            try{
+              if (document.visibilityState !== 'hidden') {
+                if (document.referrer) { history.back(); }
+                else { location.assign('./index.html'); }
+              }
+            }catch(_){ location.assign('./index.html'); }
+          }, 80);
         });
       }
     }catch(_){}
