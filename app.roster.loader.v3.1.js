@@ -6,6 +6,29 @@
   const log=(...a)=>console.log(LOGP, ...a);
   const lc = s => (s||'').trim().toLowerCase();
 
+  // --- Global sync helpers (Firestore) ---
+  function getCurrentPotId(){
+    try{
+      var el = document.querySelector('#pot-id, [data-potid], [data-pot-id]');
+      if(el){
+        var v = el.value || el.getAttribute('data-potid') || el.getAttribute('data-pot-id');
+        if(v) return String(v).trim();
+      }
+    }catch(_){}
+    return null;
+  }
+  function saveRosterToFirestore(potId, emails){
+    try{
+      if(!potId || !emails || !emails.length) return;
+      if(!(window.firebase && firebase.firestore)) return;
+      var db = firebase.firestore();
+      var lc = function(s){ return (s||'').trim().toLowerCase(); };
+      db.collection('pots').doc(String(potId)).set({ roster_emails_lc: emails.map(lc) }, { merge:true })
+        .then(function(){ console.log('[roster] saved to Firestore for pot', potId, '('+emails.length+' emails)'); })
+        .catch(function(e){ console.warn('[roster] Firestore save failed', e); });
+    }catch(_){}
+  }
+
   function csvToRows(text){
     const rows=[]; let row=[]; let cur=''; let inQ=false;
     for(let i=0;i<text.length;i++){
@@ -79,6 +102,7 @@
       if(!emails.length) return false;
       map[key] = emails.map(lc);
       savePotMap(map);
+      try{ saveRosterToFirestore(getCurrentPotId(), emails); }catch(_){}
       log('bound roster to key:', key, `(${emails.length} emails)`);
       return true;
     }catch(err){ console.error(err); return false; }
@@ -141,7 +165,9 @@
           const pm = loadPotMap();
           for(const k of keys){ pm[k]=emails.map(lc); log('saved pot roster under key:', k); }
           savePotMap(pm);
-        } else {
+        
+        try{ saveRosterToFirestore(getCurrentPotId(), emails); }catch(_){}
+} else {
           log('warning: no create-form keys found; roster stored globally only');
         }
       }catch(err){
