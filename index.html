@@ -2,6 +2,21 @@
 
 <html lang="en">
 <head>
+
+<script>
+  // REDIRECT_MANAGE_CLEANURL: if server rewrites /manage to index.html, bounce to manage.html
+  (function(){
+    try{
+      var p = location.pathname.replace(/\/+/g,'/');
+      if (/\/manage\/?$/.test(p)) {
+        var qs = location.search || '';
+        var h  = location.hash   || '';
+        location.replace('manage.html' + qs + h);
+      }
+    }catch(_){}
+  })();
+</script>
+
 <style>
   /* Desktop listbox behavior for Active Tournaments */
   @media (hover: hover) and (pointer: fine) {
@@ -211,10 +226,10 @@
 </div>
 <div class="row" style="margin-top:8px">
 <div>
-<label for="c-roster-csv">Member Roster (CSV)</label>
-<input accept=".csv,text/csv" aria-label="Upload member roster CSV" id="c-roster-csv" type="file"/>
+<label>Member Roster (CSV)</label>
+<input accept=".csv" id="c-roster-csv" type="file"/>
 </div>
-<div aria-live="polite" class="muted" id="csv-status" style="align-self:flex-end">No roster loaded</div>
+<div class="muted" id="csv-status" style="align-self:flex-end">No roster loaded</div>
 </div>
 <div class="inline" style="margin-top:12px">
 <button class="btn primary" id="btn-create">Create Pot</button>
@@ -363,10 +378,10 @@
 <div id="roster-attach" style="margin-top:12px; border:1px dashed var(--border); padding:10px; border-radius:8px; display:none;">
 <div class="row">
 <div>
-<label for="d-roster-csv">Attach / Replace Roster (CSV)</label>
-<input accept=".csv,text/csv" aria-label="Upload member roster CSV" id="d-roster-csv" type="file"/>
+<label>Attach / Replace Roster (CSV)</label>
+<input accept=".csv" id="d-roster-csv" type="file"/>
 </div>
-<div aria-live="polite" class="muted" id="d-roster-status" style="align-self:flex-end">No roster loaded</div>
+<div class="muted" id="d-roster-status" style="align-self:flex-end">No roster loaded</div>
 </div>
 <div class="inline" style="margin-top:8px">
 <button class="btn" id="btn-roster-attach" type="button">Bind roster to this pot</button>
@@ -404,7 +419,21 @@
 <button class="btn" id="btn-cancel-edit" type="button">Cancel</button>
 </div>
 </form>
-</section>
+<div id="owner-admin" style="margin-top:12px;padding:10px;border:1px dashed var(--border);border-radius:8px;">
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+<strong>Owner Code</strong>
+<code id="owner-code-display" style="padding:6px 10px;background:#f3f4f6;border-radius:8px">—</code>
+<button class="btn" id="btn-gen-owner-code" type="button">Generate / Regenerate</button>
+<button class="btn" id="btn-copy-owner-code" type="button">Copy</button>
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px">
+<strong>Organizer Link</strong>
+<input id="organizer-link" readonly="" style="flex:1;min-width:260px;padding:8px;border:1px solid var(--border);border-radius:8px"/>
+<button class="btn" id="btn-gen-organizer-link" type="button">Generate / Regenerate</button>
+<button class="btn" id="btn-copy-organizer-link" type="button">Copy</button>
+</div>
+<div class="muted" id="owner-admin-status" style="margin-top:6px;"></div>
+</div></section>
 </div>
 </section>
 <!-- BOTTOM SPONSOR BANNER -->
@@ -452,8 +481,6 @@
 <script defer="" src="app.roster.loader.v3.1.js?v=1"></script>
 <!-- Per-pot enforcer -->
 <script defer="" src="app.roster.enforcer.v7.4.js?v=1"></script>
-<script src="app.roster.cloud.v1.js?v=1" defer></script>
-
 <script defer="" src="app.bootstrap.v2.js?v=1"></script>
 <script defer="" src="app.detail.toggleType.v2.js?v=1"></script>
 <!-- Tips rotator & misc -->
@@ -498,6 +525,138 @@
   const obs = new MutationObserver(applyStatusStyles);
   obs.observe(document.body, { childList:true, subtree:true, characterData:true });
 })();
-</script>
+
+
+// === Owner Code & Organizer Link Admin ===
+(function(){
+  try{
+    var db = firebase.firestore();
+  }catch(e){
+    console.error('Firestore not ready', e);
+    return;
+  }
+  function randCode(len){
+    var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/1/0
+    var s=''; for(var i=0;i<(len||8);i++){ s += chars[Math.floor(Math.random()*chars.length)]; }
+    return s;
+  }
+  function currentPotId(){
+    var v = (document.getElementById('v-pot')||{}).value || '';
+    return (v||'').trim();
+  }
+  async function readPot(potId){
+    const d = await db.collection('pots').doc(potId).get();
+    return d.exists ? d.data() : null;
+  }
+  function buildOrganizerLink(potId, code){
+    var base = (location.origin + location.pathname).replace(/index\.html?$/i,'');
+    return base + 'manage.html?pot=' + encodeURIComponent(potId) + (code?('&code='+encodeURIComponent(code)):''); 
+  }
+  async function ensureCode(potId){
+    var snap = await db.collection('pots').doc(potId).get();
+    var data = snap.exists ? snap.data() : null;
+    var code = data && data.owner_code ? String(data.owner_code).toUpperCase() : null;
+    if (!code){
+      code = randCode(8);
+      await db.collection('pots').doc(potId).update({ owner_code: code, owner_code_updated_at: firebase.firestore.FieldValue.serverTimestamp() });
+    }
+    return code;
+  }
+  async function regenerateCode(potId){
+    var code = randCode(8);
+    await db.collection('pots').doc(potId).update({ owner_code: code, owner_code_updated_at: firebase.firestore.FieldValue.serverTimestamp() });
+    return code;
+  }
+  function setStatus(text, ok){
+    var el = document.getElementById('owner-admin-status');
+    if (!el) return;
+    el.textContent = text || '';
+    el.style.color = ok ? '#065f46' : '#b91c1c';
+  }
+  function updateUI(potId, code){
+    var codeEl = document.getElementById('owner-code-display');
+    if (codeEl) codeEl.textContent = code || '—';
+    var linkEl = document.getElementById('organizer-link');
+    if (linkEl) linkEl.value = buildOrganizerLink(potId, code||'');
+  }
+
+  var btnGenCode = document.getElementById('btn-gen-owner-code');
+  var btnCopyCode = document.getElementById('btn-copy-owner-code');
+  var btnGenLink = document.getElementById('btn-gen-organizer-link');
+  var btnCopyLink = document.getElementById('btn-copy-organizer-link');
+
+  if (btnGenCode){
+    btnGenCode.addEventListener('click', async function(){
+      try{
+        var potId = currentPotId();
+        if (!potId){ setStatus('Load a pot first (enter Pot ID and click Load).', false); return; }
+        setStatus('Updating owner code…', true);
+        var code = await regenerateCode(potId);
+        updateUI(potId, code);
+        setStatus('Owner code regenerated.', true);
+      }catch(e){ console.error(e); setStatus('Failed to regenerate code.', false); }
+    });
+  }
+  if (btnCopyCode){
+    btnCopyCode.addEventListener('click', async function(){
+      try{
+        var potId = currentPotId();
+        if (!potId){ setStatus('Load a pot first.', false); return; }
+        var snap = await db.collection('pots').doc(potId).get();
+        var code = snap.exists && snap.data().owner_code ? String(snap.data().owner_code).toUpperCase() : null;
+        if (!code){ code = await ensureCode(potId); }
+        await navigator.clipboard.writeText(code);
+        updateUI(potId, code);
+        setStatus('Owner code copied.', true);
+      }catch(e){ console.error(e); setStatus('Copy failed.', false); }
+    });
+  }
+  if (btnGenLink){
+    btnGenLink.addEventListener('click', async function(){
+      try{
+        var potId = currentPotId();
+        if (!potId){ setStatus('Load a pot first (enter Pot ID and click Load).', false); return; }
+        setStatus('Preparing organizer link…', true);
+        // Ensure a fresh code so previous links are invalidated
+        var code = await regenerateCode(potId);
+        var link = buildOrganizerLink(potId, code);
+        var linkEl = document.getElementById('organizer-link');
+        if (linkEl) linkEl.value = link;
+        setStatus('Organizer link regenerated.', true);
+      }catch(e){ console.error(e); setStatus('Failed to generate link.', false); }
+    });
+  }
+  if (btnCopyLink){
+    btnCopyLink.addEventListener('click', async function(){
+      try{
+        var potId = currentPotId();
+        if (!potId){ setStatus('Load a pot first.', false); return; }
+        var snap = await db.collection('pots').doc(potId).get();
+        var code = snap.exists && snap.data().owner_code ? String(snap.data().owner_code).toUpperCase() : await ensureCode(potId);
+        var link = buildOrganizerLink(potId, code);
+        await navigator.clipboard.writeText(link);
+        updateUI(potId, code);
+        setStatus('Organizer link copied.', true);
+      }catch(e){ console.error(e); setStatus('Copy failed.', false); }
+    });
+  }
+
+  // When Admin panel is shown and a pot is loaded, auto-fill
+  document.addEventListener('click', async function(e){
+    if (e.target && e.target.id === 'btn-load'){
+      // after load, give a moment for UI, then fetch code
+      setTimeout(async function(){
+        try{
+          var potId = currentPotId();
+          if (!potId) return;
+          var snap = await db.collection('pots').doc(potId).get();
+          var code = snap.exists && snap.data().owner_code ? String(snap.data().owner_code).toUpperCase() : null;
+          updateUI(potId, code||'');
+        }catch(_){}
+      }, 800);
+    }
+  }, true);
+
+})();</script>
 </body>
 </html>

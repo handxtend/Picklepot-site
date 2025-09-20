@@ -1295,9 +1295,9 @@ PiCo Pickle Pot`;
     { src: 'sponsor_728x90.png', url: 'https://pickleballcompete.com' }
   ];
   const BOTTOM_BANNERS = [
-    { src: '/bottom_300x250_1.png', url: '' },
-    { src: '/bottom_300x250_2.png', url: '' },
-    { src: '/sponsor_300x250.png', url: '' }
+    { src: 'bottom_300x250_1.png', url: '' },
+    { src: 'bottom_300x250_2.png', url: '' },
+    { src: 'sponsor_300x250.png', url: '' }
   ];
 
   function preload(banners){

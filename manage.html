@@ -174,7 +174,18 @@
   const API = (window.API_BASE || 'https://picklepot-stripe.onrender.com').replace(/\/$/,'');
   const $ = (id)=>document.getElementById(id);
   const setMsg = (t, ok)=>{ const el=$('status'); el.textContent=t; el.className = ok?'ok':'err'; };
-  const parseKey = (v)=>{ if(!v) return null; v=String(v).trim(); const m=v.match(/[?&]key=([^&#]+)/i); return m?decodeURIComponent(m[1]):v; };
+  const parseKey = (v)=>{
+    if(!v) return null;
+    v = String(v).trim();
+    try {
+      if (/^\w+:\/\//i.test(v)) {
+        const m = v.match(/[?&]key=([^&#]+)/i);
+        return m ? decodeURIComponent(m[1]) : null;
+      }
+    } catch(_) {}
+    if (/[\\\/]/.test(v)) return null;
+    return v;
+  };
   const db = firebase.firestore();
   let currentPot = null;
   let unsubscribe = null;
@@ -190,24 +201,50 @@
   }
   async function warmAPI(){ try{ await fetch(API+'/', { mode:'no-cors' }); }catch(_){ } }
   async function ownerAuthRobust(pot, key, code){
-    const payload = { key: key||null, code: code||null };
+    const payloadCode = { key: null, code: code||null };
+    const payloadKey  = { key: key||null,  code: null };
     await warmAPI();
-    try{
-      const r = await fetchWithTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth`, {
-        method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-      });
-      if (r.ok) return r.json().catch(()=>({ok:true}));
-    }catch(e){ await new Promise(r=>setTimeout(r,700)); }
+    if (code){
+      try{
+        const r = await fetchWithTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payloadCode)
+        });
+        if (r.ok) return r.json().catch(()=>({ok:true}));
+      }catch(e){ await new Promise(r=>setTimeout(r,500)); }
+    }
+    if (key){
+      try{
+        const r = await fetchWithTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payloadKey)
+        });
+        if (r.ok) return r.json().catch(()=>({ok:true}));
+      }catch(e){ await new Promise(r=>setTimeout(r,500)); }
+    }
     try{
       const r = await fetchWithTimeout(`${API}/pots/${encodeURIComponent(pot)}/owner/auth?key=${encodeURIComponent(key||'')}&code=${encodeURIComponent(code||'')}`);
       if (r.ok) return r.json().catch(()=>({ok:true}));
-    }catch(e){ await new Promise(r=>setTimeout(r,700)); }
+    }catch(e){ await new Promise(r=>setTimeout(r,500)); }
     try{
       const r = await fetchWithTimeout(`${API}/owner/auth?pot=${encodeURIComponent(pot)}&key=${encodeURIComponent(key||'')}&code=${encodeURIComponent(code||'')}`);
       if (r.ok) return r.json().catch(()=>({ok:true}));
     }catch(e){}
     throw new Error('Access denied');
   }
+// === Local fallback: trust Firestore owner_code if it matches ===
+async function localAuthByCode(pot, code){
+  try{
+    if (!code) return null;
+    const snap = await db.collection('pots').doc(pot).get();
+    if (snap.exists){
+      const d = snap.data() || {};
+      if ((d.owner_code||'').toString().toUpperCase() === (code||'').toString().toUpperCase()){
+        return { ok: true, source: 'local' };
+      }
+    }
+  }catch(_){}
+  return null;
+}
+
 
   function renderMeta(d){
     const meta=$('potMeta'); meta.innerHTML='';
@@ -311,8 +348,16 @@
     const code = (($('owner-code').value||'').trim()||'').toUpperCase() || null;
     if(!pot){ setMsg('Enter a Pot ID', false); return; }
     setMsg('Verifying...', true);
+    let ok = false;
     try{
-      await ownerAuthRobust(pot, key, code);
+      const resp = await ownerAuthRobust(pot, key, code).catch(()=>null);
+      ok = !!(resp && resp.ok);
+    }catch(_){ ok = false; }
+    if (!ok){
+      const local = await localAuthByCode(pot, code);
+      ok = !!(local && local.ok);
+    }
+    if (ok){
       setMsg('Access granted.', true);
       $('tools').classList.remove('hidden');
       try{
@@ -320,17 +365,23 @@
         document.getElementById('f_pay_zelle').addEventListener('change', togglePayInfo);
         togglePayInfo();
       }catch(_){ }
-
       $('potline').textContent = pot;
       localStorage.setItem('mgr_auth', JSON.stringify({pot, key, code}));
       currentPot = pot;
-      startLive(pot);
-      bindPotDoc(pot);
-    }catch(e){
-      setMsg('Access denied. Check credentials.', false);
+      if (potSnapUnsub) { try { potSnapUnsub(); } catch(_){ } potSnapUnsub = null; }
+      potSnapUnsub = db.collection('pots').doc(pot).onSnapshot(s=>{
+        if(s.exists){
+          renderMeta(s.data());
+          $('editForm').classList.add('hidden');
+          $('saveStatus').textContent = '';
+          loadEntries(pot);
+        }
+      });
+    } else {
       alert('Access denied');
+      setMsg('Access denied', false);
     }
-  };
+  };;
 
   $('refreshPot').onclick = ()=>{
     if(currentPot){ startLive(currentPot); bindPotDoc(currentPot); }
