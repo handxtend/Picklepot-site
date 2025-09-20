@@ -195,6 +195,32 @@
   let unsubscribe = null;
   let potSnapUnsub = null;
 
+  // Clear and lock the Manage UI until the owner verifies again
+  function resetManage(){
+    try{ if (unsubscribe) { unsubscribe(); } }catch(_){}
+    try{ if (potSnapUnsub) { potSnapUnsub(); } }catch(_){}
+    unsubscribe = null; potSnapUnsub = null; currentPot = null;
+    // Clear fields
+    try{ $('pot-id').value=''; $('owner-key').value=''; $('owner-code').value=''; }catch(_){}
+    // Clear UI
+    try{
+      $('status').textContent=''; $('status').className='';
+      $('tools').classList.add('hidden');
+      $('entries').innerHTML='';
+      $('potMeta').innerHTML='';
+      $('potline').textContent='';
+      $('editForm').classList.add('hidden');
+      $('saveStatus').textContent='';
+    }catch(_){}
+    // Remove saved auth and query string
+    try{ localStorage.removeItem('mgr_auth'); }catch(_){}
+    try{ history.replaceState(null, '', location.pathname); }catch(_){}
+    // Inform user and focus
+    try{ setMsg('Access cleared. Verify with Owner Code or Link.', false); }catch(_){}
+    try{ $('pot-id').focus(); }catch(_){}
+  }
+
+
   async function fetchWithTimeout(url, options={}, ms=30000){
     const ctrl = new AbortController();
     const id = setTimeout(()=>ctrl.abort(), ms);
@@ -462,14 +488,20 @@ async function localAuthByCode(pot, code){
     }
   }
 
-  // Close button handler: try to close the tab; if blocked, go back or to index.
+  
+  // Close button: clear fields + remove auth; stay on page
   (function(){
     try{
       var btn = document.getElementById('btn-close-manage');
       if(btn){
         btn.addEventListener('click', function(){
-          try { window.open('', '_self'); } catch(_) {}
-          try { window.close(); } catch(_) {}
+          resetManage();
+          try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(_){}
+        });
+      }
+    }catch(_){}
+  })();
+} catch(_) {}
           setTimeout(function(){
             try{
               if (document.visibilityState !== 'hidden') {
