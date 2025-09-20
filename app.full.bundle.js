@@ -561,8 +561,7 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (endMs && endMs <= now) return; // hide ended
       pots.push(x);
     });
-    pots.sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
-    JOIN_POTS_CACHE = pots;
+    pots.sort(function(a,b){function __ms(x){try{var s=(x&&x.start_at&&x.start_at.toMillis)?x.start_at.toMillis():null;if(s!=null)return s;var d=(x&&x.date)?Date.parse(x.date):null;if(Number.isFinite(d))return d;var c=(x&&x.created_at&&x.created_at.toMillis)?x.created_at.toMillis():null;return c||0;}catch(_){return 0;}}return __ms(a)-__ms(b);});JOIN_POTS_CACHE = pots;
 
     if (!pots.length){
       if (sel) sel.innerHTML = `<option value="">No open pots</option>`;
