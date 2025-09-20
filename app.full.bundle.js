@@ -255,7 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#j-skill').addEventListener('change', evaluateJoinEligibility);
   $('#j-mtype').addEventListener('change', ()=>{ updateJoinCost(); evaluateJoinEligibility(); });
 
-  $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); });
+  $('#j-paytype').addEventListener('change', ()=>{ updateJoinCost(); updatePaymentNotes(); __updateJoinRequiredUI(); });
 
   if (!window.__createBound){ $('#btn-create').addEventListener('click', onCreateClick); window.__createBound = true; }
 (function(){ 
@@ -458,6 +458,7 @@ document.addEventListener('DOMContentLoaded', () => {
   refreshAdminUI();
   // NEW: show success banner if returning from Stripe
   checkStripeReturn();
+  try{ __updateJoinRequiredUI(); }catch(_){}
 });
 
 /* ---------- Utility: payment methods map ---------- */
@@ -561,7 +562,8 @@ const endMs = x.end_at?.toMillis ? x.end_at.toMillis() : null;
       if (endMs && endMs <= now) return; // hide ended
       pots.push(x);
     });
-    pots.sort(function(a,b){function __ms(x){try{var s=(x&&x.start_at&&x.start_at.toMillis)?x.start_at.toMillis():null;if(s!=null)return s;var dt=null;if(x&&x.date){  var ds=String(x.date).trim();  var ts=(x&&x.time)?String(x.time).trim():'';  if(ts){    if(/^\d{2}:\d{2}$/.test(ts)) ts = ts+':00';    dt = Date.parse(ds+'T'+ts);  }  if(!Number.isFinite(dt)){ dt = Date.parse(ds); }}if(Number.isFinite(dt)) return dt;var c=(x&&x.created_at&&x.created_at.toMillis)?x.created_at.toMillis():null;return c||0;}catch(_){return 0;}}return __ms(a)-__ms(b);});JOIN_POTS_CACHE = pots;
+    pots.sort((a,b)=> (a.start_at?.toMillis?.() ?? 0) - (b.start_at?.toMillis?.() ?? 0));
+    JOIN_POTS_CACHE = pots;
 
     if (!pots.length){
       if (sel) sel.innerHTML = `<option value="">No open pots</option>`;
@@ -719,9 +721,19 @@ function updateBigTotals(paidShare, totalShare){
 /* ---------- Join helpers ---------- */
 function updateJoinCost(){
   const p = CURRENT_JOIN_POT; if(!p) return;
-  const mtype = $('#j-mtype').value;
+  const email = (document.getElementById('j-email')?.value||'').trim();
+  const el = document.getElementById('j-cost');
+  if (!email){
+    if (el){ el.style.display='none'; el.style.visibility='hidden'; el.textContent=''; }
+    return;
+  }
+  const mtype = document.getElementById('j-mtype').value;
   const amt = (mtype==='Member'? Number(p.buyin_member||0) : Number(p.buyin_guest||0));
-  $('#j-cost').textContent = 'Cost: ' + dollars(amt);
+  if (el){
+    el.textContent = 'Cost: ' + dollars(amt);
+    el.style.display='';
+    el.style.visibility='visible';
+  }
 }
 function evaluateJoinEligibility(){
   const p=CURRENT_JOIN_POT; if(!p) return;
@@ -731,6 +743,38 @@ function evaluateJoinEligibility(){
   warn.style.display = allow ? 'none' : 'block';
   warn.textContent = allow ? '' : 'Higher skill level cannot play down';try{if(!allow){warn.style.color='#b91c1c';warn.style.fontWeight='800';}}catch(e){}
 }
+
+
+/* --- Required fields + cost visibility gating --- */
+function __updateJoinRequiredUI(){
+  try{
+    var p = CURRENT_JOIN_POT;
+    var btn = document.getElementById('btn-join');
+    var fname = (document.getElementById('j-fname')?.value||'').trim();
+    var lname = (document.getElementById('j-lname')?.value||'').trim();
+    var email = (document.getElementById('j-email')?.value||'').trim();
+    var ok = !!(p && fname && lname && email);
+    if (btn) btn.disabled = !ok;
+    // hide cost until email present
+    var cost = document.getElementById('j-cost');
+    if (cost){
+      if (email){ cost.style.display=''; cost.style.visibility='visible'; }
+      else { cost.style.display='none'; cost.style.visibility='hidden'; }
+    }
+  }catch(_){}
+}
+try{
+  document.addEventListener('DOMContentLoaded', function(){
+    ['j-fname','j-lname','j-email'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && !el.__reqBound){
+        el.addEventListener('input', function(){ __updateJoinRequiredUI(); try{ if(id==='j-email') updateJoinCost(); }catch(_){} });
+        el.__reqBound = true;
+      }
+    });
+    __updateJoinRequiredUI();
+  });
+}catch(_){}
 
 /* Build payment options per event */
 function updatePaymentOptions(){
@@ -804,6 +848,8 @@ async function joinPot(){
   try{ window.__joinPayMethod = pay_type; sessionStorage.setItem('JOIN_PAY_METHOD', String(pay_type||'')); }catch(_){}
 
   if(!fname){ msg.textContent='First name is required.'; return; }
+  if(!lname){ msg.textContent='Last name is required.'; return; }
+  if(!email){ msg.textContent='Email is required.'; return; }
   if(!__effective_pay_type){ msg.textContent='Choose a payment method.'; return; }
 
   const rank = s => ({"Any":0,"2.5 - 3.0":1,"3.25+":2}[s] ?? 0);

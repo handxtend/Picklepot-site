@@ -298,9 +298,9 @@
 </div>
 <div class="pot-highlight" id="j-pot-total" style="margin-top:6px;display:none">Total Pot: $0</div>
 <div class="row" style="margin-top:12px">
-<div><label>First Name</label><input id="j-fname" placeholder="First name"/></div>
-<div><label>Last Name</label><input id="j-lname" placeholder="Last name"/></div>
-<div><label>Email</label><input id="j-email" placeholder="you@example.com" type="email"/></div>
+<div><label>First Name</label><input id="j-fname" placeholder="First name"/ required></div>
+<div><label>Last Name</label><input id="j-lname" placeholder="Last name"/ required></div>
+<div><label>Email</label><input id="j-email" placeholder="you@example.com" type="email"/ required></div>
 <div>
 <label>Member / Guest</label>
 <select id="j-mtype">
@@ -477,12 +477,12 @@
 <!-- Your API base -->
 <script>window.API_BASE = "https://picklepot-stripe.onrender.com";</script>
 <!-- App scripts (order matters) -->
-<script defer="" src="app.full.bundle.js?v=pp-004"></script>
-<script defer="" src="app.roster.loader.v3.1.js?v=pp-004"></script>
+<script defer="" src="app.full.bundle.js"></script>
+<script defer="" src="app.roster.loader.v3.1.js?v=1"></script>
 <!-- Per-pot enforcer -->
-<script defer="" src="app.roster.enforcer.v7.4.js?v=pp-004"></script>
-<script defer="" src="app.bootstrap.v2.js?v=pp-004"></script>
-<script defer="" src="app.detail.toggleType.v2.js?v=pp-004"></script>
+<script defer="" src="app.roster.enforcer.v7.4.js?v=1"></script>
+<script defer="" src="app.bootstrap.v2.js?v=1"></script>
+<script defer="" src="app.detail.toggleType.v2.js?v=1"></script>
 <!-- Tips rotator & misc -->
 <script>
 (function(){
