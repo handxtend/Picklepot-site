@@ -53,10 +53,11 @@
       <h1>Organizer — Manage Pot</h1>
       <p class="muted">Unlock with the Owner Link or Owner Code. Update pot fields and manage entries below.</p>
     
-      <div id="close-row" class="row" style="justify-content:flex-end;margin-top:8px">
+      <div id="close-row" class="row" style="justify-content:flex-end;margin:6px 22px 0">
         <button id="btn-close-manage" class="btn secondary" type="button" aria-label="Close organizer manage page">Close</button>
       </div>
-    </header>
+    
+</header>
 <div class="section-header" id="manage-expire-note" style="background-color:#003366;color:#ffffff;padding:10px 15px;border-radius:5px 5px 0 0;font-size:1.2em;font-weight:700;margin:12px 22px 0;">
   Note: Organizer-created pots expire 3 months after creation.
 </div>
@@ -194,7 +195,6 @@
   let currentPot = null;
   let unsubscribe = null;
   let potSnapUnsub = null;
-
   // Clear and lock the Manage UI until the owner verifies again
   function resetManage(){
     try{ if (unsubscribe) { unsubscribe(); } }catch(_){}
@@ -212,11 +212,11 @@
       $('editForm').classList.add('hidden');
       $('saveStatus').textContent='';
     }catch(_){}
-    // Remove saved auth and query string
+    // Remove saved auth and query params
     try{ localStorage.removeItem('mgr_auth'); }catch(_){}
     try{ history.replaceState(null, '', location.pathname); }catch(_){}
     // Inform user and focus
-    try{ setMsg('Access cleared. Verify with Owner Code or Link.', false); }catch(_){}
+    try{ const el=$('status'); el.textContent='Access cleared. Verify with Owner Code or Link.'; el.className='muted'; }catch(_){}
     try{ $('pot-id').focus(); }catch(_){}
   }
 
@@ -487,33 +487,6 @@ async function localAuthByCode(pot, code){
       try { startLive(potId); } catch(e){ console.error("fallback loadEntries error", e); }
     }
   }
-
-  
-  // Close button: clear fields + remove auth; stay on page
-  (function(){
-    try{
-      var btn = document.getElementById('btn-close-manage');
-      if(btn){
-        btn.addEventListener('click', function(){
-          resetManage();
-          try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(_){}
-        });
-      }
-    }catch(_){}
-  })();
-} catch(_) {}
-          setTimeout(function(){
-            try{
-              if (document.visibilityState !== 'hidden') {
-                if (document.referrer) { history.back(); }
-                else { location.assign('./index.html'); }
-              }
-            }catch(_){ location.assign('./index.html'); }
-          }, 80);
-        });
-      }
-    }catch(_){}
-  })();
 })();
 </script>
 </body>
