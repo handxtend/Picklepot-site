@@ -487,6 +487,19 @@ async function localAuthByCode(pot, code){
       try { startLive(potId); } catch(e){ console.error("fallback loadEntries error", e); }
     }
   }
+
+  // Close button: clear fields + remove auth; stay on page
+  (function(){
+    try{
+      var btn = document.getElementById('btn-close-manage');
+      if(btn){
+        btn.addEventListener('click', function(){
+          try{ resetManage(); }catch(e){ console.error('resetManage failed', e); }
+          try{ window.scrollTo({top:0, behavior:'smooth'}); }catch(_){}
+        });
+      }
+    }catch(_){}
+  })();
 })();
 </script>
 </body>
