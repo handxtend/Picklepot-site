@@ -10,6 +10,51 @@
 
   function loadPotMap(){ try{ const raw=localStorage.getItem(RKEY_BY_POT); return raw? (JSON.parse(raw)||{}):{};}catch(_){return{};} }
 
+  // --- GLOBAL ROSTER via Firestore (cache) ---
+  let __ROSTER_SET = null;
+  let __ROSTER_POT = null;
+  function __db(){ try{ return (window.firebase && firebase.firestore) ? firebase.firestore() : null; }catch(_){ return null; } }
+  function __lc(s){ return (s||'').trim().toLowerCase(); }
+  function __setRoster(arr){
+    try{
+      if (Array.isArray(arr) && arr.length){ __ROSTER_SET = new Set(arr.map(__lc)); }
+      else { __ROSTER_SET = null; }
+    }catch(_){ __ROSTER_SET = null; }
+  }
+  async function __fetchRosterFromFirestore(potId){
+    const db = __db(); if(!db || !potId) return false;
+    try{
+      const doc = await db.collection('pots').doc(String(potId)).get();
+      const d = doc.exists ? (doc.data()||{}) : {};
+      if (Array.isArray(d.roster_emails_lc) && d.roster_emails_lc.length){
+        __setRoster(d.roster_emails_lc);
+        return true;
+      }
+    }catch(e){}
+    try{
+      const snap = await db.collection('pots').doc(String(potId)).collection('roster').get();
+      if (!snap.empty){
+        const arr = [];
+        snap.forEach(doc=>{
+          const dat = doc.data()||{};
+          const em = (dat.email || dat.mail || dat.e || doc.id || '').trim();
+          if (em) { arr.push(em); }});
+        if (arr.length){ __setRoster(arr); return true; }
+      }
+    }catch(e){}
+    return false;
+  }
+  async function __ensureRosterLoaded(){
+    try{
+      const pid = currentPotKeyExact();
+      if (!pid) { __ROSTER_SET=null; __ROSTER_POT=null; return; }
+      if (__ROSTER_POT === pid && __ROSTER_SET) return;
+      __ROSTER_POT = pid; __ROSTER_SET=null;
+      const ok = await __fetchRosterFromFirestore(pid);
+      if (ok){ try{ applyRule(); }catch(_){ } }
+    }catch(_){}
+  }
+
   // ---- pot-key lookup (exact → name → date) ----
   function currentPotKeyExact(){
     try{ if (typeof window.__getCurrentPotKey==='function'){ const k=window.__getCurrentPotKey(); if(k) return lc(String(k)); } }catch(_){}
@@ -49,6 +94,7 @@
     return null;
   }
   function rosterForPot(){
+    if (__ROSTER_SET instanceof Set && __ROSTER_SET.size) return __ROSTER_SET;
     const map=loadPotMap();
     const exact=currentPotKeyExact();
     if(exact && Array.isArray(map[exact]) && map[exact].length) return new Set(map[exact].map(lc));
@@ -167,7 +213,7 @@
         email.addEventListener('keyup', handler);
         email.addEventListener('blur', handler);
         const tourSel=document.querySelector('#j-select, #j-tournament, #active-tournaments, select[name*="tournament" i], select[size]');
-        if(tourSel) tourSel.addEventListener('change', handler);
+        if(tourSel) tourSel.addEventListener('change', handler); try{ tourSel.addEventListener('change', function(){ __ensureRosterLoaded(); }); }catch(_){}
         applyRule();
       }
     };
